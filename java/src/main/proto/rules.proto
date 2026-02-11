@@ -1,0 +1,69 @@
+// Custom option definitions for business rules.
+// This file IS committed to version control (unlike generated .proto files).
+syntax = "proto3";
+package rules;
+
+import "google/protobuf/descriptor.proto";
+
+option java_package = "dev.appget.rules";
+option java_outer_classname = "RulesProto";
+option java_multiple_files = true;
+
+// A single field condition (field operator value)
+message FieldCondition {
+  string field = 1;
+  string operator = 2;
+  string value = 3;
+}
+
+// Compound condition with AND/OR logic
+message CompoundRule {
+  string logic = 1;
+  repeated FieldCondition clauses = 2;
+}
+
+// Metadata requirement (e.g., SSO authentication, role level)
+message MetadataRequirement {
+  string category = 1;
+  repeated FieldCondition conditions = 2;
+}
+
+// Complete business rule definition
+message BusinessRule {
+  string name = 1;
+  bool blocking = 2;
+  string success_status = 3;
+  string failure_status = 4;
+  repeated FieldCondition simple_conditions = 5;
+  CompoundRule compound_conditions = 6;
+  repeated MetadataRequirement metadata_requirements = 7;
+}
+
+// Collection of business rules for a model/view
+message RuleSet {
+  repeated BusinessRule rules = 1;
+}
+
+// ---- Custom Field Options ----
+extend google.protobuf.FieldOptions {
+  optional int32 min_value = 50001;
+  optional int32 max_value = 50002;
+  optional int32 min_length = 50003;
+  optional int32 max_length = 50004;
+  optional bool immutable = 50005;
+}
+
+// ---- Custom Message Options ----
+extend google.protobuf.MessageOptions {
+  optional string domain = 70001;
+  optional bool auditable = 70002;
+  optional RuleSet rule_set = 70003;
+}
+
+// ---- Custom Method Options (for Phase 3: gRPC services) ----
+extend google.protobuf.MethodOptions {
+  optional string required_role = 60001;
+  optional bool check_ownership = 60002;
+  optional int32 max_per_day = 60003;
+  optional string requires_sso = 60004;
+}

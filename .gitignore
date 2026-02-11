@@ -1,0 +1,5 @@
+*.chat
+java/2026*.txt
+java/TEST*.md
+rust/
+tmp/

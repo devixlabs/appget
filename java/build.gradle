@@ -1,0 +1,221 @@
+plugins {
+    id 'java'
+    id 'application'
+    id 'com.google.protobuf' version '0.9.4'
+}
+
+java {
+    sourceCompatibility = JavaVersion.VERSION_25
+    targetCompatibility = JavaVersion.VERSION_25
+}
+
+application {
+    mainClass = 'dev.appget.RuleEngine'
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'org.yaml:snakeyaml:2.2'
+
+    // SQL parsing for schema.sql
+    implementation 'com.github.jsqlparser:jsqlparser:5.3'
+
+    // Gherkin parser for .feature files → specs.yaml conversion
+    implementation 'io.cucumber:gherkin:38.0.0'
+
+    // Protocol Buffers runtime (replaces Lombok for model classes)
+    implementation 'com.google.protobuf:protobuf-java:3.25.3'
+
+    // gRPC runtime
+    implementation 'io.grpc:grpc-protobuf:1.62.2'
+    implementation 'io.grpc:grpc-stub:1.62.2'
+    implementation 'io.grpc:grpc-netty-shaded:1.62.2'
+    compileOnly 'org.apache.tomcat:annotations-api:6.0.53'
+
+    // Lombok for specification context POJOs (still used by SpecificationGenerator)
+    compileOnly 'org.projectlombok:lombok:1.18.38'
+    annotationProcessor 'org.projectlombok:lombok:1.18.38'
+
+    // Log4j2 for logging
+    implementation 'org.apache.logging.log4j:log4j-api:2.23.1'
+    implementation 'org.apache.logging.log4j:log4j-core:2.23.1'
+
+    // JUnit 5 (Jupiter)
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.11.3'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.11.3'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.11.3'
+}
+
+// Protobuf plugin configuration with gRPC
+protobuf {
+    protoc {
+        artifact = "com.google.protobuf:protoc:3.25.3"
+    }
+    plugins {
+        grpc {
+            artifact = "io.grpc:protoc-gen-grpc-java:1.62.2"
+        }
+    }
+    generateProtoTasks {
+        all().each { task ->
+            task.plugins {
+                grpc {}
+            }
+        }
+    }
+}
+
+sourceSets {
+    main {
+        java {
+            // Use srcDir (adds) not srcDirs= (replaces) to preserve protobuf plugin's output dir
+            srcDir 'src/main/java-generated'
+        }
+        proto {
+            srcDir 'src/main/proto'
+        }
+        resources {
+            // Exclude .proto files from resources to avoid duplicates with protobuf plugin
+            exclude '**/*.proto'
+        }
+    }
+}
+
+// ---- Build Pipeline ----
+// compileGenerators ──┬→ parseSchema (SQL + views → models.yaml)
+//                     ├→ featuresToSpecs (features/*.feature + metadata.yaml → specs.yaml)
+//                     │       ↓
+//                     ├→ sqlToProto (depends on featuresToSpecs)
+//                     │       ↓
+//                     │   generateProto (protoc: .proto → Java model classes)
+//                     ├→ generateSpecs (depends on featuresToSpecs + parseSchema)
+//                     └→ generateDescriptorRegistry
+//                            ↓
+//                        compileJava
+
+task compileGenerators(type: JavaCompile) {
+    group = 'build'
+    description = 'Compile generator classes only'
+    source = 'src/main/java/dev/appget/codegen'
+    classpath = configurations.compileClasspath + configurations.annotationProcessor
+    destinationDirectory = file("${buildDir}/generators")
+}
+
+task featuresToSpecs(type: JavaExec) {
+    group = 'build'
+    description = 'Convert .feature files + metadata.yaml to specs.yaml'
+    mainClass = 'dev.appget.codegen.FeatureToSpecsConverter'
+    classpath = files(compileGenerators.destinationDirectory.get().getAsFile(), configurations.compileClasspath)
+    args = ['features', 'metadata.yaml', 'specs.yaml']
+    dependsOn 'compileGenerators'
+}
+
+task parseSchema(type: JavaExec) {
+    group = 'build'
+    description = 'Parse schema.sql and views.sql, generate models.yaml'
+    mainClass = 'dev.appget.codegen.SQLSchemaParser'
+    classpath = files(compileGenerators.destinationDirectory.get().getAsFile(), configurations.compileClasspath)
+    args = ['schema.sql', 'views.sql', 'models.yaml']
+    dependsOn 'compileGenerators'
+}
+
+task sqlToProto(type: JavaExec) {
+    group = 'build'
+    description = 'Convert schema.sql + views.sql + specs.yaml to .proto files'
+    mainClass = 'dev.appget.codegen.SchemaToProtoConverter'
+    classpath = files(compileGenerators.destinationDirectory.get().getAsFile(), configurations.compileClasspath)
+    args = ['schema.sql', 'views.sql', 'src/main/proto', 'specs.yaml']
+    dependsOn 'compileGenerators'
+    dependsOn 'featuresToSpecs'
+}
+
+// Make protobuf plugin's generateProto depend on our SQL-to-proto task
+afterEvaluate {
+    tasks.named('generateProto').configure {
+        dependsOn 'sqlToProto'
+    }
+}
+
+task generateSpecs(type: JavaExec) {
+    group = 'build'
+    description = 'Generate specification and metadata classes from YAML'
+    mainClass = 'dev.appget.codegen.SpecificationGenerator'
+    classpath = files(compileGenerators.destinationDirectory.get().getAsFile(), configurations.compileClasspath)
+
+    def specsFile = project.hasProperty('specsFile') ? project.property('specsFile') : 'specs.yaml'
+    args = [specsFile, 'models.yaml', 'src/main/java-generated']
+
+    dependsOn 'compileGenerators'
+    dependsOn 'parseSchema'
+    dependsOn 'featuresToSpecs'
+}
+
+task generateDescriptorRegistry(type: JavaExec) {
+    group = 'build'
+    description = 'Generate DescriptorRegistry from models.yaml'
+    mainClass = 'dev.appget.codegen.DescriptorRegistryGenerator'
+    classpath = files(compileGenerators.destinationDirectory.get().getAsFile(), configurations.compileClasspath)
+    args = ['models.yaml', 'src/main/java-generated']
+    dependsOn 'compileGenerators'
+    dependsOn 'parseSchema'
+}
+
+task generateOpenAPI(type: JavaExec) {
+    group = 'build'
+    description = 'Generate OpenAPI spec from .proto files (proto-first)'
+    mainClass = 'dev.appget.codegen.ProtoOpenAPIGenerator'
+    classpath = files(compileGenerators.destinationDirectory.get().getAsFile(), configurations.compileClasspath)
+    args = ['src/main/proto', 'openapi.yaml']
+    dependsOn 'sqlToProto'
+}
+
+task generateServer(type: JavaExec) {
+    group = 'build'
+    description = 'Generate Spring Boot server from models and specs'
+    mainClass = 'dev.appget.codegen.SpringBootServerGenerator'
+    classpath = files(compileGenerators.destinationDirectory.get().getAsFile(), configurations.compileClasspath)
+    args = ['models.yaml', 'specs.yaml', 'generated-server']
+    dependsOn 'compileGenerators'
+    dependsOn 'parseSchema'
+    dependsOn 'generateSpecs'
+}
+
+task generateTestScript(type: JavaExec) {
+    group = 'build'
+    description = 'Generate API test script from OpenAPI spec'
+    mainClass = 'dev.appget.codegen.OpenAPITestScriptGenerator'
+    classpath = files(compileGenerators.destinationDirectory.get().getAsFile(), configurations.compileClasspath)
+    args = ['openapi.yaml', 'test-api.sh']
+    dependsOn 'generateOpenAPI'
+}
+
+compileJava.dependsOn generateSpecs
+compileJava.dependsOn generateDescriptorRegistry
+compileJava.dependsOn 'generateProto'
+
+task cleanGenerated(type: Delete) {
+    group = 'build'
+    description = 'Remove generated code, proto files, and specs.yaml (preserves rules.proto)'
+    delete 'src/main/java-generated'
+    delete fileTree(dir: 'src/main/proto', include: ['*_models.proto', '*_views.proto', '*_services.proto'])
+    delete 'specs.yaml'
+}
+
+clean.dependsOn cleanGenerated
+
+// Avoid duplicate .proto files in resources (protobuf plugin adds them automatically)
+processResources {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+// Configure JUnit 5 testing
+test {
+    useJUnitPlatform()
+    testLogging {
+        events "passed", "skipped", "failed"
+        exceptionFormat = "full"
+    }
+}

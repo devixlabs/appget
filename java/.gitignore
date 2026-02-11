@@ -1,0 +1,36 @@
+# Build artifacts
+target/
+build/
+.gradle/
+*.jar
+*.war
+*.ear
+
+# Generated files - DO NOT COMMIT (regenerate from schema.sql + features)
+src/main/java-generated/
+src/main/proto/*_models.proto
+src/main/proto/*_views.proto
+src/main/proto/*_services.proto
+generated-server/
+models.yaml
+specs.yaml
+openapi.yaml
+test-api.sh
+
+# IDE files
+.idea/
+.vscode/
+*.iml
+.classpath
+.project
+.settings/
+eclipse.preferences
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Local configuration
+*.local
+.env.local
+tmp/
