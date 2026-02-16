@@ -2,6 +2,8 @@
 target/
 build/
 .gradle/
+gradle/
+gradlew*
 *.jar
 *.war
 *.ear

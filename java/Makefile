@@ -1,7 +1,12 @@
-.PHONY: all help features-to-specs parse-schema generate-proto generate-specs generate-registry generate-openapi generate-server generate-test-script generate build test run run-server test-api clean
+# Note to LLMs, DO NOT MUDDY THIS FILE UP, instead create a bash script if you're hacking on something to please your user overlords.
+
+.PHONY: all help setup features-to-specs parse-schema generate-proto generate-specs generate-registry generate-openapi generate-server generate-test-script generate build test run run-server test-api clean
+
+GRADLE_VERSION := 9.3.1
 
 help:
 	@echo "Available commands:"
+	@echo "  make setup             - Initialize Gradle wrapper (Java 25 support)"
 	@echo "  make help              - Show this help message"
 	@echo "  make all               - Build everything (clean, generate, test, build)"
 	@echo "  make features-to-specs - Convert .feature files + metadata.yaml to specs.yaml"
@@ -20,79 +25,83 @@ help:
 	@echo "  make test-api          - Run the generated API test script (requires server running)"
 	@echo "  make clean             - Remove build artifacts and generated code"
 
+# Initialize gradle wrapper (required for Java 25 support)
+setup:
+	@if [ ! -f "gradlew" ]; then \
+		echo "Initializing Gradle wrapper with version $(GRADLE_VERSION)..."; \
+		gradle wrapper --gradle-version=$(GRADLE_VERSION); \
+		chmod +x gradlew; \
+	fi
+
 # Default target - build everything
-all: clean generate test build
+all: setup clean generate test build
 
 # Convert .feature files + metadata.yaml to specs.yaml
-features-to-specs:
+features-to-specs: setup
 	@echo "Converting .feature files + metadata.yaml to specs.yaml..."
-	@/opt/gradle/gradle-9.3.1/bin/gradle featuresToSpecs
+	@./gradlew featuresToSpecs
 
 # Parse schema.sql + views.sql and generate models.yaml
-parse-schema:
+parse-schema: setup
 	@echo "Parsing schema.sql + views.sql and generating models.yaml..."
-	@/opt/gradle/gradle-9.3.1/bin/gradle parseSchema
+	@./gradlew parseSchema
 
 # Full build: compile manual code, generate from YAML, compile everything
-build:
+build: setup
 	@echo "Building with Gradle (includes parsing schema, generating specs and compiling)..."
-	@/opt/gradle/gradle-9.3.1/bin/gradle build
+	@./gradlew build
 
 # Generate protobuf models: schema.sql -> .proto -> protoc -> Java classes
-generate-proto:
+generate-proto: setup
 	@echo "Generating protobuf models from schema.sql..."
-	@/opt/gradle/gradle-9.3.1/bin/gradle generateProto
+	@./gradlew generateProto
 
 # Generate specifications only
-generate-specs:
+generate-specs: setup
 	@echo "Generating specifications from YAML..."
-	@/opt/gradle/gradle-9.3.1/bin/gradle generateSpecs -PspecsFile=specs.yaml
+	@./gradlew generateSpecs -PspecsFile=specs.yaml
 
 # Generate DescriptorRegistry from models.yaml
-generate-registry:
+generate-registry: setup
 	@echo "Generating DescriptorRegistry from models.yaml..."
-	@/opt/gradle/gradle-9.3.1/bin/gradle generateDescriptorRegistry
+	@./gradlew generateDescriptorRegistry
 
 # Generate OpenAPI spec only
-generate-openapi:
+generate-openapi: setup
 	@echo "Generating OpenAPI spec from YAML..."
-	@/opt/gradle/gradle-9.3.1/bin/gradle generateOpenAPI
-
-# Generate models (protoc), specs, registry, and OpenAPI
-generate: features-to-specs generate-proto generate-specs generate-registry generate-openapi
+	@./gradlew generateOpenAPI
 
 # Generate Spring Boot server only
-generate-server:
+generate-server: setup
 	@echo "✓ Generating Spring Boot server from models and specs..."
-	@/opt/gradle/gradle-9.3.1/bin/gradle generateServer
+	@./gradlew generateServer
 
-# Generate API test script from OpenAPI spec
-generate-test-script:
-	@echo "✓ Generating API test script from OpenAPI spec..."
-	@/opt/gradle/gradle-9.3.1/bin/gradle generateTestScript
+# Generate models (protoc), specs, registry, and OpenAPI
+generate: features-to-specs generate-proto generate-specs generate-registry generate-openapi generate-server
 
 # Run the application
 run: build
-	@/opt/gradle/gradle-9.3.1/bin/gradle run
+	@./gradlew run
 
 # Run unit tests
-test:
-	@/opt/gradle/gradle-9.3.1/bin/gradle test
+test: setup
+	@./gradlew test
 
-# Build and run the Spring Boot server (requires make generate-server first)
-run-server: build
+# Build and run the Spring Boot server
+run-server: build generate-server
 	@echo "✓ Starting Spring Boot server..."
-	@cd generated-server && /opt/gradle/gradle-9.3.1/bin/gradle bootRun
+	@cd generated-server && ../gradlew bootRun
+
+# Generate API test script from OpenAPI spec
+generate-test-script: setup
+	@echo "✓ Generating API test script from OpenAPI spec..."
+	@./gradlew generateTestScript
 
 # Run API test script (requires server to be running)
-test-api:
-	@if [ ! -f test-api.sh ]; then \
-		echo "✗ test-api.sh not found. Run 'make generate-test-script' first."; \
-		exit 1; \
-	fi
+test-api: generate-test-script
 	@echo "✓ Running API tests..."
 	@./test-api.sh
 
 # Clean build artifacts and generated code
-clean:
-	@/opt/gradle/gradle-9.3.1/bin/gradle clean
+clean: setup
+	@./gradlew clean
