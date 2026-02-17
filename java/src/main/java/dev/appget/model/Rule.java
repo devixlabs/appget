@@ -18,24 +18,8 @@ public class Rule {
     private String targetType;
     private Map<String, List<Specification>> metadataRequirements;
 
-    public Rule(String name, Specification spec, String successStatus, String failureStatus) {
-        logger.debug("Creating Rule '{}' with Specification, successStatus={}, failureStatus={}", name, successStatus, failureStatus);
-        this.name = name;
-        this.spec = spec;
-        this.successStatus = successStatus;
-        this.failureStatus = failureStatus;
-    }
-
-    public Rule(String name, CompoundSpecification spec, String successStatus, String failureStatus) {
-        logger.debug("Creating Rule '{}' with CompoundSpecification, successStatus={}, failureStatus={}", name, successStatus, failureStatus);
-        this.name = name;
-        this.spec = spec;
-        this.successStatus = successStatus;
-        this.failureStatus = failureStatus;
-    }
-
-    public Rule(String name, Object spec, String successStatus, String failureStatus,
-                String targetType, Map<String, List<Specification>> metadataRequirements) {
+    private Rule(String name, Object spec, String successStatus, String failureStatus,
+                 String targetType, Map<String, List<Specification>> metadataRequirements) {
         logger.debug("Creating Rule '{}' with targetType={}, metadataRequirements={}, successStatus={}, failureStatus={}",
                 name, targetType, metadataRequirements != null ? metadataRequirements.size() : 0, successStatus, failureStatus);
         this.name = name;
@@ -44,6 +28,66 @@ public class Rule {
         this.failureStatus = failureStatus;
         this.targetType = targetType;
         this.metadataRequirements = metadataRequirements;
+    }
+
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    public static class Builder {
+        private String name;
+        private Object spec;
+        private String successStatus;
+        private String failureStatus;
+        private String targetType;
+        private Map<String, List<Specification>> metadataRequirements;
+
+        private Builder() {
+        }
+
+        public Builder name(String name) {
+            this.name = name;
+            return this;
+        }
+
+        public Builder spec(Specification spec) {
+            this.spec = spec;
+            return this;
+        }
+
+        public Builder spec(CompoundSpecification spec) {
+            this.spec = spec;
+            return this;
+        }
+
+        public Builder spec(Object spec) {
+            this.spec = spec;
+            return this;
+        }
+
+        public Builder successStatus(String successStatus) {
+            this.successStatus = successStatus;
+            return this;
+        }
+
+        public Builder failureStatus(String failureStatus) {
+            this.failureStatus = failureStatus;
+            return this;
+        }
+
+        public Builder targetType(String targetType) {
+            this.targetType = targetType;
+            return this;
+        }
+
+        public Builder metadataRequirements(Map<String, List<Specification>> metadataRequirements) {
+            this.metadataRequirements = metadataRequirements;
+            return this;
+        }
+
+        public Rule build() {
+            return new Rule(name, spec, successStatus, failureStatus, targetType, metadataRequirements);
+        }
     }
 
     public <T> String evaluate(T target) {
@@ -82,10 +126,12 @@ public class Rule {
         // Evaluate the main spec
         logger.debug("Evaluating main specification for rule '{}'", name);
         boolean satisfied;
-        if (spec instanceof Specification s) {
+        if (spec instanceof Specification) {
+            Specification s = (Specification) spec;
             logger.debug("Rule '{}' has Specification, evaluating...", name);
             satisfied = s.isSatisfiedBy(target);
-        } else if (spec instanceof CompoundSpecification cs) {
+        } else if (spec instanceof CompoundSpecification) {
+            CompoundSpecification cs = (CompoundSpecification) spec;
             logger.debug("Rule '{}' has CompoundSpecification, evaluating...", name);
             satisfied = cs.isSatisfiedBy(target);
         } else {

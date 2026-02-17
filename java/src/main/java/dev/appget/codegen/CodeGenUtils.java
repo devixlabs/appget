@@ -9,19 +9,31 @@ public class CodeGenUtils {
     }
 
     public static String lowerFirst(String str) {
-        return str == null || str.isEmpty() ? str : Character.toLowerCase(str.charAt(0)) + str.substring(1);
+        if (str == null || str.isEmpty()) {
+            return str;
+        }
+        return Character.toLowerCase(str.charAt(0)) + str.substring(1);
     }
 
     public static String capitalize(String str) {
-        return str == null || str.isEmpty() ? str : Character.toUpperCase(str.charAt(0)) + str.substring(1);
+        if (str == null || str.isEmpty()) {
+            return str;
+        }
+        return Character.toUpperCase(str.charAt(0)) + str.substring(1);
     }
 
     public static String camelToKebab(String str) {
-        return str == null ? null : str.replaceAll("([a-z])([A-Z])", "$1-$2").toLowerCase();
+        if (str == null) {
+            return null;
+        }
+        return str.replaceAll("([a-z])([A-Z])", "$1-$2").toLowerCase();
     }
 
     public static String camelToSnake(String str) {
-        return str == null ? null : str.replaceAll("([a-z])([A-Z])", "$1_$2").toLowerCase();
+        if (str == null) {
+            return null;
+        }
+        return str.replaceAll("([a-z])([A-Z])", "$1_$2").toLowerCase();
     }
 
     public static int findMatchingParen(String sql, int openParen) {

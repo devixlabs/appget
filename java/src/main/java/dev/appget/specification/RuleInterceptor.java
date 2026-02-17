@@ -47,13 +47,14 @@ public class RuleInterceptor {
             Map<String, List<Specification>> metadataReqs = buildMetadataRequirements(br);
             String targetType = descriptor.getName();
 
-            Rule rule = new Rule(
-                    br.getName(),
-                    spec,
-                    br.getSuccessStatus(),
-                    br.getFailureStatus(),
-                    targetType,
-                    metadataReqs);
+            Rule rule = Rule.builder()
+                    .name(br.getName())
+                    .spec(spec)
+                    .successStatus(br.getSuccessStatus())
+                    .failureStatus(br.getFailureStatus())
+                    .targetType(targetType)
+                    .metadataRequirements(metadataReqs)
+                    .build();
 
             rules.add(rule);
             logger.debug("Created rule '{}' for target '{}'", br.getName(), targetType);

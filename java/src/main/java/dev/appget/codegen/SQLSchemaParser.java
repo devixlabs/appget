@@ -17,41 +17,48 @@ public class SQLSchemaParser {
 
     private static final Logger logger = LogManager.getLogger(SQLSchemaParser.class);
     private static final String ORGANIZATION = "appget";
-    private static final Map<String, String> SQL_TO_JAVA_TYPE = new HashMap<>();
-    private static final Map<String, String> DOMAIN_MAPPING = new HashMap<>();
-    private static final Map<String, String> VIEW_DOMAIN_MAPPING = new HashMap<>();
+    private static final Map<String, String> SQL_TO_JAVA_TYPE = createSqlToJavaTypeMapping();
+    private static final Map<String, String> DOMAIN_MAPPING = createDomainMapping();
+    private static final Map<String, String> VIEW_DOMAIN_MAPPING = createViewDomainMapping();
 
-    static {
-        // SQL type -> Java type mapping
-        SQL_TO_JAVA_TYPE.put("VARCHAR", "String");
-        SQL_TO_JAVA_TYPE.put("CHAR", "String");
-        SQL_TO_JAVA_TYPE.put("TEXT", "String");
-        SQL_TO_JAVA_TYPE.put("INT", "int");
-        SQL_TO_JAVA_TYPE.put("INTEGER", "int");
-        SQL_TO_JAVA_TYPE.put("BIGINT", "long");
-        SQL_TO_JAVA_TYPE.put("LONG", "long");
-        SQL_TO_JAVA_TYPE.put("SMALLINT", "int");
-        SQL_TO_JAVA_TYPE.put("DECIMAL", "BigDecimal");
-        SQL_TO_JAVA_TYPE.put("NUMERIC", "BigDecimal");
-        SQL_TO_JAVA_TYPE.put("FLOAT", "double");
-        SQL_TO_JAVA_TYPE.put("DOUBLE", "double");
-        SQL_TO_JAVA_TYPE.put("REAL", "double");
-        SQL_TO_JAVA_TYPE.put("DATE", "LocalDate");
-        SQL_TO_JAVA_TYPE.put("TIMESTAMP", "LocalDateTime");
-        SQL_TO_JAVA_TYPE.put("DATETIME", "LocalDateTime");
-        SQL_TO_JAVA_TYPE.put("BOOLEAN", "boolean");
-        SQL_TO_JAVA_TYPE.put("BOOL", "boolean");
+    private static Map<String, String> createSqlToJavaTypeMapping() {
+        Map<String, String> map = new HashMap<>();
+        map.put("VARCHAR", "String");
+        map.put("CHAR", "String");
+        map.put("TEXT", "String");
+        map.put("INT", "int");
+        map.put("INTEGER", "int");
+        map.put("BIGINT", "long");
+        map.put("LONG", "long");
+        map.put("SMALLINT", "int");
+        map.put("DECIMAL", "BigDecimal");
+        map.put("NUMERIC", "BigDecimal");
+        map.put("FLOAT", "double");
+        map.put("DOUBLE", "double");
+        map.put("REAL", "double");
+        map.put("DATE", "LocalDate");
+        map.put("TIMESTAMP", "LocalDateTime");
+        map.put("DATETIME", "LocalDateTime");
+        map.put("BOOLEAN", "boolean");
+        map.put("BOOL", "boolean");
+        return map;
+    }
 
-        // Table name -> Domain mapping
-        DOMAIN_MAPPING.put("roles", "appget");
-        DOMAIN_MAPPING.put("employees", "appget");
-        DOMAIN_MAPPING.put("departments", "hr");
-        DOMAIN_MAPPING.put("salaries", "hr");
-        DOMAIN_MAPPING.put("invoices", "finance");
+    private static Map<String, String> createDomainMapping() {
+        Map<String, String> map = new HashMap<>();
+        map.put("roles", "appget");
+        map.put("employees", "appget");
+        map.put("departments", "hr");
+        map.put("salaries", "hr");
+        map.put("invoices", "finance");
+        return map;
+    }
 
-        // View name -> Domain mapping
-        VIEW_DOMAIN_MAPPING.put("employee_salary_view", "appget");
-        VIEW_DOMAIN_MAPPING.put("department_budget_view", "hr");
+    private static Map<String, String> createViewDomainMapping() {
+        Map<String, String> map = new HashMap<>();
+        map.put("employee_salary_view", "appget");
+        map.put("department_budget_view", "hr");
+        return map;
     }
 
     // Stores parsed table columns for view resolution

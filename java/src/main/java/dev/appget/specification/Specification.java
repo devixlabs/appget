@@ -22,7 +22,8 @@ public class Specification {
 
     public <T> boolean isSatisfiedBy(T target) {
         logger.debug("Entering isSatisfiedBy for target class: {}", target.getClass().getName());
-        if (target instanceof MessageOrBuilder mob) {
+        if (target instanceof MessageOrBuilder) {
+            MessageOrBuilder mob = (MessageOrBuilder) target;
             return isSatisfiedByDescriptor(mob);
         }
         return isSatisfiedByReflection(target);
@@ -46,15 +47,7 @@ public class Specification {
 
     private <T> boolean isSatisfiedByReflection(T target) {
         try {
-            String getterName = "get" + Character.toUpperCase(field.charAt(0)) + field.substring(1);
-            Method getter;
-            try {
-                getter = target.getClass().getMethod(getterName);
-            } catch (NoSuchMethodException e) {
-                logger.debug("Getter method {} not found, trying is* prefix", getterName);
-                getter = target.getClass().getMethod("is" + Character.toUpperCase(field.charAt(0)) + field.substring(1));
-            }
-            Object actual = getter.invoke(target);
+            Object actual = getFieldValueViaReflection(target, field);
             logger.debug("Retrieved field value via reflection: {} = {}", field, actual);
             boolean result = compare(actual, value, operator);
             logger.debug("Specification evaluation result: {}", result);
@@ -65,75 +58,119 @@ public class Specification {
         }
     }
 
+    private <T> Object getFieldValueViaReflection(T target, String fieldName) throws Exception {
+        String getterName = "get" + Character.toUpperCase(fieldName.charAt(0)) + fieldName.substring(1);
+        Method getter;
+        try {
+            getter = target.getClass().getMethod(getterName);
+        } catch (NoSuchMethodException e) {
+            logger.debug("Getter method {} not found, trying is* prefix", getterName);
+            getter = target.getClass().getMethod("is" + Character.toUpperCase(fieldName.charAt(0)) + fieldName.substring(1));
+        }
+        return getter.invoke(target);
+    }
+
     private boolean compare(Object actual, Object expected, String operator) {
         if (actual == null || expected == null) {
-            if ("==".equals(operator) || "equals".equals(operator)) {
-                return actual == expected;
-            } else if ("!=".equals(operator)) {
-                return actual != expected;
-            }
-            return false;
+            return compareNulls(actual, expected, operator);
         }
 
-        // BigDecimal comparison
         if (actual instanceof BigDecimal || expected instanceof BigDecimal) {
-            BigDecimal actualBD = toBigDecimal(actual);
-            BigDecimal expectedBD = toBigDecimal(expected);
-            if (actualBD != null && expectedBD != null) {
-                int cmp = actualBD.compareTo(expectedBD);
-                return evalComparison(cmp, operator);
-            }
-            return false;
+            return compareBigDecimals(actual, expected, operator);
         }
 
-        // Boolean comparison
         if (actual instanceof Boolean || expected instanceof Boolean) {
-            boolean a = toBoolean(actual);
-            boolean b = toBoolean(expected);
-            return switch (operator) {
-                case "==", "equals" -> a == b;
-                case "!=" -> a != b;
-                default -> false;
-            };
+            return compareBooleans(actual, expected, operator);
         }
 
-        // Number comparison (int, long, double, Integer, Long, Double)
         if (actual instanceof Number && expected instanceof Number) {
-            double a = ((Number) actual).doubleValue();
-            double b = ((Number) expected).doubleValue();
-            int cmp = Double.compare(a, b);
+            return compareNumbers(actual, expected, operator);
+        }
+
+        return compareStrings(actual, expected, operator);
+    }
+
+    private boolean compareNulls(Object actual, Object expected, String operator) {
+        if (operator.equals("==") || operator.equals("equals")) {
+            return actual == expected;
+        } else if (operator.equals("!=")) {
+            return actual != expected;
+        }
+        return false;
+    }
+
+    private boolean compareBigDecimals(Object actual, Object expected, String operator) {
+        BigDecimal actualBD = toBigDecimal(actual);
+        BigDecimal expectedBD = toBigDecimal(expected);
+        if (actualBD != null && expectedBD != null) {
+            int cmp = actualBD.compareTo(expectedBD);
             return evalComparison(cmp, operator);
         }
+        return false;
+    }
 
-        // String / fallback comparison
+    private boolean compareBooleans(Object actual, Object expected, String operator) {
+        boolean a = toBoolean(actual);
+        boolean b = toBoolean(expected);
+        if (operator.equals("==") || operator.equals("equals")) {
+            return a == b;
+        } else if (operator.equals("!=")) {
+            return a != b;
+        }
+        return false;
+    }
+
+    private boolean compareNumbers(Object actual, Object expected, String operator) {
+        double a = ((Number) actual).doubleValue();
+        double b = ((Number) expected).doubleValue();
+        int cmp = Double.compare(a, b);
+        return evalComparison(cmp, operator);
+    }
+
+    private boolean compareStrings(Object actual, Object expected, String operator) {
         String actualStr = actual.toString();
         String expectedStr = expected.toString();
-        return switch (operator) {
-            case "==" , "equals" -> actualStr.equals(expectedStr);
-            case "!=" -> !actualStr.equals(expectedStr);
-            case ">" -> actualStr.compareTo(expectedStr) > 0;
-            case "<" -> actualStr.compareTo(expectedStr) < 0;
-            case ">=" -> actualStr.compareTo(expectedStr) >= 0;
-            case "<=" -> actualStr.compareTo(expectedStr) <= 0;
-            default -> false;
-        };
+        if (operator.equals("==") || operator.equals("equals")) {
+            return actualStr.equals(expectedStr);
+        } else if (operator.equals("!=")) {
+            return !actualStr.equals(expectedStr);
+        } else if (operator.equals(">")) {
+            return actualStr.compareTo(expectedStr) > 0;
+        } else if (operator.equals("<")) {
+            return actualStr.compareTo(expectedStr) < 0;
+        } else if (operator.equals(">=")) {
+            return actualStr.compareTo(expectedStr) >= 0;
+        } else if (operator.equals("<=")) {
+            return actualStr.compareTo(expectedStr) <= 0;
+        }
+        return false;
     }
 
     private boolean evalComparison(int cmp, String operator) {
-        return switch (operator) {
-            case ">" -> cmp > 0;
-            case "<" -> cmp < 0;
-            case ">=" -> cmp >= 0;
-            case "<=" -> cmp <= 0;
-            case "==", "equals" -> cmp == 0;
-            case "!=" -> cmp != 0;
-            default -> false;
-        };
+        if (operator.equals(">")) {
+            return cmp > 0;
+        } else if (operator.equals("<")) {
+            return cmp < 0;
+        } else if (operator.equals(">=")) {
+            return cmp >= 0;
+        } else if (operator.equals("<=")) {
+            return cmp <= 0;
+        } else if (operator.equals("==") || operator.equals("equals")) {
+            return cmp == 0;
+        } else if (operator.equals("!=")) {
+            return cmp != 0;
+        }
+        return false;
     }
 
     private BigDecimal toBigDecimal(Object obj) {
-        if (obj instanceof BigDecimal bd) return bd;
-        if (obj instanceof Number n) return BigDecimal.valueOf(n.doubleValue());
+        if (obj instanceof BigDecimal) {
+            return (BigDecimal) obj;
+        }
+        if (obj instanceof Number) {
+            Number n = (Number) obj;
+            return BigDecimal.valueOf(n.doubleValue());
+        }
         try {
             return new BigDecimal(obj.toString());
         } catch (NumberFormatException e) {
@@ -142,7 +179,9 @@ public class Specification {
     }
 
     private boolean toBoolean(Object obj) {
-        if (obj instanceof Boolean b) return b;
+        if (obj instanceof Boolean) {
+            return (Boolean) obj;
+        }
         return Boolean.parseBoolean(obj.toString());
     }
 

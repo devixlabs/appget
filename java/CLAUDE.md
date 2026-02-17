@@ -131,6 +131,72 @@ Step 7: build (depends on test)
 
 ---
 
+## Portability: Avoiding Java-Specific Patterns
+
+**Critical**: appget.dev/java is a code generation platform targeting Go, Python, and Ruby. To keep generated code and examples portable across languages, avoid these Java idioms:
+
+### Anti-Patterns to Avoid
+
+| Anti-Pattern | Problem | Use Instead |
+|--------------|---------|-------------|
+| **Switch expressions** (`case -> value`) | Java 14+ only, no equivalent in Go/Python/Ruby | if-else chains |
+| **Pattern matching vars** (`instanceof Type var`) | Java 25+ only, requires explicit casting in other languages | Explicit casting: `Type var = (Type) obj` |
+| **Static initialization blocks** (`static { map.put(...) }`) | Not portable; replaced by package-level initialization in Go/Python/Ruby | Static factory methods returning initialized maps |
+| **Method overloading** | Not supported in Python/Ruby; confusing in Go/Rust | Builder pattern for multiple constructor signatures |
+
+### Examples
+
+```java
+// ❌ Not portable: switch expression
+return switch (operator) {
+    case "==" -> true;
+    case "!=" -> false;
+    default -> null;
+};
+
+// ✅ Portable: if-else
+if (operator.equals("==")) {
+    return true;
+} else if (operator.equals("!=")) {
+    return false;
+}
+return null;
+```
+
+```java
+// ❌ Not portable: pattern matching variable
+if (target instanceof MessageOrBuilder mob) {
+    return evaluate(mob);
+}
+
+// ✅ Portable: explicit casting
+if (target instanceof MessageOrBuilder) {
+    MessageOrBuilder mob = (MessageOrBuilder) target;
+    return evaluate(mob);
+}
+```
+
+```java
+// ❌ Not portable: static block
+private static final Map<String, String> TYPES = new HashMap<>();
+static {
+    TYPES.put("VARCHAR", "String");
+    TYPES.put("INT", "int");
+}
+
+// ✅ Portable: static factory method
+private static final Map<String, String> TYPES = createTypeMapping();
+
+private static Map<String, String> createTypeMapping() {
+    Map<String, String> map = new HashMap<>();
+    map.put("VARCHAR", "String");
+    map.put("INT", "int");
+    return map;
+}
+```
+
+---
+
 ## SQL Schema-First Design
 
 ### Why Schema-First?
@@ -469,6 +535,22 @@ curl -X POST http://localhost:8080/employees \
 ---
 
 ## Development Workflow
+
+### Large-Scale Refactoring Workflow
+
+When refactoring across multiple files (e.g., updating patterns, simplifying code, improving portability):
+
+1. **Plan with tasks**: Use `TaskCreate` to define each logical change (e.g., "Replace switch expressions in Specification.java")
+2. **Group by file**: One task per source file, one final test task (easier to track progress)
+3. **Use precise string matching**: When replacing patterns, use `replace_all: true` with exact strings to avoid partial matches across test files
+4. **Edit dependencies**: Run edits in order (e.g., update core files before test files that import them)
+5. **Test after groups**: Run `make test` after each file group (not after each edit) to catch issues early
+6. **Preserve logging**: Do NOT remove logging during refactoring—Log4j2 debugging is critical for troubleshooting
+7. **Final validation**: Run `make clean && make all` to ensure generated code still integrates correctly after all changes
+
+**Example workflow**: Refactoring 7 patterns across 5 files → 7 tasks (one per pattern) + 1 test task = 8 total, all tracked
+
+---
 
 ### Adding a New Table
 
