@@ -23,74 +23,77 @@ LAYER 0: HUMAN-FRIENDLY BUSINESS RULES (Source of Truth)
 ┌─────────────────┐
 │   specs.yaml    │  ← GENERATED (git-ignored)
 │  (rules + meta) │
-└─────┬───────┬──┘
+└─────┬───────┬───┘
       │       │
-LAYER 1: SCHEMA SOURCE OF TRUTH                │       │
-┌─────────────────┐  ┌─────────────────┐       │       │
-│   schema.sql    │  │   views.sql     │       │       │
-│  (SQL DDL)      │  │  (SQL views)    │       │       │
-└────────┬────────┘  └────────┬────────┘       │       │
-         │                    │                │       │
-         └────────┬───────────┘                │       │
-                  │                            │       │
-                  │ SQLSchemaParser             │       │
-                  │ (regex-based, multi-dialect)│       │
-                  ↓                            │       │
-LAYER 2: INTERMEDIATE REPRESENTATION           │       │
-┌─────────────────┐                           │       │
-│  models.yaml    │  ← Auto-generated         │       │
-└────────┬────────┘                           │       │
-         │                                    │       │
-         │ SchemaToProtoConverter ◄────────────┘       │
-         │ (SQL + specs → .proto with rules)          │
-         ↓                                            │
-┌─────────────────────────────────┐                   │
-│  .proto files (per domain)      │                   │
-│  appget_models.proto            │                   │
-│  hr_models.proto                │                   │
-│  finance_models.proto           │                   │
-│  *_views.proto, *_services.proto│                   │
-│  rules.proto (custom options)   │                   │
-└────────┬────────────────────────┘                   │
-         │                                            │
-    ┌────┴──────────────┐                             │
-    │                   │                             │
-    │ protoc            │ ProtoOpenAPIGenerator       │
-    │ (protobuf         │ (proto-first REST)         │
-    │  compiler)        │                             │
-    ↓                   ↓                             │
-┌─────────────────┐  ┌──────────────────┐             │
-│  Java Protobuf  │  │  openapi.yaml    │             │
-│  Models + Views │  │  (REST spec)     │             │
-│  gRPC Stubs     │  └──────────────────┘             │
-│  (MessageOrBuilder)                                 │
-└────────┬────────────────────────┐                   │
-         │                        │                   │
-         │ (models.yaml)          │ (parallel)        │
-         └────────┐       ┌───────┘                   │
-                  │       │                           │
-         SpecificationGenerator ◄──────────────────────┘
-         (specs.yaml + models.yaml → Java specs)
-         ↓
+      │       │
+      │       └─────────────────────────────────────────┐
+      │                                                 │
+LAYER 1: SCHEMA SOURCE OF TRUTH                         │
+┌─────────────────┐  ┌─────────────────┐                │
+│   schema.sql    │  │   views.sql     │                │
+│  (SQL DDL)      │  │  (SQL views)    │                │
+└────────┬────────┘  └────────┬────────┘                │
+         │                    │                         │
+         └────────┬───────────┘                         │
+                  │                                     │
+                  │ SQLSchemaParser                     │
+                  │ (regex-based, multi-dialect)        │
+                  ↓                                     │
+LAYER 2: INTERMEDIATE REPRESENTATION                    │
+┌─────────────────┐                                     │
+│  models.yaml    │  ← Auto-generated                   │
+└────────┬────────┘                                     │
+         │                                              │
+         │ SchemaToProtoConverter ◄─────────────────────┤
+         │ (SQL + specs → .proto with rules)            │
+         ↓                                              │
+┌─────────────────────────────────┐                     │
+│  .proto files (per domain)      │                     │
+│  appget_models.proto            │                     │
+│  hr_models.proto                │                     │
+│  finance_models.proto           │                     │
+│  *_views.proto, *_services.proto│                     │
+│  rules.proto (custom options)   │                     │
+└────────┬────────────────────────┘                     │
+         │                                              │
+    ┌────┴──────────────┐                               │
+    │                   │                               │
+    │ protoc            │ ProtoOpenAPIGenerator         │
+    │ (protobuf         │ (proto-first REST)            │
+    │  compiler)        │                               │
+    ↓                   ↓                               │
+┌─────────────────┐  ┌──────────────────┐               │
+│  Java Protobuf  │  │  openapi.yaml    │               │
+│  Models + Views │  │  (REST spec)     │               │
+│  gRPC Stubs     │  └──────────────────┘               │
+│  (MessageOrBuilder)                                   │
+└────────┬────────────────────────┐                     │
+         │                        │                     │
+         │ (models.yaml)          │ (parallel)          │
+         └────────┐       ┌───────┘                     │
+                  │       │                             │
+                  └───────┤ SpecificationGenerator ◄────┘
+                          │ (specs.yaml + models.yaml → Java specs)
+                          ↓
 LAYER 3: SPECIFICATIONS + METADATA
 ┌─────────────────────────────────────────────────────────┐
-│  Generated specification classes                         │
+│  Generated specification classes                        │
 │  ├── EmployeeAgeCheck.java (simple condition)           │
 │  ├── SeniorManagerCheck.java (compound AND)             │
 │  ├── HighEarnerCheck.java (view-targeting)              │
 │  ├── AuthenticatedApproval.java (metadata-required)     │
 │  └── SalaryAmountCheck.java (cross-domain)              │
-│                                                          │
-│  Generated metadata POJOs (Lombok)                       │
-│  ├── SsoContext.java                                     │
-│  ├── RolesContext.java                                   │
-│  └── UserContext.java                                    │
+│                                                         │
+│  Generated metadata POJOs (Lombok)                      │
+│  ├── SsoContext.java                                    │
+│  ├── RolesContext.java                                  │
+│  └── UserContext.java                                   │
 └────────┬────────────────────────────────────────────────┘
          │
          ↓ DescriptorRegistry + RuleInterceptor + TestDataBuilder
 
 LAYER 4: RUNTIME EVALUATION (Descriptor-Based)
-┌──────────────────────────────────────────────────────────┐
+┌───────────────────────────────────────────────────────────┐
 │  Descriptor-driven business logic evaluation              │
 │  - DescriptorRegistry: dynamic model discovery            │
 │  - RuleInterceptor: loads rules from .proto custom opts   │
@@ -99,8 +102,8 @@ LAYER 4: RUNTIME EVALUATION (Descriptor-Based)
 │  - Compound rules: AND/OR logic                           │
 │  - Metadata rules: authorization checks before evaluation │
 │  - TestDataBuilder: DynamicMessage-based sample data      │
-│  Result: APPROVED / REJECTED / SENIOR_MANAGER / etc.     │
-└──────────────────────────────────────────────────────────┘
+│  Result: APPROVED / REJECTED / SENIOR_MANAGER / etc.      │
+└───────────────────────────────────────────────────────────┘
 ```
 
 ## Build Tasks
@@ -127,16 +130,16 @@ make all               # clean -> generate -> test -> build
 ### Gradle Tasks (Direct)
 
 ```bash
-gradle compileGenerators       # Compile generator classes only
-gradle featuresToSpecs         # Run FeatureToSpecsConverter (features + metadata -> specs.yaml)
-gradle parseSchema             # Run SQLSchemaParser (schema.sql + views.sql -> models.yaml)
-gradle generateProto           # Run SchemaToProtoConverter + protoc (SQL -> .proto -> Java)
-gradle generateSpecs           # Run SpecificationGenerator (specs.yaml + models.yaml -> Java)
+gradle compileGenerators           # Compile generator classes only
+gradle featuresToSpecs             # Run FeatureToSpecsConverter (features + metadata -> specs.yaml)
+gradle parseSchema                 # Run SQLSchemaParser (schema.sql + views.sql -> models.yaml)
+gradle generateProto               # Run SchemaToProtoConverter + protoc (SQL -> .proto -> Java)
+gradle generateSpecs               # Run SpecificationGenerator (specs.yaml + models.yaml -> Java)
 gradle generateDescriptorRegistry  # Run DescriptorRegistryGenerator (models.yaml -> DescriptorRegistry)
-gradle generateOpenAPI         # Run ProtoOpenAPIGenerator (.proto -> openapi.yaml)
-gradle compileJava             # Compile all (main + generated)
-gradle test                    # Run all 171 tests
-gradle build                   # Full build with packaging
+gradle generateOpenAPI             # Run ProtoOpenAPIGenerator (.proto -> openapi.yaml)
+gradle compileJava                 # Compile all (main + generated)
+gradle test                        # Run all src/tests
+gradle build                       # Full build with packaging
 ```
 
 ## Build Task Dependencies
@@ -152,15 +155,12 @@ compileGenerators (independent)
     │       ↓
     │   generateProto (protoc: .proto -> Java model classes)
     │       ↓
-    │       ├──────────────────────────────────────────────┐
-    │       │                                              │
-    │   generateSpecs                    generateOpenAPI
-    │       ↓ (depends on: featuresToSpecs               ↓ (depends on: sqlToProto)
-    │       │   + parseSchema)
-    │
+    │       ├─────────────────────────────────────────────────────┐
+    │       │                                                     │
+    │   generateSpecs                                         generateOpenAPI
+    │       ↓ (depends on: featuresToSpecs + parseSchema)         ↓ (depends on: sqlToProto)
     ├→ generateDescriptorRegistry (models.yaml -> DescriptorRegistry.java)
     │       ↓ (depends on: parseSchema)
-    │
     compileJava
         ↓ (depends on: generateSpecs, generateDescriptorRegistry, generateProto)
     test
@@ -207,35 +207,9 @@ compileGenerators (independent)
   - Metadata `requires:` conditions use camelCase (`roleLevel`, `authenticated`) for Lombok POJO reflection
 
 ### Generated Files
-
-```
-src/main/java-generated/
-├── dev/appget/
-│   ├── model/
-│   │   ├── Role.java
-│   │   └── Employee.java
-│   └── view/
-│       └── EmployeeSalaryView.java
-├── dev/appget/hr/
-│   ├── model/
-│   │   ├── Department.java
-│   │   └── Salary.java
-│   └── view/
-│       └── DepartmentBudgetView.java
-├── dev/appget/finance/model/
-│   └── Invoice.java
-└── dev/appget/specification/
-    ├── generated/
-    │   ├── EmployeeAgeCheck.java
-    │   ├── EmployeeRoleCheck.java
-    │   ├── SeniorManagerCheck.java
-    │   ├── HighEarnerCheck.java
-    │   ├── AuthenticatedApproval.java
-    │   └── SalaryAmountCheck.java
-    └── context/
-        ├── SsoContext.java
-        ├── RolesContext.java
-        └── UserContext.java
+ - Use `tree` if installed, else `ls -lR` will be good enough 
+```bash
+tree src/main/java-generated/
 ```
 
 ## Type Mapping
@@ -338,6 +312,7 @@ target:
 ## Dependencies
 
 - **Gherkin 38.0.0** - Cucumber Gherkin parser for `.feature` files
+- **Handlebars.java 4.5.0** - Template engine for structural code generation (selective use)
 - **Protobuf 3.25.3** - Protocol Buffers (protoc compiler + Java runtime)
 - **gRPC-Java 1.62.2** - gRPC service stubs (protoc-gen-grpc-java)
 - **JSQLParser 5.3** - SQL parsing and multi-dialect support
@@ -345,6 +320,36 @@ target:
 - **Lombok 1.18.38** - Metadata POJO annotations (SsoContext, RolesContext, etc.)
 - **Log4j2 2.23.1** - Logging
 - **JUnit 5 5.11.3** - Testing framework (171 tests)
+
+## Code Generation Approach
+
+Generators use two approaches, chosen based on output complexity:
+
+**Handlebars `.hbs` templates** (structural output with variable slots):
+| Generator | Template |
+|-----------|----------|
+| `DescriptorRegistryGenerator` | `templates/descriptor/DescriptorRegistry.java.hbs` |
+| `SpecificationGenerator` | `templates/specification/SimpleSpecification.java.hbs` |
+| `SpecificationGenerator` | `templates/specification/CompoundSpecification.java.hbs` |
+| `SpecificationGenerator` | `templates/specification/MetadataPojo.java.hbs` |
+
+**StringBuilder** (complex conditional logic):
+| Generator | Output |
+|-----------|--------|
+| `SpringBootServerGenerator` | Spring Boot REST API (controllers, services, repos) |
+| `ProtoOpenAPIGenerator` | OpenAPI 3.0 YAML |
+| `SchemaToProtoConverter` | .proto files |
+| `OpenAPITestScriptGenerator` | Test scripts |
+| `SQLSchemaParser` | models.yaml |
+| `FeatureToSpecsConverter` | specs.yaml |
+
+**Note on `{{{triple-braces}}}`**: Handlebars HTML-escapes `{{var}}` by default (e.g., `>` becomes `&gt;`). Since we generate Java code (not HTML), templates use `{{{var}}}` (triple-brace, raw output) for any value containing operators, generics, or special characters. This is a known maintenance gotcha — future template authors must use `{{{` for code values.
+
+Supporting classes:
+- `TemplateEngine.java` - Handlebars wrapper with file-based `.hbs` loader and registered helpers (lowerFirst, capitalize, camelToKebab, camelToSnake)
+- `CodeGenUtils.java` - Shared utility methods for string transforms, parenthesis matching, smart splitting
+
+Template files live in `src/main/resources/templates/` with `.hbs` extension.
 
 ## Key Features
 

@@ -4,7 +4,7 @@
 
 ## Project Overview
 
-**appget.dev** is a DevixLabs project focused on application generation, code scaffolding, and business rule specification. It contains multiple subsystems for different code generation purposes.
+**appget.dev** is a DevixLabs platform for application generation from structured domain specifications. It contains multiple subsystems for different code generation purposes.
 
 ## Subprojects
 
@@ -17,11 +17,12 @@ A comprehensive Java code generation system that makes your database schema the 
 **Key Features**:
 - Schema-first, protobuf-first architecture (SQL → .proto → protoc → Java)
 - Multi-dialect SQL support (MySQL, SQLite, Oracle, MSSQL, PostgreSQL)
-- Protobuf models with gRPC service stubs (5 services, 3 domains)
+- Protobuf models with gRPC service stubs
 - Proto-first OpenAPI 3.0 generation (full CRUD, security)
 - Descriptor-based rule evaluation (language-agnostic protobuf API)
 - Multi-domain support with namespace isolation
-- 147 comprehensive unit tests (100% passing, 12 suites)
+- Comprehensive test coverage (see test folder)
+- Handlebars templates for structural generators (StringBuilder for complex ones)
 - Production-ready build system (Gradle + Makefile)
 
 **Quick Start**:
@@ -44,40 +45,52 @@ make run              # Execute rule engine with generated models
 appget.dev/
 ├── java/                   # SQL-first Java code generation
 │   ├── schema.sql         # Source of truth (database DDL)
-│   ├── models.yaml        # Auto-generated (git-ignored)
-│   ├── specs.yaml         # Business rule specifications
+│   ├── features/          # Gherkin business rules
+│   ├── metadata.yaml      # Authorization context POJOs
 │   ├── README.md          # User documentation
 │   ├── CLAUDE.md          # Technical guidance
 │   ├── PIPELINE.md        # Pipeline architecture
-│   ├── TESTING.md         # Testing guide
 │   └── src/
-│       ├── main/java/     # Source code (generators, rule engine)
+│       ├── main/java/     # Generators and rule engine
 │       ├── main/java-generated/  # Generated models & specs
-│       └── test/java/     # 147 unit tests (12 suites)
-└── CLAUDE.md              # Project-level guidance
+│       ├── main/resources/templates/  # Handlebars .hbs templates (selective use)
+│       └── test/java/     # 171 unit tests (13 suites)
+├── CLAUDE.md              # Strategic guidance (language-agnostic)
+└── [Future subprojects]   # Python, Go, Rust, etc.
 ```
 
 ---
 
-## Prerequisites
+## Core Design Principles
 
-Before starting, verify your environment:
+### 1. Schema-First, Rule-First
+- **SQL schema** is the single source of truth for domain models
+- **Gherkin features** define business rules in human-readable BDD format
+- Generated code is **disposable** — regenerate from sources when schema changes
 
-```bash
-# Check Java version (must be 25+)
-java -version
-# Expected: openjdk 25.0.x or later
+### 2. Multi-Language Code Generation
+Each subproject generates code for a specific language independently:
+- **java/** → Protobuf models, Java specifications, Spring Boot servers
+- **[Future]** → Python, Go, Rust, etc.
 
-# Verify Gradle works
-make help
-# Expected: List of available make commands
+### 3. Descriptor-Based Runtime Evaluation
+Uses protobuf descriptors for dynamic model inspection rather than hard-coded class lists. Enables:
+- Generic rule evaluation across any model
+- Metadata-aware authorization (from HTTP headers)
+- Compound AND/OR business rules
+- View-targeted specifications
 
-# Optional: Verify all tests pass
-cd java && make test
-# Expected: 147/147 tests passing ✅
-```
+### 4. Comprehensive Testing
+Every subproject includes 100+ unit tests covering:
+- Code generation correctness
+- Type mapping validation
+- Rule evaluation
+- All tests must pass before deployment
 
-If any check fails, see [Troubleshooting](#troubleshooting) below.
+### 5. Git-Friendly Artifacts
+Only source files are committed:
+- ✅ Commit: `schema.sql`, `features/*.feature`, `metadata.yaml`, build configs, tests
+- ❌ Ignore: Generated YAML (models.yaml, specs.yaml), Java-generated code, build artifacts
 
 ---
 
@@ -85,215 +98,58 @@ If any check fails, see [Troubleshooting](#troubleshooting) below.
 
 ### For Java Subproject
 
+**Prerequisites:**
+```bash
+# Check Java version (must be 25+)
+java -version
+
+# Verify Gradle works
+cd java && make help
+```
+
+**Quick Start:**
 ```bash
 cd java
 
 # View available commands
 make help
 
-# Full pipeline test (recommended)
+# Full pipeline (recommended)
 make all
 
 # Individual steps
-make parse-schema      # SQL → YAML
-make generate         # YAML → Java
-make test             # Run all 147 tests
-make build            # Compile and package
-make run              # Execute application
+make features-to-specs   # .feature files + metadata → specs.yaml
+make parse-schema        # schema.sql → models.yaml
+make generate            # protobuf + specifications + OpenAPI
+make test                # 171 comprehensive tests
+make run                 # Execute rule engine demo
 ```
 
----
-
-## Key Principles
-
-### 1. Schema-First Design
-- Database schema is the single source of truth
-- All domain models generated from schema
-- Changes to models go through schema updates
-
-### 2. Deterministic Generation
-- Same schema input → Same code output (reproducible every time)
-- Version-controlled source: Only `schema.sql` and `specs.yaml` need to be in git
-- Generated code is **disposable** - never edit `src/main/java-generated/`, regenerate from sources instead
-- If your build fails, `make clean && make all` always fixes it
-
-### 3. Comprehensive Testing
-- 147 unit tests verify entire pipeline (12 suites)
-- Proto generation, specifications, rule engine, descriptors, server generation
-- All tests must pass before deployment
-
-### 4. Production-Ready
-- Zero technical debt in generated code
-- Full type safety with nullability handling
-- Clean architecture with clear separation of concerns
+**See**: [java/README.md](java/README.md) for complete user guide and examples
 
 ---
 
-## Technology Stack
+## Development Principles
 
-### Java Subproject
-- **Java**: 25+
-- **Build**: Gradle 9.3.1+
-- **Code Generation**:
-  - JSQLParser 5.3 (SQL parsing, multi-dialect)
-  - SchemaToProtoConverter + protoc (SQL → .proto → Java)
-  - ProtoOpenAPIGenerator (.proto → OpenAPI YAML)
-  - SpecificationGenerator (YAML → Specs)
-- **Protobuf/gRPC**:
-  - Protobuf 3.25.3, gRPC-Java 1.62.2
-- **Code Quality**:
-  - Lombok 1.18.38+ (metadata POJOs, Java 25 compatible)
-  - JUnit 5 (147 tests, 12 suites)
-- **Build Automation**: Makefile
+### For any subproject in appget.dev:
+
+1. **Understand the architecture** - Read the subproject's README.md first
+2. **Check the Makefile** - Use provided make commands for builds
+3. **Never edit generated code** - Modify sources (schema.sql, features/), regenerate
+4. **Run tests after changes** - `make test` verifies entire pipeline
+5. **Commit source files only** - generated code is git-ignored by design
 
 ---
 
-## Development Workflow
+## Documentation Navigation
 
-### Understanding the Pipeline
-
-The system automates: **You Edit** → **System Generates** → **System Tests** → **System Builds**
-
-```
-schema.sql (you edit)     ──┐
-                            ├──→ .proto files ──→ protoc ──→ Java models
-views.sql (you edit)      ──┘
-
-specs.yaml (you edit)     ──→ Specification classes ✓
-
-make all runs: clean → generate → test (147 tests) → build
-```
-
-### Adding a New Model or Feature
-
-1. **Edit schema.sql**:
-   ```sql
-   CREATE TABLE new_table (
-       id VARCHAR(50) NOT NULL,
-       name VARCHAR(100) NOT NULL
-   );
-   ```
-
-2. **Edit specs.yaml** (if adding business rules):
-   ```yaml
-   rules:
-     - name: MyNewRule
-       target:
-         type: model
-         name: NewTable
-         domain: appget
-       conditions:
-         - field: name
-           operator: "=="
-           value: "Active"
-   ```
-
-3. **Run the full pipeline**:
-   ```bash
-   cd java
-   make clean && make all
-   # This: cleans → generates → tests → builds
-   # All tests must pass ✅
-   ```
-
-4. **Verify generated code**:
-   ```bash
-   # Check Java models were created
-   ls -la src/main/java-generated/dev/appget/model/
-
-   # Run the demo
-   make run
-   ```
-
-5. **Commit your changes**:
-   ```bash
-   # Only commit SOURCE files (not generated code)
-   git add schema.sql specs.yaml
-   git commit -m "Add new_table model and MyNewRule"
-   ```
-
-### What NOT to Commit
-
-❌ `models.yaml` - Auto-generated from schema.sql
-❌ `src/main/java-generated/` - Auto-generated models and specs
-❌ `build/` directory - Build artifacts
-❌ `.gradle/` directory - Gradle cache
-
-These are already in `.gitignore`
-
----
-
-## After `make all` Succeeds
-
-If all 147 tests pass, here's what was generated:
-
-1. **Java Models** (protobuf):
-   ```
-   src/main/java-generated/dev/appget/model/
-   ```
-   Use these in your application code
-
-2. **OpenAPI Specification**:
-   ```
-   openapi.yaml
-   ```
-   REST API contract for frontend developers
-
-3. **Specification Classes**:
-   ```
-   src/main/java-generated/dev/appget/specification/
-   ```
-   Business rule implementation
-
-4. **Demo Execution**:
-   ```bash
-   make run
-   # Runs RuleEngine with generated models
-   # Shows which business rules pass/fail
-   ```
-
----
-
-## Full Development Cycle (Checklist)
-
-```bash
-# 1. Navigate to project
-cd java
-
-# 2. Modify your source files
-vim schema.sql    # Add/edit tables
-vim specs.yaml    # Add/edit rules
-
-# 3. Generate and verify
-make clean && make all
-# If tests fail: read error message, fix schema.sql/specs.yaml, re-run
-
-# 4. Test the rules
-make run
-
-# 5. Commit (only source files!)
-git add schema.sql specs.yaml
-git commit -m "Descriptive commit message"
-```
-
----
-
-## CI/CD Integration
-
-### GitHub Actions Example
-```yaml
-name: Build and Test
-on: [push, pull_request]
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-java@v2
-        with:
-          java-version: '25'
-      - run: cd java && make all
-```
+| Document | Purpose |
+|----------|---------|
+| **java/README.md** | User guide, quickstart, examples, workflows |
+| **java/CLAUDE.md** | Technical implementation, build system, generators |
+| **java/PIPELINE.md** | Detailed pipeline architecture, data flows, type mappings |
+| **This file (README.md)** | Project overview and subproject navigation |
+| **CLAUDE.md** | Strategic guidance for Claude Code (language-agnostic) |
 
 ---
 
@@ -301,247 +157,33 @@ jobs:
 
 | Component | Status | Tests | Documentation |
 |-----------|--------|-------|---|
-| **java/** | ✅ Production | 147/147 ✅ | Complete |
+| **java/** | ✅ Production | ✅ Passing | Complete |
 
 ---
 
-## Performance Metrics
+## Performance Targets (Java)
 
-### Java Subproject Build Times
-- Schema parsing: 0.9s
-- Code generation: 2s
-- Tests (147): 2s
-- Full build: 5-6s
-
-### Test Coverage
-- Schema To Proto Converter: 20 tests ✅
-- Proto-First OpenAPI Generator: 23 tests ✅
-- Specification Generator: 13 tests ✅
-- Spring Boot Server Generator: 12 tests ✅
-- Rule Interceptor: 11 tests ✅
-- gRPC Service Stubs: 7 tests ✅
-- Rule Engine: 15 tests ✅
-- Compound Specifications: 6 tests ✅
-- Metadata Context: 5 tests ✅
-- Specification Patterns: 21 tests ✅
-- Descriptor Registry: 8 tests ✅
-- Test Data Builder: 6 tests ✅
-- **Total**: 147 tests, 100% passing
+| Metric | Time |
+|--------|------|
+| Schema parsing | 0.9s |
+| Code generation | ~1s |
+| Full test suite (171 tests) | ~2s |
+| Complete build pipeline | 5-6s |
 
 ---
 
-## Documentation Structure
+## Resources
 
-### 👤 New to the Project?
-**Start here**: [java/README.md](java/README.md) - Complete user guide with examples
+- **Java Subproject Documentation**:
+  - [java/README.md](java/README.md) - User guide
+  - [java/CLAUDE.md](java/CLAUDE.md) - Technical details
+  - [java/PIPELINE.md](java/PIPELINE.md) - Pipeline architecture
 
-### 👨‍💻 For Developers
-- [java/CLAUDE.md](java/CLAUDE.md) - Technical implementation details, architecture, logging
-- [java/PIPELINE.md](java/PIPELINE.md) - How the generation pipeline works
-- This `README.md` - Project overview and workflow
-
-### 🏢 For DevixLabs Organization
-- `CLAUDE.md` - Project-level technical guidance
-- Parent `../CLAUDE.md` - Organizational principles and architecture
+- **Parent Organization**:
+  - [../CLAUDE.md](../CLAUDE.md) - DevixLabs organizational guidance
 
 ---
 
-## File Guidelines
-
-### Version Control (What to Commit)
-
-**DO commit**:
-- `schema.sql` - Source of truth
-- `specs.yaml` - Business rules
-- `src/main/java/` - Manual source code
-- `src/test/` - Test code
-- `build.gradle`, `Makefile` - Build configuration
-- `CLAUDE.md`, `README.md` - Documentation
-
-**DON'T commit**:
-- `models.yaml` - Generated from schema.sql
-- `src/main/java-generated/` - Generated code
-- `build/` - Build artifacts
-
-### .gitignore Template
-```
-# Generated files
-models.yaml
-src/main/java-generated/
-
-# Build artifacts
-build/
-.gradle/
-*.jar
-
-# IDE
-.idea/
-.vscode/
-*.iml
-```
-
----
-
-## Troubleshooting
-
-### ❌ `make all` Fails
-
-**Error: "Cannot find symbol: class Employee"**
-- Ensure `schema.sql` exists with CREATE TABLE statements
-- Run: `cd java && make parse-schema && make all`
-
-**Error: "FileNotFoundException: specs.yaml"**
-- Ensure `specs.yaml` exists (even if empty, need at least one rule)
-- Copy from example in [java/README.md](java/README.md#defining-business-rules)
-
-**Error: Java version incompatibility**
-```bash
-java -version
-# Must be Java 25+ (e.g., OpenJDK 25, not Java 21)
-```
-
-**Error: Lombok not compatible**
-```bash
-grep "lombok" build.gradle
-# Must be 1.18.38 or later for Java 25
-```
-
-### ❌ Tests Fail
-
-**Some tests fail, others pass**
-```bash
-# Clean rebuild often fixes this
-make clean && make all
-
-# If still failing, read the test output
-# It will show which specific rule/model failed
-```
-
-**All tests pass locally but fail in CI/CD**
-```bash
-# This is usually environment differences
-# Ensure CI/CD uses Java 25+
-```
-
-### ❌ Generated Code Issues
-
-**Can't find generated models?**
-```bash
-ls -la src/main/java-generated/dev/appget/
-# If empty: run make parse-schema && make generate
-```
-
-**Generated code looks wrong**
-```bash
-# Schema has a typo? Fix it in schema.sql, then:
-make clean && make all
-# Generated code is disposable - regenerate from schema
-```
-
-### ✅ General Debugging
-
-**"I'm not sure what went wrong"**
-```bash
-# 1. Check Java version
-java -version
-
-# 2. Run the verification
-make help
-make test
-
-# 3. Check output
-ls -la src/main/java-generated/
-cat models.yaml
-
-# 4. Read full error message carefully
-# Most errors tell you exactly what's wrong
-```
-
-**"Everything looks right but I'm stuck"**
-1. Run: `make clean && make all`
-2. Check [java/README.md](java/README.md) for examples
-3. Review [java/CLAUDE.md](java/CLAUDE.md) for technical details
-
----
-
-## Quick Reference (Cheat Sheet)
-
-### Essential Commands
-
-```bash
-cd java
-
-# Initial setup - verify everything works
-make test               # Run all 147 tests (expect all passing)
-
-# Regular development
-make all                # Full pipeline: clean → generate → test → build
-make run                # Execute rule engine demo
-
-# Individual steps (if needed)
-make parse-schema       # SQL → models.yaml (auto-run by make all)
-make generate           # YAML → Java code (auto-run by make all)
-make build              # Compile and package
-make clean              # Remove all generated code and build artifacts
-
-# Help
-make help               # Show all available commands
-```
-
-### File Quick Reference
-
-| File | Purpose | You Edit? |
-|------|---------|-----------|
-| `schema.sql` | Database tables (source of truth) | ✏️ YES |
-| `specs.yaml` | Business rules | ✏️ YES |
-| `views.sql` | SQL views (read models) | ✏️ YES |
-| `models.yaml` | Auto-generated model list | ❌ NO (generated) |
-| `src/main/java-generated/` | Generated Java models and specs | ❌ NO (generated) |
-| `build/` | Compiled classes and artifacts | ❌ NO (generated) |
-
-### Common Workflows
-
-**Adding a new table:**
-1. Edit `schema.sql` - add CREATE TABLE
-2. Run: `cd java && make all`
-3. Check: `src/main/java-generated/dev/appget/model/YourTable.java`
-
-**Adding a business rule:**
-1. Edit `specs.yaml` - add rule under `rules:`
-2. Run: `cd java && make all`
-3. Check: `src/main/java-generated/dev/appget/specification/generated/YourRule.java`
-
-**Debugging a build failure:**
-1. Read the error message (it's usually clear)
-2. Fix the issue in schema.sql or specs.yaml
-3. Run: `make clean && make all`
-
-**Verifying setup is correct:**
-```bash
-cd java
-make test
-# Expected: 147/147 passing ✅
-```
-
----
-
-## Contact & Support
-
-For issues or questions:
-1. Check project `CLAUDE.md` files
-2. Review `README.md` in relevant subproject
-3. Run `make help` for available commands
-
----
-
-## References
-
-- [DevixLabs Main CLAUDE.md](../CLAUDE.md) - Organizational guidance
-- [Java Subproject README](java/README.md) - Java-specific documentation
-- [Java Subproject CLAUDE.md](java/CLAUDE.md) - Technical guidance
-
----
-
-**Last Updated**: 2026-02-11
-**Status**: Active Development
+**Last Updated**: 2026-02-16
+**Status**: Active Development (Java subproject production-ready)
 **Maintainer**: DevixLabs CTO (Claude Code)
