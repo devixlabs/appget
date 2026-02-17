@@ -8,6 +8,7 @@ import java.nio.file.Paths;
 import java.util.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import com.github.jknack.handlebars.Handlebars;
 
 /**
  * Generates DescriptorRegistry class from models.yaml.
@@ -18,6 +19,11 @@ import org.apache.logging.log4j.Logger;
 public class DescriptorRegistryGenerator {
 
     private static final Logger logger = LogManager.getLogger(DescriptorRegistryGenerator.class);
+    private final TemplateEngine templateEngine;
+
+    public DescriptorRegistryGenerator() {
+        this.templateEngine = new TemplateEngine();
+    }
 
     public static void main(String[] args) {
         logger.debug("Entering main method with {} arguments", args.length);
@@ -107,59 +113,27 @@ public class DescriptorRegistryGenerator {
     }
 
     private String generateRegistryClass(List<RegistryEntry> entries) {
-        Set<String> imports = new LinkedHashSet<>();
-        imports.add("com.google.protobuf.Descriptors");
+        logger.debug("Generating DescriptorRegistry class from {} entries", entries.size());
 
-        // Collect unique import paths
+        Set<String> imports = new LinkedHashSet<>();
+        List<Map<String, String>> entryMaps = new ArrayList<>();
         for (RegistryEntry entry : entries) {
             imports.add(entry.importPath);
+            Map<String, String> entryMap = new HashMap<>();
+            entryMap.put("name", entry.name);
+            entryMap.put("importPath", entry.importPath);
+            entryMaps.add(entryMap);
         }
 
-        StringBuilder code = new StringBuilder();
-        code.append("package dev.appget.util;\n\n");
+        Map<String, Object> context = new HashMap<>();
+        context.put("packageName", "dev.appget.util");
+        context.put("imports", imports);
+        context.put("entries", entryMaps);
+        context.put("hasEntries", !entries.isEmpty());
 
-        for (String imp : imports) {
-            code.append("import ").append(imp).append(";\n");
-        }
-        code.append("\n");
-
-        code.append("import java.util.HashMap;\n");
-        code.append("import java.util.Map;\n");
-        code.append("import java.util.Set;\n\n");
-
-        code.append("/**\n");
-        code.append(" * Auto-generated protobuf descriptor registry.\n");
-        code.append(" * DO NOT EDIT MANUALLY - Generated from models.yaml\n");
-        code.append(" */\n");
-        code.append("public class DescriptorRegistry {\n");
-        code.append("    private final Map<String, Descriptors.Descriptor> descriptors = new HashMap<>();\n\n");
-
-        code.append("    public DescriptorRegistry() {\n");
-
-        if (!entries.isEmpty()) {
-            code.append("        // Models and Views (from models.yaml)\n");
-            for (RegistryEntry entry : entries) {
-                code.append("        register(\"").append(entry.name).append("\", ")
-                    .append(entry.name).append(".getDescriptor());\n");
-            }
-        }
-
-        code.append("    }\n\n");
-
-        code.append("    private void register(String name, Descriptors.Descriptor descriptor) {\n");
-        code.append("        descriptors.put(name, descriptor);\n");
-        code.append("    }\n\n");
-
-        code.append("    public Descriptors.Descriptor getDescriptorByName(String simpleName) {\n");
-        code.append("        return descriptors.get(simpleName);\n");
-        code.append("    }\n\n");
-
-        code.append("    public Set<String> getAllModelNames() {\n");
-        code.append("        return descriptors.keySet();\n");
-        code.append("    }\n");
-        code.append("}\n");
-
-        return code.toString();
+        logger.debug("Rendering DescriptorRegistry template with {} imports and {} entries",
+                imports.size(), entries.size());
+        return templateEngine.render("descriptor/DescriptorRegistry.java", context);
     }
 
     private static class RegistryEntry {

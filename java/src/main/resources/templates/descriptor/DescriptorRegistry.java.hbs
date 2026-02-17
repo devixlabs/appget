@@ -1,0 +1,39 @@
+package {{packageName}};
+
+import com.google.protobuf.Descriptors;
+{{#each imports}}
+import {{this}};
+{{/each}}
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
+
+/**
+ * Auto-generated protobuf descriptor registry.
+ * DO NOT EDIT MANUALLY - Generated from models.yaml
+ */
+public class DescriptorRegistry {
+    private final Map<String, Descriptors.Descriptor> descriptors = new HashMap<>();
+
+    public DescriptorRegistry() {
+{{#if hasEntries}}
+        // Models and Views (from models.yaml)
+{{#each entries}}
+        register("{{name}}", {{name}}.getDescriptor());
+{{/each}}
+{{/if}}
+    }
+
+    private void register(String name, Descriptors.Descriptor descriptor) {
+        descriptors.put(name, descriptor);
+    }
+
+    public Descriptors.Descriptor getDescriptorByName(String simpleName) {
+        return descriptors.get(simpleName);
+    }
+
+    public Set<String> getAllModelNames() {
+        return descriptors.keySet();
+    }
+}

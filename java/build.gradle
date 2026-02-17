@@ -26,6 +26,9 @@ dependencies {
     // Gherkin parser for .feature files → specs.yaml conversion
     implementation 'io.cucumber:gherkin:38.0.0'
 
+    // Handlebars.java for code generation templates
+    implementation 'com.github.jknack:handlebars:4.5.0'
+
     // Protocol Buffers runtime (replaces Lombok for model classes)
     implementation 'com.google.protobuf:protobuf-java:3.25.3'
 
