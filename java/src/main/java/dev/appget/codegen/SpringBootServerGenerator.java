@@ -70,6 +70,7 @@ public class SpringBootServerGenerator {
         generateBuildGradle(outputDir);
         generateApplicationClass(outputDir);
         generateApplicationYaml(outputDir);
+        generateLog4j2Properties(outputDir);
         generateMetadataExtractor(outputDir);
         generateRuleService(outputDir);
         generateDTOs(outputDir);
@@ -86,6 +87,7 @@ public class SpringBootServerGenerator {
         System.out.println("  Generated: build.gradle");
         System.out.println("  Generated: Application.java");
         System.out.println("  Generated: application.yaml");
+        System.out.println("  Generated: log4j2.properties (src/main/resources/)");
         System.out.println("  Generated: " + modelIndex.size() + " model endpoints (Controller/Service/Repository)");
     }
 
@@ -215,13 +217,86 @@ public class SpringBootServerGenerator {
         yaml.append("  port: 8080\n\n");
         yaml.append("spring:\n");
         yaml.append("  application:\n");
-        yaml.append("    name: appget-server\n");
+        yaml.append("    name: appget-server\n\n");
+        yaml.append("logging:\n");
+        yaml.append("  level:\n");
+        yaml.append("    root: INFO\n");
+        yaml.append("    dev.appget.server: DEBUG\n");
+        yaml.append("    org.springframework.web: DEBUG\n");
+        yaml.append("    org.springframework.web.servlet.mvc: DEBUG\n\n");
+        yaml.append("  # File logging configuration\n");
+        yaml.append("  file:\n");
+        yaml.append("    name: logs/appget-server.log\n");
+        yaml.append("  logback:\n");
+        yaml.append("    rollingpolicy:\n");
+        yaml.append("      max-file-size: 10MB\n");
+        yaml.append("      max-history: 10\n");
 
         // Create application.yaml in generated server directory itself
         Path serverDir = Paths.get(outputDir);
         Files.createDirectories(serverDir);
         Path yamlFile = serverDir.resolve("application.yaml");
         Files.writeString(yamlFile, yaml.toString());
+    }
+
+    private void generateLog4j2Properties(String outputDir) throws IOException {
+        StringBuilder props = new StringBuilder();
+        props.append("# Log4j2 Configuration for Spring Boot Server\n");
+        props.append("# DO NOT EDIT MANUALLY - Generated from SpringBootServerGenerator\n\n");
+
+        props.append("status = warn\n");
+        props.append("name = AppgetServerLogging\n\n");
+
+        props.append("# Define appenders\n");
+        props.append("appender.console.type = Console\n");
+        props.append("appender.console.name = STDOUT\n");
+        props.append("appender.console.layout.type = PatternLayout\n");
+        props.append("appender.console.layout.pattern = [%d{ISO8601}] [%-5p] [%t] [%c] - %m%n\n\n");
+
+        props.append("appender.file.type = RollingFile\n");
+        props.append("appender.file.name = FILE\n");
+        props.append("appender.file.fileName = logs/appget-server.log\n");
+        props.append("appender.file.filePattern = logs/appget-server-%d{yyyy-MM-dd}-%i.log.gz\n");
+        props.append("appender.file.layout.type = PatternLayout\n");
+        props.append("appender.file.layout.pattern = [%d{ISO8601}] [%-5p] [%t] [%c] - %m%n\n");
+        props.append("appender.file.policies.type = Policies\n");
+        props.append("appender.file.policies.time.type = TimeBasedTriggeringPolicy\n");
+        props.append("appender.file.policies.time.interval = 1\n");
+        props.append("appender.file.policies.time.modulate = true\n");
+        props.append("appender.file.policies.size.type = SizeBasedTriggeringPolicy\n");
+        props.append("appender.file.policies.size.size = 10MB\n");
+        props.append("appender.file.strategy.type = DefaultRolloverStrategy\n");
+        props.append("appender.file.strategy.max = 10\n\n");
+
+        props.append("# Root logger\n");
+        props.append("rootLogger.level = INFO\n");
+        props.append("rootLogger.appenderRef.stdout.ref = STDOUT\n");
+        props.append("rootLogger.appenderRef.file.ref = FILE\n\n");
+
+        props.append("# Package-specific loggers\n");
+        props.append("logger.dev_appget_server.name = dev.appget.server\n");
+        props.append("logger.dev_appget_server.level = DEBUG\n\n");
+
+        props.append("logger.springframework_web.name = org.springframework.web\n");
+        props.append("logger.springframework_web.level = DEBUG\n\n");
+
+        props.append("logger.springframework_mvc.name = org.springframework.web.servlet.mvc\n");
+        props.append("logger.springframework_mvc.level = DEBUG\n\n");
+
+        props.append("# Suppress noisy loggers\n");
+        props.append("logger.snakeyaml.name = org.yaml.snakeyaml\n");
+        props.append("logger.snakeyaml.level = WARN\n\n");
+
+        props.append("logger.protobuf.name = com.google.protobuf\n");
+        props.append("logger.protobuf.level = WARN\n");
+
+        // Create src/main/resources directory
+        Path resourcesDir = Paths.get(outputDir, "src", "main", "resources");
+        Files.createDirectories(resourcesDir);
+
+        // Write log4j2.properties
+        Path propsFile = resourcesDir.resolve("log4j2.properties");
+        Files.writeString(propsFile, props.toString());
     }
 
     private void generateBuildGradle(String outputDir) throws IOException {
@@ -255,13 +330,15 @@ public class SpringBootServerGenerator {
 
         // Dependencies
         gradle.append("dependencies {\n");
-        gradle.append("    // Spring Boot\n");
-        gradle.append("    implementation 'org.springframework.boot:spring-boot-starter-web'\n");
+        gradle.append("    // Spring Boot (exclude Logback, use Log4j2 instead)\n");
+        gradle.append("    implementation('org.springframework.boot:spring-boot-starter-web') {\n");
+        gradle.append("        exclude group: 'org.springframework.boot', module: 'spring-boot-starter-logging'\n");
+        gradle.append("    }\n");
         gradle.append("    implementation 'org.springframework.boot:spring-boot-starter-validation'\n\n");
 
         gradle.append("    // Lombok for DTOs and context POJOs\n");
-        gradle.append("    compileOnly 'org.projectlombok:lombok:1.18.38'\n");
-        gradle.append("    annotationProcessor 'org.projectlombok:lombok:1.18.38'\n\n");
+        gradle.append("    compileOnly 'org.projectlombok:lombok:1.18.42'\n");
+        gradle.append("    annotationProcessor 'org.projectlombok:lombok:1.18.42'\n\n");
 
         gradle.append("    // Protocol Buffers runtime (for generated models)\n");
         gradle.append("    implementation 'com.google.protobuf:protobuf-java:3.25.3'\n");
@@ -270,9 +347,9 @@ public class SpringBootServerGenerator {
         gradle.append("    // Jackson support for protobuf (JSON serialization/deserialization)\n");
         gradle.append("    implementation 'com.hubspot.jackson:jackson-datatype-protobuf:0.9.15'\n\n");
 
-        gradle.append("    // Log4j2 for logging\n");
-        gradle.append("    implementation 'org.apache.logging.log4j:log4j-api:2.23.1'\n");
-        gradle.append("    implementation 'org.apache.logging.log4j:log4j-core:2.23.1'\n");
+        gradle.append("    // Log4j2 for logging (direct API, no SLF4J)\n");
+        gradle.append("    implementation 'org.apache.logging.log4j:log4j-api:2.25.3'\n");
+        gradle.append("    implementation 'org.apache.logging.log4j:log4j-core:2.25.3'\n");
         gradle.append("}\n\n");
 
         // Source sets - include main project's classes
@@ -708,6 +785,7 @@ public class SpringBootServerGenerator {
 
         code.append("import ").append(model.namespace).append(".model.").append(model.name).append(";\n");
         code.append("import org.springframework.stereotype.Repository;\n");
+        code.append("import lombok.extern.log4j.Log4j2;\n");
         code.append("import java.util.Map;\n");
         code.append("import java.util.Optional;\n");
         code.append("import java.util.List;\n");
@@ -719,6 +797,7 @@ public class SpringBootServerGenerator {
         code.append(" * In-memory repository for ").append(model.name).append(" entities\n");
         code.append(" * DO NOT EDIT MANUALLY - Generated from models.yaml\n");
         code.append(" */\n");
+        code.append("@Log4j2\n");
         code.append("@Repository\n");
         code.append("public class ").append(className).append(" {\n\n");
 
@@ -738,24 +817,40 @@ public class SpringBootServerGenerator {
         } else {
             code.append("        String id = String.valueOf(idGenerator.incrementAndGet());\n");
         }
+        code.append("        log.debug(\"Saving ").append(model.name).append(" with id: {}\", id);\n");
         code.append("        store.put(id, entity);\n");
+        code.append("        log.info(\"Successfully saved ").append(model.name).append(" with id: {}\", id);\n");
         code.append("        return entity;\n");
         code.append("    }\n\n");
 
         code.append("    public Optional<").append(model.name).append("> findById(String id) {\n");
-        code.append("        return Optional.ofNullable(store.get(id));\n");
+        code.append("        log.debug(\"Looking up ").append(model.name).append(" with id: {}\", id);\n");
+        code.append("        Optional<").append(model.name).append("> result = Optional.ofNullable(store.get(id));\n");
+        code.append("        if (result.isPresent()) {\n");
+        code.append("            log.debug(\"Found ").append(model.name).append(" with id: {}\", id);\n");
+        code.append("        } else {\n");
+        code.append("            log.debug(\"").append(model.name).append(" not found with id: {}\", id);\n");
+        code.append("        }\n");
+        code.append("        return result;\n");
         code.append("    }\n\n");
 
         code.append("    public List<").append(model.name).append("> findAll() {\n");
-        code.append("        return new java.util.ArrayList<>(store.values());\n");
+        code.append("        log.debug(\"Retrieving all ").append(model.name).append(" entities\");\n");
+        code.append("        List<").append(model.name).append("> results = new java.util.ArrayList<>(store.values());\n");
+        code.append("        log.debug(\"Found {} ").append(model.name).append(" entities\", results.size());\n");
+        code.append("        return results;\n");
         code.append("    }\n\n");
 
         code.append("    public void deleteById(String id) {\n");
+        code.append("        log.debug(\"Deleting ").append(model.name).append(" with id: {}\", id);\n");
         code.append("        store.remove(id);\n");
+        code.append("        log.info(\"Successfully deleted ").append(model.name).append(" with id: {}\", id);\n");
         code.append("    }\n\n");
 
         code.append("    public boolean existsById(String id) {\n");
-        code.append("        return store.containsKey(id);\n");
+        code.append("        boolean exists = store.containsKey(id);\n");
+        code.append("        log.debug(\"Checking existence of ").append(model.name).append(" with id: {}, exists: {}\", id, exists);\n");
+        code.append("        return exists;\n");
         code.append("    }\n");
         code.append("}\n");
 
@@ -777,6 +872,7 @@ public class SpringBootServerGenerator {
         code.append("import ").append(BASE_PACKAGE).append(".exception.ResourceNotFoundException;\n");
         code.append("import ").append(BASE_PACKAGE).append(".exception.RuleViolationException;\n");
         code.append("import dev.appget.specification.MetadataContext;\n");
+        code.append("import lombok.extern.log4j.Log4j2;\n");
         code.append("import org.springframework.stereotype.Service;\n");
         code.append("import java.util.List;\n\n");
 
@@ -784,6 +880,7 @@ public class SpringBootServerGenerator {
         code.append(" * Business logic service for ").append(model.name).append(" with rule evaluation\n");
         code.append(" * DO NOT EDIT MANUALLY - Generated from models.yaml and specs.yaml\n");
         code.append(" */\n");
+        code.append("@Log4j2\n");
         code.append("@Service\n");
         code.append("public class ").append(className).append(" {\n\n");
 
@@ -796,11 +893,16 @@ public class SpringBootServerGenerator {
         code.append("    }\n\n");
 
         code.append("    public RuleAwareResponse<").append(model.name).append("> create(").append(model.name).append(" entity, MetadataContext metadata) {\n");
+        code.append("        log.info(\"Creating new ").append(model.name).append(" entity\");\n");
+        code.append("        log.debug(\"Entity data: {}\", entity);\n");
         code.append("        RuleEvaluationResult ruleResult = ruleService.evaluateAll(entity, metadata);\n");
+        code.append("        log.debug(\"Rule evaluation completed with hasFailures: {}\", ruleResult.isHasFailures());\n");
         code.append("        if (ruleResult.isHasFailures()) {\n");
+        code.append("            log.warn(\"").append(model.name).append(" creation failed validation\");\n");
         code.append("            throw new RuleViolationException(\"Validation failed\", ruleResult);\n");
         code.append("        }\n");
         code.append("        ").append(model.name).append(" saved = repository.save(entity);\n");
+        code.append("        log.info(\"Successfully created ").append(model.name).append(" entity\");\n");
         code.append("        return RuleAwareResponse.<").append(model.name).append(">builder()\n");
         code.append("            .data(saved)\n");
         code.append("            .ruleResults(ruleResult)\n");
@@ -808,23 +910,34 @@ public class SpringBootServerGenerator {
         code.append("    }\n\n");
 
         code.append("    public ").append(model.name).append(" findById(String id) {\n");
+        code.append("        log.debug(\"Fetching ").append(model.name).append(" by id: {}\", id);\n");
         code.append("        return repository.findById(id)\n");
-        code.append("            .orElseThrow(() -> new ResourceNotFoundException(\"").append(model.name).append(" not found: \" + id));\n");
+        code.append("            .orElseThrow(() -> {\n");
+        code.append("                log.warn(\"").append(model.name).append(" not found with id: {}\", id);\n");
+        code.append("                return new ResourceNotFoundException(\"").append(model.name).append(" not found: \" + id);\n");
+        code.append("            });\n");
         code.append("    }\n\n");
 
         code.append("    public List<").append(model.name).append("> findAll() {\n");
+        code.append("        log.debug(\"Fetching all ").append(model.name).append(" entities\");\n");
         code.append("        return repository.findAll();\n");
         code.append("    }\n\n");
 
         code.append("    public RuleAwareResponse<").append(model.name).append("> update(String id, ").append(model.name).append(" entity, MetadataContext metadata) {\n");
+        code.append("        log.info(\"Updating ").append(model.name).append(" with id: {}\", id);\n");
         code.append("        if (!repository.existsById(id)) {\n");
+        code.append("            log.warn(\"").append(model.name).append(" not found for update with id: {}\", id);\n");
         code.append("            throw new ResourceNotFoundException(\"").append(model.name).append(" not found: \" + id);\n");
         code.append("        }\n");
+        code.append("        log.debug(\"Entity data: {}\", entity);\n");
         code.append("        RuleEvaluationResult ruleResult = ruleService.evaluateAll(entity, metadata);\n");
+        code.append("        log.debug(\"Rule evaluation completed with hasFailures: {}\", ruleResult.isHasFailures());\n");
         code.append("        if (ruleResult.isHasFailures()) {\n");
+        code.append("            log.warn(\"").append(model.name).append(" update failed validation for id: {}\", id);\n");
         code.append("            throw new RuleViolationException(\"Validation failed\", ruleResult);\n");
         code.append("        }\n");
         code.append("        ").append(model.name).append(" updated = repository.save(entity);\n");
+        code.append("        log.info(\"Successfully updated ").append(model.name).append(" with id: {}\", id);\n");
         code.append("        return RuleAwareResponse.<").append(model.name).append(">builder()\n");
         code.append("            .data(updated)\n");
         code.append("            .ruleResults(ruleResult)\n");
@@ -832,10 +945,13 @@ public class SpringBootServerGenerator {
         code.append("    }\n\n");
 
         code.append("    public void deleteById(String id) {\n");
+        code.append("        log.info(\"Deleting ").append(model.name).append(" with id: {}\", id);\n");
         code.append("        if (!repository.existsById(id)) {\n");
+        code.append("            log.warn(\"").append(model.name).append(" not found for deletion with id: {}\", id);\n");
         code.append("            throw new ResourceNotFoundException(\"").append(model.name).append(" not found: \" + id);\n");
         code.append("        }\n");
         code.append("        repository.deleteById(id);\n");
+        code.append("        log.info(\"Successfully deleted ").append(model.name).append(" with id: {}\", id);\n");
         code.append("    }\n");
         code.append("}\n");
 
@@ -856,6 +972,7 @@ public class SpringBootServerGenerator {
         code.append("import ").append(BASE_PACKAGE).append(".config.MetadataExtractor;\n");
         code.append("import ").append(BASE_PACKAGE).append(".dto.RuleAwareResponse;\n");
         code.append("import dev.appget.specification.MetadataContext;\n");
+        code.append("import lombok.extern.log4j.Log4j2;\n");
         code.append("import org.springframework.http.HttpStatus;\n");
         code.append("import org.springframework.http.ResponseEntity;\n");
         code.append("import org.springframework.web.bind.annotation.*;\n");
@@ -867,6 +984,7 @@ public class SpringBootServerGenerator {
         code.append(" * REST API endpoints for ").append(model.name).append(" entities\n");
         code.append(" * DO NOT EDIT MANUALLY - Generated from models.yaml and specs.yaml\n");
         code.append(" */\n");
+        code.append("@Log4j2\n");
         code.append("@RestController\n");
         code.append("@RequestMapping(\"").append(resourcePath).append("\")\n");
         code.append("public class ").append(className).append(" {\n\n");
@@ -884,21 +1002,30 @@ public class SpringBootServerGenerator {
         code.append("    public ResponseEntity<RuleAwareResponse<").append(model.name).append(">> create(\n");
         code.append("            @Valid @RequestBody ").append(model.name).append(" entity,\n");
         code.append("            HttpServletRequest request) {\n");
+        code.append("        log.info(\"POST ").append(resourcePath).append(" - Creating new ").append(model.name).append("\");\n");
+        code.append("        log.debug(\"Request headers: {} {}\", request.getMethod(), request.getRequestURI());\n");
         code.append("        MetadataContext metadata = metadataExtractor.extractFromHeaders(request);\n");
         code.append("        RuleAwareResponse<").append(model.name).append("> response = service.create(entity, metadata);\n");
+        code.append("        log.info(\"Successfully created ").append(model.name).append(" with status 201\");\n");
         code.append("        return ResponseEntity.status(HttpStatus.CREATED).body(response);\n");
         code.append("    }\n\n");
 
         // GET /entities
         code.append("    @GetMapping\n");
         code.append("    public ResponseEntity<List<").append(model.name).append(">> list() {\n");
-        code.append("        return ResponseEntity.ok(service.findAll());\n");
+        code.append("        log.info(\"GET ").append(resourcePath).append(" - Retrieving all ").append(model.name).append(" entities\");\n");
+        code.append("        List<").append(model.name).append("> results = service.findAll();\n");
+        code.append("        log.info(\"Retrieved {} ").append(model.name).append(" entities\", results.size());\n");
+        code.append("        return ResponseEntity.ok(results);\n");
         code.append("    }\n\n");
 
         // GET /entities/{id}
         code.append("    @GetMapping(\"/{id}\")\n");
         code.append("    public ResponseEntity<").append(model.name).append("> get(@PathVariable String id) {\n");
-        code.append("        return ResponseEntity.ok(service.findById(id));\n");
+        code.append("        log.info(\"GET ").append(resourcePath).append("/{id} - Retrieving ").append(model.name).append(" with id: {}\", id);\n");
+        code.append("        ").append(model.name).append(" result = service.findById(id);\n");
+        code.append("        log.info(\"Found ").append(model.name).append(" with id: {}\", id);\n");
+        code.append("        return ResponseEntity.ok(result);\n");
         code.append("    }\n\n");
 
         // PUT /entities/{id}
@@ -907,15 +1034,20 @@ public class SpringBootServerGenerator {
         code.append("            @PathVariable String id,\n");
         code.append("            @Valid @RequestBody ").append(model.name).append(" entity,\n");
         code.append("            HttpServletRequest request) {\n");
+        code.append("        log.info(\"PUT ").append(resourcePath).append("/{id} - Updating ").append(model.name).append(" with id: {}\", id);\n");
+        code.append("        log.debug(\"Request headers: {} {}\", request.getMethod(), request.getRequestURI());\n");
         code.append("        MetadataContext metadata = metadataExtractor.extractFromHeaders(request);\n");
         code.append("        RuleAwareResponse<").append(model.name).append("> response = service.update(id, entity, metadata);\n");
+        code.append("        log.info(\"Successfully updated ").append(model.name).append(" with id: {}\", id);\n");
         code.append("        return ResponseEntity.ok(response);\n");
         code.append("    }\n\n");
 
         // DELETE /entities/{id}
         code.append("    @DeleteMapping(\"/{id}\")\n");
         code.append("    public ResponseEntity<Void> delete(@PathVariable String id) {\n");
+        code.append("        log.info(\"DELETE ").append(resourcePath).append("/{id} - Deleting ").append(model.name).append(" with id: {}\", id);\n");
         code.append("        service.deleteById(id);\n");
+        code.append("        log.info(\"Successfully deleted ").append(model.name).append(" with id: {}\", id);\n");
         code.append("        return ResponseEntity.noContent().build();\n");
         code.append("    }\n");
         code.append("}\n");

@@ -36,12 +36,16 @@ dependencies {
     compileOnly 'org.apache.tomcat:annotations-api:6.0.53'
 
     // Lombok for specification context POJOs (still used by SpecificationGenerator)
-    compileOnly 'org.projectlombok:lombok:1.18.38'
-    annotationProcessor 'org.projectlombok:lombok:1.18.38'
+    compileOnly 'org.projectlombok:lombok:1.18.42'
+    annotationProcessor 'org.projectlombok:lombok:1.18.42'
 
-    // Log4j2 for logging
-    implementation 'org.apache.logging.log4j:log4j-api:2.23.1'
-    implementation 'org.apache.logging.log4j:log4j-core:2.23.1'
+    // SLF4J 2.1.x with Log4j2 binding
+    implementation 'org.slf4j:slf4j-api:2.0.17'
+    implementation 'org.apache.logging.log4j:log4j-slf4j2-impl:2.25.3'
+
+    // Log4j2 for logging (backend for SLF4J)
+    implementation 'org.apache.logging.log4j:log4j-api:2.25.3'
+    implementation 'org.apache.logging.log4j:log4j-core:2.25.3'
 
     // JUnit 5 (Jupiter)
     testImplementation 'org.junit.jupiter:junit-jupiter-api:5.11.3'
