@@ -1,0 +1,76 @@
+package dev.appget.specification.generated;
+
+import {{targetImport}};
+import dev.appget.specification.Specification;
+import dev.appget.specification.CompoundSpecification;
+import java.util.List;
+{{#if hasMetadata}}
+import dev.appget.specification.MetadataContext;
+{{/if}}
+
+/**
+ * Generated specification class for rule: {{className}}
+ * DO NOT EDIT MANUALLY - Generated from specs.yaml
+ */
+public class {{className}} {
+    private final CompoundSpecification spec;
+{{#each metadataReqs}}
+    private final Specification {{fieldName}};
+{{/each}}
+
+    public {{className}}() {
+        this.spec = new CompoundSpecification(
+            CompoundSpecification.Logic.{{compoundOperator}},
+            List.of(
+{{#each conditionClauses}}
+                new Specification("{{field}}", "{{{operator}}}", {{{formattedValue}}}){{#unless @last}},{{/unless}}
+{{/each}}
+            )
+        );
+{{#each metadataReqs}}
+        this.{{fieldName}} = new Specification("{{this.field}}", "{{{this.operator}}}", {{{this.formattedValue}}});
+{{/each}}
+    }
+
+{{#if hasMetadata}}
+    public boolean evaluate({{targetTypeName}} target, MetadataContext metadata) {
+        if (metadata == null) return false;
+{{#each metadataReqsByCategory}}
+        Object {{category}}Ctx = metadata.get("{{category}}");
+        if ({{category}}Ctx == null) return false;
+{{#each reqs}}
+        if (!{{fieldName}}.isSatisfiedBy({{category}}Ctx)) return false;
+{{/each}}
+{{/each}}
+        return spec.isSatisfiedBy(target);
+    }
+
+    public boolean evaluate({{targetTypeName}} target) {
+        return false;
+    }
+
+    public String getResult({{targetTypeName}} target, MetadataContext metadata) {
+        return evaluate(target, metadata) ? "{{successStatus}}" : "{{failureStatus}}";
+    }
+
+    public String getResult({{targetTypeName}} target) {
+        return "{{failureStatus}}";
+    }
+{{else}}
+    public boolean evaluate({{targetTypeName}} target) {
+        return spec.isSatisfiedBy(target);
+    }
+
+    public String getResult({{targetTypeName}} target) {
+        if (spec.isSatisfiedBy(target)) {
+            return "{{successStatus}}";
+        } else {
+            return "{{failureStatus}}";
+        }
+    }
+{{/if}}
+
+    public CompoundSpecification getSpec() {
+        return spec;
+    }
+}

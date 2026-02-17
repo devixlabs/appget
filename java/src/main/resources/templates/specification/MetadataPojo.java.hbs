@@ -1,0 +1,23 @@
+package dev.appget.specification.context;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+{{#each imports}}
+import {{this}};
+{{/each}}
+
+/**
+ * Generated metadata context class: {{className}}
+ * DO NOT EDIT MANUALLY - Generated from specs.yaml
+ */
+@Data
+@Builder
+@AllArgsConstructor
+@NoArgsConstructor
+public class {{className}} {
+{{#each fields}}
+    private {{type}} {{name}};
+{{/each}}
+}

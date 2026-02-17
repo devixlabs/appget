@@ -22,6 +22,11 @@ public class SpecificationGenerator {
 
     // Maps domain+type+name -> fully qualified class name (resolved from models.yaml)
     private final Map<String, String> targetImportMap = new HashMap<>();
+    private final TemplateEngine templateEngine;
+
+    public SpecificationGenerator() {
+        this.templateEngine = new TemplateEngine();
+    }
 
     public static void main(String[] args) {
         logger.debug("Entering main method with {} arguments", args.length);
@@ -158,11 +163,9 @@ public class SpecificationGenerator {
 
     @SuppressWarnings("unchecked")
     private String generateMetadataPojo(String className, List<Map<String, Object>> fields) {
+        logger.debug("Generating metadata POJO: {}", className);
+
         Set<String> imports = new LinkedHashSet<>();
-        imports.add("lombok.AllArgsConstructor");
-        imports.add("lombok.Builder");
-        imports.add("lombok.Data");
-        imports.add("lombok.NoArgsConstructor");
 
         Map<String, String> typeImports = Map.of(
             "LocalDate", "java.time.LocalDate",
@@ -177,36 +180,18 @@ public class SpecificationGenerator {
             }
         }
 
-        StringBuilder code = new StringBuilder();
-        code.append("package dev.appget.specification.context;\n\n");
+        Map<String, Object> context = new HashMap<>();
+        context.put("className", className);
+        context.put("imports", imports);
+        context.put("fields", fields);
 
-        for (String imp : imports) {
-            code.append("import ").append(imp).append(";\n");
-        }
-        code.append("\n");
-
-        code.append("/**\n");
-        code.append(" * Generated metadata context class: ").append(className).append("\n");
-        code.append(" * DO NOT EDIT MANUALLY - Generated from specs.yaml\n");
-        code.append(" */\n");
-        code.append("@Data\n");
-        code.append("@Builder\n");
-        code.append("@AllArgsConstructor\n");
-        code.append("@NoArgsConstructor\n");
-        code.append("public class ").append(className).append(" {\n");
-
-        for (Map<String, Object> field : fields) {
-            String name = (String) field.get("name");
-            String type = (String) field.get("type");
-            code.append("    private ").append(type).append(" ").append(name).append(";\n");
-        }
-
-        code.append("}\n");
-        return code.toString();
+        logger.debug("Rendering MetadataPojo template for {}", className);
+        return templateEngine.render("specification/MetadataPojo.java", context);
     }
 
     @SuppressWarnings("unchecked")
     private String generateRuleClass(Map<String, Object> rule) {
+        logger.debug("Generating rule class for rule: {}", rule.get("name"));
         String className = (String) rule.get("name");
 
         // Parse target
@@ -259,41 +244,9 @@ public class SpecificationGenerator {
         String successStatus = thenBlock.get("status");
         String failureStatus = elseBlock.get("status");
 
-        // Build imports
-        Set<String> imports = new LinkedHashSet<>();
-        imports.add(targetImport);
-        imports.add("dev.appget.specification.Specification");
-        if (isCompound) {
-            imports.add("dev.appget.specification.CompoundSpecification");
-            imports.add("java.util.List");
-        }
-        if (hasMetadata) {
-            imports.add("dev.appget.specification.MetadataContext");
-        }
-
-        // Generate code
-        StringBuilder code = new StringBuilder();
-        code.append("package dev.appget.specification.generated;\n\n");
-        for (String imp : imports) {
-            code.append("import ").append(imp).append(";\n");
-        }
-        code.append("\n");
-
-        code.append("/**\n");
-        code.append(" * Generated specification class for rule: ").append(className).append("\n");
-        code.append(" * DO NOT EDIT MANUALLY - Generated from specs.yaml\n");
-        code.append(" */\n");
-        code.append("public class ").append(className).append(" {\n");
-
-        // Fields
-        if (isCompound) {
-            code.append("    private final CompoundSpecification spec;\n");
-        } else {
-            code.append("    private final Specification spec;\n");
-        }
-
-        // Metadata requirement fields
+        // Build metadata requirements with field name info
         List<MetadataReqInfo> metadataReqs = new ArrayList<>();
+        List<Map<String, Object>> metadataReqsMaps = new ArrayList<>();
         if (hasMetadata) {
             for (Map.Entry<String, Object> reqEntry : requires.entrySet()) {
                 String category = reqEntry.getKey();
@@ -302,106 +255,66 @@ public class SpecificationGenerator {
                     Map<String, Object> req = reqs.get(i);
                     String fieldName = category + "Req" + i;
                     metadataReqs.add(new MetadataReqInfo(category, fieldName, req));
-                    code.append("    private final Specification ").append(fieldName).append(";\n");
+
+                    Map<String, Object> reqMap = new HashMap<>(req);
+                    reqMap.put("fieldName", fieldName);
+                    reqMap.put("category", category);
+                    reqMap.put("formattedValue", formatValue(req.get("value")));
+                    metadataReqsMaps.add(reqMap);
                 }
             }
         }
 
-        code.append("\n");
-
-        // Constructor
-        code.append("    public ").append(className).append("() {\n");
-
-        if (isCompound) {
-            code.append("        this.spec = new CompoundSpecification(\n");
-            code.append("            CompoundSpecification.Logic.").append(compoundOperator).append(",\n");
-            code.append("            List.of(\n");
-            for (int i = 0; i < conditionClauses.size(); i++) {
-                Map<String, Object> clause = conditionClauses.get(i);
-                code.append("                new Specification(\"").append(clause.get("field")).append("\", \"");
-                code.append(clause.get("operator")).append("\", ");
-                code.append(formatValue(clause.get("value"))).append(")");
-                if (i < conditionClauses.size() - 1) code.append(",");
-                code.append("\n");
-            }
-            code.append("            )\n");
-            code.append("        );\n");
-        } else if (!conditionClauses.isEmpty()) {
-            Map<String, Object> cond = conditionClauses.get(0);
-            code.append("        this.spec = new Specification(\"").append(cond.get("field")).append("\", \"");
-            code.append(cond.get("operator")).append("\", ");
-            code.append(formatValue(cond.get("value"))).append(");\n");
-        }
-
+        // Group metadata reqs by category for template
+        Map<String, Object> metadataReqsByCategory = new LinkedHashMap<>();
         for (MetadataReqInfo mri : metadataReqs) {
-            code.append("        this.").append(mri.fieldName).append(" = new Specification(\"");
-            code.append(mri.condition.get("field")).append("\", \"");
-            code.append(mri.condition.get("operator")).append("\", ");
-            code.append(formatValue(mri.condition.get("value"))).append(");\n");
+            metadataReqsByCategory.computeIfAbsent(mri.category, k -> {
+                Map<String, Object> catMap = new LinkedHashMap<>();
+                catMap.put("category", mri.category);
+                catMap.put("reqs", new ArrayList<>());
+                return catMap;
+            });
+            ((List<Map<String, Object>>) ((Map<String, Object>) metadataReqsByCategory.get(mri.category)).get("reqs")).add(
+                new HashMap<String, Object>() {{
+                    put("fieldName", mri.fieldName);
+                    put("category", mri.category);
+                }}
+            );
         }
 
-        code.append("    }\n\n");
-
-        // evaluate with metadata
-        if (hasMetadata) {
-            code.append("    public boolean evaluate(").append(targetTypeName).append(" target, MetadataContext metadata) {\n");
-            code.append("        if (metadata == null) return false;\n");
-
-            // Group metadata reqs by category
-            Map<String, List<MetadataReqInfo>> groupedReqs = new LinkedHashMap<>();
-            for (MetadataReqInfo mri : metadataReqs) {
-                groupedReqs.computeIfAbsent(mri.category, k -> new ArrayList<>()).add(mri);
-            }
-
-            for (Map.Entry<String, List<MetadataReqInfo>> ge : groupedReqs.entrySet()) {
-                String cat = ge.getKey();
-                code.append("        Object ").append(cat).append("Ctx = metadata.get(\"").append(cat).append("\");\n");
-                code.append("        if (").append(cat).append("Ctx == null) return false;\n");
-                for (MetadataReqInfo mri : ge.getValue()) {
-                    code.append("        if (!").append(mri.fieldName).append(".isSatisfiedBy(").append(cat).append("Ctx)) return false;\n");
-                }
-            }
-
-            code.append("        return spec.isSatisfiedBy(target);\n");
-            code.append("    }\n\n");
-
-            // evaluate without metadata - always false for metadata-required rules
-            code.append("    public boolean evaluate(").append(targetTypeName).append(" target) {\n");
-            code.append("        return false;\n");
-            code.append("    }\n\n");
-
-            // getResult with metadata
-            code.append("    public String getResult(").append(targetTypeName).append(" target, MetadataContext metadata) {\n");
-            code.append("        return evaluate(target, metadata) ? \"").append(successStatus).append("\" : \"").append(failureStatus).append("\";\n");
-            code.append("    }\n\n");
-
-            // getResult without metadata
-            code.append("    public String getResult(").append(targetTypeName).append(" target) {\n");
-            code.append("        return \"").append(failureStatus).append("\";\n");
-            code.append("    }\n");
-        } else {
-            // Simple evaluate
-            code.append("    public boolean evaluate(").append(targetTypeName).append(" target) {\n");
-            code.append("        return spec.isSatisfiedBy(target);\n");
-            code.append("    }\n\n");
-
-            // getResult
-            code.append("    public String getResult(").append(targetTypeName).append(" target) {\n");
-            code.append("        if (spec.isSatisfiedBy(target)) {\n");
-            code.append("            return \"").append(successStatus).append("\";\n");
-            code.append("        } else {\n");
-            code.append("            return \"").append(failureStatus).append("\";\n");
-            code.append("        }\n");
-            code.append("    }\n");
+        // Format condition clauses for template
+        List<Map<String, Object>> formattedClauses = new ArrayList<>();
+        for (Map<String, Object> clause : conditionClauses) {
+            Map<String, Object> formatted = new HashMap<>(clause);
+            formatted.put("formattedValue", formatValue(clause.get("value")));
+            formattedClauses.add(formatted);
         }
 
-        code.append("\n");
-        code.append("    public ").append(isCompound ? "CompoundSpecification" : "Specification").append(" getSpec() {\n");
-        code.append("        return spec;\n");
-        code.append("    }\n");
-        code.append("}\n");
+        // Build context for template
+        Map<String, Object> context = new HashMap<>();
+        context.put("className", className);
+        context.put("targetImport", targetImport);
+        context.put("targetTypeName", targetTypeName);
+        context.put("isCompound", isCompound);
+        context.put("compoundOperator", compoundOperator);
+        context.put("hasMetadata", hasMetadata);
+        context.put("successStatus", successStatus);
+        context.put("failureStatus", failureStatus);
+        context.put("metadataReqs", metadataReqsMaps);
+        context.put("metadataReqsByCategory", new ArrayList<>(metadataReqsByCategory.values()));
 
-        return code.toString();
+        // For simple specs, add first condition
+        if (!formattedClauses.isEmpty()) {
+            Map<String, Object> firstClause = formattedClauses.get(0);
+            context.putAll(firstClause);
+        }
+
+        // For compound specs, add all clauses
+        context.put("conditionClauses", formattedClauses);
+
+        String templateName = isCompound ? "specification/CompoundSpecification.java" : "specification/SimpleSpecification.java";
+        logger.debug("Rendering {} template for {}", templateName, className);
+        return templateEngine.render(templateName, context);
     }
 
     private String guessImport(String domain, String kind, String name) {
