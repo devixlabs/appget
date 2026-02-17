@@ -32,8 +32,8 @@ class SchemaToProtoConverterTest {
     @DisplayName("Converter generates proto files from schema.sql")
     void testGeneratesProtoFiles(@TempDir Path tempDir) throws Exception {
         String outputDir = tempDir.toString();
-        if (new File("schema.sql").exists()) {
-            converter.convert("schema.sql", "views.sql", outputDir);
+        if (new File("../schema.sql").exists()) {
+            converter.convert("../schema.sql", "../views.sql", outputDir);
 
             assertTrue(Files.exists(tempDir.resolve("appget_models.proto")), "appget_models.proto should be generated");
             assertTrue(Files.exists(tempDir.resolve("hr_models.proto")), "hr_models.proto should be generated");
@@ -45,8 +45,8 @@ class SchemaToProtoConverterTest {
     @DisplayName("Generated proto has correct syntax and java_package for appget domain")
     void testAppgetProtoContent(@TempDir Path tempDir) throws Exception {
         String outputDir = tempDir.toString();
-        if (new File("schema.sql").exists()) {
-            converter.convert("schema.sql", "views.sql", outputDir);
+        if (new File("../schema.sql").exists()) {
+            converter.convert("../schema.sql", "../views.sql", outputDir);
 
             String content = Files.readString(tempDir.resolve("appget_models.proto"));
             assertTrue(content.contains("syntax = \"proto3\""), "Should use proto3 syntax");
@@ -61,8 +61,8 @@ class SchemaToProtoConverterTest {
     @DisplayName("Employee message has correct field types")
     void testEmployeeFieldTypes(@TempDir Path tempDir) throws Exception {
         String outputDir = tempDir.toString();
-        if (new File("schema.sql").exists()) {
-            converter.convert("schema.sql", "views.sql", outputDir);
+        if (new File("../schema.sql").exists()) {
+            converter.convert("../schema.sql", "../views.sql", outputDir);
 
             String content = Files.readString(tempDir.resolve("appget_models.proto"));
             assertTrue(content.contains("string name = 1"), "Employee should have string name field");
@@ -75,8 +75,8 @@ class SchemaToProtoConverterTest {
     @DisplayName("HR domain proto has correct java_package")
     void testHrProtoPackage(@TempDir Path tempDir) throws Exception {
         String outputDir = tempDir.toString();
-        if (new File("schema.sql").exists()) {
-            converter.convert("schema.sql", "views.sql", outputDir);
+        if (new File("../schema.sql").exists()) {
+            converter.convert("../schema.sql", "../views.sql", outputDir);
 
             String content = Files.readString(tempDir.resolve("hr_models.proto"));
             assertTrue(content.contains("java_package = \"dev.appget.hr.model\""), "HR domain should have correct java_package");
@@ -89,8 +89,8 @@ class SchemaToProtoConverterTest {
     @DisplayName("Decimal SQL type maps to double proto type")
     void testDecimalTypeMapping(@TempDir Path tempDir) throws Exception {
         String outputDir = tempDir.toString();
-        if (new File("schema.sql").exists()) {
-            converter.convert("schema.sql", "views.sql", outputDir);
+        if (new File("../schema.sql").exists()) {
+            converter.convert("../schema.sql", "../views.sql", outputDir);
 
             String content = Files.readString(tempDir.resolve("hr_models.proto"));
             assertTrue(content.contains("double budget"), "DECIMAL should map to double");
@@ -102,8 +102,8 @@ class SchemaToProtoConverterTest {
     @DisplayName("Finance domain proto has correct content")
     void testFinanceProtoContent(@TempDir Path tempDir) throws Exception {
         String outputDir = tempDir.toString();
-        if (new File("schema.sql").exists()) {
-            converter.convert("schema.sql", "views.sql", outputDir);
+        if (new File("../schema.sql").exists()) {
+            converter.convert("../schema.sql", "../views.sql", outputDir);
 
             String content = Files.readString(tempDir.resolve("finance_models.proto"));
             assertTrue(content.contains("java_package = \"dev.appget.finance.model\""), "Finance domain java_package");
@@ -116,8 +116,8 @@ class SchemaToProtoConverterTest {
     @DisplayName("View proto files are generated")
     void testViewProtoGeneration(@TempDir Path tempDir) throws Exception {
         String outputDir = tempDir.toString();
-        if (new File("schema.sql").exists() && new File("views.sql").exists()) {
-            converter.convert("schema.sql", "views.sql", outputDir);
+        if (new File("../schema.sql").exists() && new File("../views.sql").exists()) {
+            converter.convert("../schema.sql", "../views.sql", outputDir);
 
             assertTrue(Files.exists(tempDir.resolve("appget_views.proto")), "appget_views.proto should be generated");
             assertTrue(Files.exists(tempDir.resolve("hr_views.proto")), "hr_views.proto should be generated");
@@ -128,8 +128,8 @@ class SchemaToProtoConverterTest {
     @DisplayName("View proto has correct java_package and message")
     void testViewProtoContent(@TempDir Path tempDir) throws Exception {
         String outputDir = tempDir.toString();
-        if (new File("schema.sql").exists() && new File("views.sql").exists()) {
-            converter.convert("schema.sql", "views.sql", outputDir);
+        if (new File("../schema.sql").exists() && new File("../views.sql").exists()) {
+            converter.convert("../schema.sql", "../views.sql", outputDir);
 
             String content = Files.readString(tempDir.resolve("appget_views.proto"));
             assertTrue(content.contains("java_package = \"dev.appget.view\""), "View should have correct java_package");
@@ -143,8 +143,8 @@ class SchemaToProtoConverterTest {
     @DisplayName("Generated proto has DO NOT EDIT comment")
     void testGeneratedComment(@TempDir Path tempDir) throws Exception {
         String outputDir = tempDir.toString();
-        if (new File("schema.sql").exists()) {
-            converter.convert("schema.sql", "views.sql", outputDir);
+        if (new File("../schema.sql").exists()) {
+            converter.convert("../schema.sql", "../views.sql", outputDir);
 
             String content = Files.readString(tempDir.resolve("appget_models.proto"));
             assertTrue(content.contains("DO NOT EDIT MANUALLY"), "Should have do-not-edit warning");
@@ -157,8 +157,8 @@ class SchemaToProtoConverterTest {
     @DisplayName("Proto with specs.yaml imports rules.proto")
     void testRulesImport(@TempDir Path tempDir) throws Exception {
         String outputDir = tempDir.toString();
-        if (new File("schema.sql").exists() && new File("specs.yaml").exists()) {
-            converter.convert("schema.sql", "views.sql", outputDir, "specs.yaml");
+        if (new File("../schema.sql").exists() && new File("specs.yaml").exists()) {
+            converter.convert("../schema.sql", "../views.sql", outputDir, "specs.yaml");
 
             String content = Files.readString(tempDir.resolve("appget_models.proto"));
             assertTrue(content.contains("import \"rules.proto\""), "Should import rules.proto when specs are provided");
@@ -169,8 +169,8 @@ class SchemaToProtoConverterTest {
     @DisplayName("Employee message has embedded business rules")
     void testEmployeeRulesEmbedded(@TempDir Path tempDir) throws Exception {
         String outputDir = tempDir.toString();
-        if (new File("schema.sql").exists() && new File("specs.yaml").exists()) {
-            converter.convert("schema.sql", "views.sql", outputDir, "specs.yaml");
+        if (new File("../schema.sql").exists() && new File("specs.yaml").exists()) {
+            converter.convert("../schema.sql", "../views.sql", outputDir, "specs.yaml");
 
             String content = Files.readString(tempDir.resolve("appget_models.proto"));
             assertTrue(content.contains("option (rules.rule_set)"), "Employee should have rule_set option");
@@ -185,8 +185,8 @@ class SchemaToProtoConverterTest {
     @DisplayName("Compound rule has correct AND/OR structure in proto")
     void testCompoundRuleStructure(@TempDir Path tempDir) throws Exception {
         String outputDir = tempDir.toString();
-        if (new File("schema.sql").exists() && new File("specs.yaml").exists()) {
-            converter.convert("schema.sql", "views.sql", outputDir, "specs.yaml");
+        if (new File("../schema.sql").exists() && new File("specs.yaml").exists()) {
+            converter.convert("../schema.sql", "../views.sql", outputDir, "specs.yaml");
 
             String content = Files.readString(tempDir.resolve("appget_models.proto"));
             assertTrue(content.contains("compound_conditions:"), "SeniorManagerCheck should have compound_conditions");
@@ -198,8 +198,8 @@ class SchemaToProtoConverterTest {
     @DisplayName("Metadata requirements embedded in proto options")
     void testMetadataRequirementsEmbedded(@TempDir Path tempDir) throws Exception {
         String outputDir = tempDir.toString();
-        if (new File("schema.sql").exists() && new File("specs.yaml").exists()) {
-            converter.convert("schema.sql", "views.sql", outputDir, "specs.yaml");
+        if (new File("../schema.sql").exists() && new File("specs.yaml").exists()) {
+            converter.convert("../schema.sql", "../views.sql", outputDir, "specs.yaml");
 
             String content = Files.readString(tempDir.resolve("appget_models.proto"));
             assertTrue(content.contains("metadata_requirements:"), "AuthenticatedApproval should have metadata_requirements");
@@ -225,8 +225,8 @@ class SchemaToProtoConverterTest {
     @DisplayName("Proto without specs.yaml has no rules import")
     void testNoRulesWithoutSpecs(@TempDir Path tempDir) throws Exception {
         String outputDir = tempDir.toString();
-        if (new File("schema.sql").exists()) {
-            converter.convert("schema.sql", "views.sql", outputDir);
+        if (new File("../schema.sql").exists()) {
+            converter.convert("../schema.sql", "../views.sql", outputDir);
 
             String content = Files.readString(tempDir.resolve("appget_models.proto"));
             assertFalse(content.contains("import \"rules.proto\""), "Should not import rules.proto without specs");

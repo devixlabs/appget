@@ -151,7 +151,7 @@ class FeatureToSpecsConverterTest {
     @Test
     @DisplayName("Parse appget.feature produces 6 rules")
     void testParseAppgetFeature() throws Exception {
-        Path featurePath = Path.of("features", "appget.feature");
+        Path featurePath = Path.of("../features", "appget.feature");
         if (Files.exists(featurePath)) {
             List<Map<String, Object>> rules = converter.parseFeatureFile(featurePath);
             assertEquals(6, rules.size(), "appget.feature should produce 6 rules");
@@ -161,7 +161,7 @@ class FeatureToSpecsConverterTest {
     @Test
     @DisplayName("Parse hr.feature produces 1 rule")
     void testParseHrFeature() throws Exception {
-        Path featurePath = Path.of("features", "hr.feature");
+        Path featurePath = Path.of("../features", "hr.feature");
         if (Files.exists(featurePath)) {
             List<Map<String, Object>> rules = converter.parseFeatureFile(featurePath);
             assertEquals(1, rules.size(), "hr.feature should produce 1 rule");
@@ -172,7 +172,7 @@ class FeatureToSpecsConverterTest {
     @Test
     @DisplayName("CountryOfOriginCheck rule has correct structure")
     void testCountryOfOriginRule() throws Exception {
-        Path featurePath = Path.of("features", "appget.feature");
+        Path featurePath = Path.of("../features", "appget.feature");
         if (Files.exists(featurePath)) {
             List<Map<String, Object>> rules = converter.parseFeatureFile(featurePath);
             Map<String, Object> rule = rules.get(0);
@@ -200,7 +200,7 @@ class FeatureToSpecsConverterTest {
     @Test
     @DisplayName("EmployeeAgeCheck rule has blocking flag")
     void testBlockingFlag() throws Exception {
-        Path featurePath = Path.of("features", "appget.feature");
+        Path featurePath = Path.of("../features", "appget.feature");
         if (Files.exists(featurePath)) {
             List<Map<String, Object>> rules = converter.parseFeatureFile(featurePath);
             Map<String, Object> rule = rules.get(1); // EmployeeAgeCheck
@@ -213,7 +213,7 @@ class FeatureToSpecsConverterTest {
     @Test
     @DisplayName("SeniorManagerCheck has compound AND conditions")
     void testCompoundConditions() throws Exception {
-        Path featurePath = Path.of("features", "appget.feature");
+        Path featurePath = Path.of("../features", "appget.feature");
         if (Files.exists(featurePath)) {
             List<Map<String, Object>> rules = converter.parseFeatureFile(featurePath);
             Map<String, Object> rule = rules.get(3); // SeniorManagerCheck
@@ -236,7 +236,7 @@ class FeatureToSpecsConverterTest {
     @Test
     @DisplayName("HighEarnerCheck targets a view")
     void testViewTarget() throws Exception {
-        Path featurePath = Path.of("features", "appget.feature");
+        Path featurePath = Path.of("../features", "appget.feature");
         if (Files.exists(featurePath)) {
             List<Map<String, Object>> rules = converter.parseFeatureFile(featurePath);
             Map<String, Object> rule = rules.get(4); // HighEarnerCheck
@@ -252,7 +252,7 @@ class FeatureToSpecsConverterTest {
     @Test
     @DisplayName("AuthenticatedApproval has metadata requirements")
     void testMetadataRequirements() throws Exception {
-        Path featurePath = Path.of("features", "appget.feature");
+        Path featurePath = Path.of("../features", "appget.feature");
         if (Files.exists(featurePath)) {
             List<Map<String, Object>> rules = converter.parseFeatureFile(featurePath);
             Map<String, Object> rule = rules.get(5); // AuthenticatedApproval
@@ -284,7 +284,7 @@ class FeatureToSpecsConverterTest {
     @Test
     @DisplayName("SalaryAmountCheck from hr.feature has correct domain")
     void testHrDomainRule() throws Exception {
-        Path featurePath = Path.of("features", "hr.feature");
+        Path featurePath = Path.of("../features", "hr.feature");
         if (Files.exists(featurePath)) {
             List<Map<String, Object>> rules = converter.parseFeatureFile(featurePath);
             Map<String, Object> rule = rules.get(0);
@@ -303,11 +303,11 @@ class FeatureToSpecsConverterTest {
     @Test
     @DisplayName("Full conversion produces valid specs.yaml with metadata and rules")
     void testFullConversion(@TempDir Path tempDir) throws Exception {
-        Path featuresDir = Path.of("features");
-        Path metadataFile = Path.of("metadata.yaml");
+        Path featuresDir = Path.of("../features");
+        Path metadataFile = Path.of("../metadata.yaml");
         if (Files.exists(featuresDir) && Files.exists(metadataFile)) {
             Path outputPath = tempDir.resolve("specs.yaml");
-            converter.convert("features", "metadata.yaml", outputPath.toString());
+            converter.convert("../features", "../metadata.yaml", outputPath.toString());
 
             assertTrue(Files.exists(outputPath), "specs.yaml should be generated");
 
@@ -338,13 +338,13 @@ class FeatureToSpecsConverterTest {
     @Test
     @DisplayName("Generated specs.yaml is structurally identical to original")
     void testStructuralEquivalence(@TempDir Path tempDir) throws Exception {
-        Path featuresDir = Path.of("features");
-        Path metadataFile = Path.of("metadata.yaml");
+        Path featuresDir = Path.of("../features");
+        Path metadataFile = Path.of("../metadata.yaml");
         Path originalSpecs = Path.of("specs.yaml");
         if (Files.exists(featuresDir) && Files.exists(metadataFile) && Files.exists(originalSpecs)) {
             // Generate new specs.yaml
             Path generatedPath = tempDir.resolve("specs.yaml");
-            converter.convert("features", "metadata.yaml", generatedPath.toString());
+            converter.convert("../features", "../metadata.yaml", generatedPath.toString());
 
             // Parse both with SnakeYAML
             Yaml yaml = new Yaml();

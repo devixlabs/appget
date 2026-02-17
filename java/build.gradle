@@ -116,7 +116,7 @@ task featuresToSpecs(type: JavaExec) {
     description = 'Convert .feature files + metadata.yaml to specs.yaml'
     mainClass = 'dev.appget.codegen.FeatureToSpecsConverter'
     classpath = files(compileGenerators.destinationDirectory.get().getAsFile(), configurations.compileClasspath)
-    args = ['features', 'metadata.yaml', 'specs.yaml']
+    args = ['../features', '../metadata.yaml', 'specs.yaml']
     dependsOn 'compileGenerators'
 }
 
@@ -125,7 +125,7 @@ task parseSchema(type: JavaExec) {
     description = 'Parse schema.sql and views.sql, generate models.yaml'
     mainClass = 'dev.appget.codegen.SQLSchemaParser'
     classpath = files(compileGenerators.destinationDirectory.get().getAsFile(), configurations.compileClasspath)
-    args = ['schema.sql', 'views.sql', 'models.yaml']
+    args = ['../schema.sql', '../views.sql', 'models.yaml']
     dependsOn 'compileGenerators'
 }
 
@@ -134,7 +134,7 @@ task sqlToProto(type: JavaExec) {
     description = 'Convert schema.sql + views.sql + specs.yaml to .proto files'
     mainClass = 'dev.appget.codegen.SchemaToProtoConverter'
     classpath = files(compileGenerators.destinationDirectory.get().getAsFile(), configurations.compileClasspath)
-    args = ['schema.sql', 'views.sql', 'src/main/proto', 'specs.yaml']
+    args = ['../schema.sql', '../views.sql', 'src/main/proto', 'specs.yaml']
     dependsOn 'compileGenerators'
     dependsOn 'featuresToSpecs'
 }
