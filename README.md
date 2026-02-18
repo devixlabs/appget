@@ -1,10 +1,10 @@
-# appget.dev - Application Generation Platform
+# appget - Application Generation Platform
 
-> DevixLabs application generation and rule engine system
+Experimental project to generate a simple business application with as little configuration and definitions as possible.
 
 ## Project Overview
 
-**appget.dev** is a DevixLabs platform for application generation from structured domain specifications. It contains multiple subsystems for different code generation purposes.
+**appget.dev** is a platform for application generation from structured domain specifications. It contains multiple subsystems for different code generation purposes.
 
 ## Subprojects
 
@@ -12,7 +12,7 @@
 
 **Status**: ✅ Production Ready
 
-A comprehensive Java code generation system that makes your database schema the single source of truth for all domain models.
+A comprehensive Java code generation system that makes your database schema the single source of truth for all domain models. This ended up being the prodigy implementation to drive all other implementations and references to.
 
 **Key Features**:
 - Schema-first, protobuf-first architecture (SQL → .proto → protoc → Java)
@@ -43,7 +43,7 @@ make run              # Execute rule engine with generated models
 
 ```
 appget.dev/
-├── java/                   # SQL-first Java code generation
+├── java/                  # SQL-first Java code generation
 │   ├── schema.sql         # Source of truth (database DDL)
 │   ├── features/          # Gherkin business rules
 │   ├── metadata.yaml      # Authorization context POJOs
@@ -96,36 +96,22 @@ Only source files are committed:
 
 ## Getting Started
 
-### For Java Subproject
+Each subproject in appget.dev is **self-contained** with its own build system, testing, and documentation. Choose your language:
 
-**Prerequisites:**
-```bash
-# Check Java version (must be 25+)
-java -version
+| Language | Status | Getting Started |
+|----------|--------|---|
+| **Java** | ✅ Production Ready | [java/README.md](java/README.md) |
+| **Python** | 🚀 Coming Soon | [python/README.md](python/README.md) |
+| **Go** | 🚀 Coming Soon | [go/README.md](go/README.md) |
+| **Node.js** | 🚀 Coming Soon | [node/README.md](node/README.md) |
+| **Ruby** | 🚀 Coming Soon | [ruby/README.md](ruby/README.md) |
+| **Rust** | 🚀 Coming Soon | [rust/README.md](rust/README.md) |
 
-# Verify Gradle works
-cd java && make help
-```
-
-**Quick Start:**
-```bash
-cd java
-
-# View available commands
-make help
-
-# Full pipeline (recommended)
-make all
-
-# Individual steps
-make features-to-specs   # .feature files + metadata → specs.yaml
-make parse-schema        # schema.sql → models.yaml
-make generate            # protobuf + specifications + OpenAPI
-make test                # 171 comprehensive tests
-make run                 # Execute rule engine demo
-```
-
-**See**: [java/README.md](java/README.md) for complete user guide and examples
+Each subproject's README includes:
+- Quick start guide with prerequisites
+- Complete user documentation
+- Workflow examples
+- Troubleshooting guide
 
 ---
 
@@ -134,9 +120,9 @@ make run                 # Execute rule engine demo
 ### For any subproject in appget.dev:
 
 1. **Understand the architecture** - Read the subproject's README.md first
-2. **Check the Makefile** - Use provided make commands for builds
-3. **Never edit generated code** - Modify sources (schema.sql, features/), regenerate
-4. **Run tests after changes** - `make test` verifies entire pipeline
+2. **Check the Makefile** - Use provided make commands for builds (if present)
+3. **Never edit generated code** - Modify sources (schema files, rules), regenerate
+4. **Run tests after changes** - Verify entire pipeline with build commands
 5. **Commit source files only** - generated code is git-ignored by design
 
 ---
@@ -182,8 +168,4 @@ make run                 # Execute rule engine demo
 - **Parent Organization**:
   - [../CLAUDE.md](../CLAUDE.md) - DevixLabs organizational guidance
 
----
 
-**Last Updated**: 2026-02-16
-**Status**: Active Development (Java subproject production-ready)
-**Maintainer**: DevixLabs CTO (Claude Code)
