@@ -44,8 +44,8 @@ LAYER 2: INTERMEDIATE REPRESENTATION                    │
 │  models.yaml    │  ← Auto-generated                   │
 └────────┬────────┘                                     │
          │                                              │
-         │ SchemaToProtoConverter ◄─────────────────────┤
-         │ (SQL + specs → .proto with rules)            │
+         │ ModelsToProtoConverter ◄─────────────────────┤
+         │ (models.yaml + specs → .proto with rules)    │
          ↓                                              │
 ┌─────────────────────────────────┐                     │
 │  .proto files (per domain)      │                     │
@@ -133,7 +133,7 @@ make all               # clean -> generate -> test -> build
 gradle compileGenerators           # Compile generator classes only
 gradle featuresToSpecs             # Run FeatureToSpecsConverter (features + metadata -> specs.yaml)
 gradle parseSchema                 # Run SQLSchemaParser (schema.sql + views.sql -> models.yaml)
-gradle generateProto               # Run SchemaToProtoConverter + protoc (SQL -> .proto -> Java)
+gradle generateProto               # Run ModelsToProtoConverter + protoc (models.yaml -> .proto -> Java)
 gradle generateSpecs               # Run SpecificationGenerator (specs.yaml + models.yaml -> Java)
 gradle generateDescriptorRegistry  # Run DescriptorRegistryGenerator (models.yaml -> DescriptorRegistry)
 gradle generateOpenAPI             # Run ProtoOpenAPIGenerator (.proto -> openapi.yaml)
@@ -151,14 +151,14 @@ compileGenerators (independent)
     │       ↓
     ├→ parseSchema (schema.sql + views.sql -> models.yaml)
     │       ↓
-    ├→ sqlToProto (depends on: featuresToSpecs + compileGenerators)
+    ├→ modelsToProto (depends on: parseSchema + featuresToSpecs + compileGenerators)
     │       ↓
     │   generateProto (protoc: .proto -> Java model classes)
     │       ↓
     │       ├─────────────────────────────────────────────────────┐
     │       │                                                     │
     │   generateSpecs                                         generateOpenAPI
-    │       ↓ (depends on: featuresToSpecs + parseSchema)         ↓ (depends on: sqlToProto)
+    │       ↓ (depends on: featuresToSpecs + parseSchema)         ↓ (depends on: modelsToProto)
     ├→ generateDescriptorRegistry (models.yaml -> DescriptorRegistry.java)
     │       ↓ (depends on: parseSchema)
     compileJava
@@ -168,7 +168,7 @@ compileGenerators (independent)
     build
 ```
 
-**Critical Rule**: `sqlToProto` depends on `featuresToSpecs` (specs.yaml must exist). `generateProto` depends on `parseSchema`, NOT on `classes`. This breaks the circular dependency.
+**Critical Rule**: `modelsToProto` depends on `parseSchema` (models.yaml must exist) and `featuresToSpecs` (specs.yaml must exist). `generateProto` depends on `modelsToProto`, NOT on `classes`. This breaks the circular dependency.
 
 ## File Structure
 
@@ -189,7 +189,7 @@ compileGenerators (independent)
 - **schema.sql** - SQL DDL statements (CREATE TABLE)
   - Supports multiple database dialects (MySQL, SQLite, Oracle, MSSQL, PostgreSQL)
   - Tables mapped to domains via `DOMAIN_MAPPING` in SQLSchemaParser
-  - Column naming: SQL `role_id` (snake_case) → Java field name `roleId` (camelCase) via getter `getRoleId()`; proto field names remain `role_id` (snake_case)
+  - Column naming: SQL `role_id` (snake_case) → models.yaml stores `role_id` (snake_case, language-agnostic); proto field names are `role_id` (snake_case direct); Java getters are `getRoleId()` (camelCase, from protobuf)
   - Nullability: `NOT NULL` -> non-nullable types; nullable -> wrapper types
 
 - **views.sql** - SQL CREATE VIEW statements
@@ -338,7 +338,7 @@ Generators use two approaches, chosen based on output complexity:
 |-----------|--------|
 | `SpringBootServerGenerator` | Spring Boot REST API (controllers, services, repos) |
 | `ProtoOpenAPIGenerator` | OpenAPI 3.0 YAML |
-| `SchemaToProtoConverter` | .proto files |
+| `ModelsToProtoConverter` | .proto files |
 | `OpenAPITestScriptGenerator` | Test scripts |
 | `SQLSchemaParser` | models.yaml |
 | `FeatureToSpecsConverter` | specs.yaml |

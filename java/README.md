@@ -504,7 +504,7 @@ Rules can be marked `@blocking` in `.feature` files. This affects HTTP responses
    - All models with fields + types
    - All views with fields + types
    ↓
-4. SchemaToProtoConverter reads models.yaml + specs.yaml
+4. ModelsToProtoConverter reads models.yaml + specs.yaml
    - Creates .proto files per domain (with rules as custom options)
    - protoc compiles .proto → Java protobuf classes + gRPC stubs
    - Output in build/generated/
@@ -902,7 +902,7 @@ appget.dev/java/
 src/test/java/dev/appget/
 ├── codegen/
 │   ├── FeatureToSpecsConverterTest.java     (24 tests)
-│   ├── SchemaToProtoConverterTest.java      (20 tests)
+│   ├── ModelsToProtoConverterTest.java      (20 tests)
 │   ├── ProtoOpenAPIGeneratorTest.java       (23 tests)
 │   ├── SpecificationGeneratorTest.java      (13 tests)
 │   └── SpringBootServerGeneratorTest.java   (12 tests)

@@ -51,9 +51,9 @@ build: setup
 	@echo "Building with Gradle (includes parsing schema, generating specs and compiling)..."
 	@./gradlew build
 
-# Generate protobuf models: schema.sql -> .proto -> protoc -> Java classes
+# Generate protobuf models: models.yaml -> .proto -> protoc -> Java classes
 generate-proto: setup
-	@echo "Generating protobuf models from schema.sql..."
+	@echo "Generating protobuf models from models.yaml..."
 	@./gradlew generateProto
 
 # Generate specifications only

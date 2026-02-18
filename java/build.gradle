@@ -95,7 +95,7 @@ sourceSets {
 // compileGenerators ──┬→ parseSchema (SQL + views → models.yaml)
 //                     ├→ featuresToSpecs (features/*.feature + metadata.yaml → specs.yaml)
 //                     │       ↓
-//                     ├→ sqlToProto (depends on featuresToSpecs)
+//                     ├→ modelsToProto (depends on parseSchema + featuresToSpecs)
 //                     │       ↓
 //                     │   generateProto (protoc: .proto → Java model classes)
 //                     ├→ generateSpecs (depends on featuresToSpecs + parseSchema)
@@ -129,20 +129,21 @@ task parseSchema(type: JavaExec) {
     dependsOn 'compileGenerators'
 }
 
-task sqlToProto(type: JavaExec) {
+task modelsToProto(type: JavaExec) {
     group = 'build'
-    description = 'Convert schema.sql + views.sql + specs.yaml to .proto files'
-    mainClass = 'dev.appget.codegen.SchemaToProtoConverter'
+    description = 'Convert models.yaml + specs.yaml to .proto files'
+    mainClass = 'dev.appget.codegen.ModelsToProtoConverter'
     classpath = files(compileGenerators.destinationDirectory.get().getAsFile(), configurations.compileClasspath)
-    args = ['../schema.sql', '../views.sql', 'src/main/proto', 'specs.yaml']
+    args = ['models.yaml', 'src/main/proto', 'specs.yaml']
     dependsOn 'compileGenerators'
     dependsOn 'featuresToSpecs'
+    dependsOn 'parseSchema'
 }
 
-// Make protobuf plugin's generateProto depend on our SQL-to-proto task
+// Make protobuf plugin's generateProto depend on our models-to-proto task
 afterEvaluate {
     tasks.named('generateProto').configure {
-        dependsOn 'sqlToProto'
+        dependsOn 'modelsToProto'
     }
 }
 
@@ -176,7 +177,7 @@ task generateOpenAPI(type: JavaExec) {
     mainClass = 'dev.appget.codegen.ProtoOpenAPIGenerator'
     classpath = files(compileGenerators.destinationDirectory.get().getAsFile(), configurations.compileClasspath)
     args = ['src/main/proto', 'openapi.yaml']
-    dependsOn 'sqlToProto'
+    dependsOn 'modelsToProto'
 }
 
 task generateServer(type: JavaExec) {

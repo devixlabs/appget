@@ -284,7 +284,7 @@ public class SQLSchemaParser {
             }
 
             Map<String, Object> field = new LinkedHashMap<>();
-            field.put("name", toFieldName(outputName));
+            field.put("name", outputName.toLowerCase());
             field.put("type", finalType);
             field.put("nullable", nullable);
             fields.add(field);
@@ -503,7 +503,7 @@ public class SQLSchemaParser {
         }
 
         Map<String, Object> field = new LinkedHashMap<>();
-        field.put("name", toFieldName(columnName));
+        field.put("name", columnName.toLowerCase());
         field.put("type", finalType);
         field.put("nullable", isNullable);
 
@@ -568,22 +568,6 @@ public class SQLSchemaParser {
             }
         }
         return result.toString();
-    }
-
-    private String toFieldName(String columnName) {
-        StringBuilder camelCase = new StringBuilder();
-        boolean capitalizeNext = false;
-        for (char c : columnName.toCharArray()) {
-            if (c == '_') {
-                capitalizeNext = true;
-            } else if (capitalizeNext) {
-                camelCase.append(Character.toUpperCase(c));
-                capitalizeNext = false;
-            } else {
-                camelCase.append(c);
-            }
-        }
-        return camelCase.toString();
     }
 
     private String singularize(String tableName) {
