@@ -211,24 +211,22 @@ class ProtoOpenAPIGeneratorTest {
     }
 
     @Test
-    @DisplayName("Bearer auth security scheme present")
-    void testSecuritySchemes(@TempDir Path tempDir) throws Exception {
+    @DisplayName("No securitySchemes in proto-only OpenAPI (auth policy lives in specs.yaml, not proto)")
+    void testNoSecuritySchemesInProtoOnlyOpenAPI(@TempDir Path tempDir) throws Exception {
         Map<String, Object> spec = generateAndLoad(tempDir);
         if (spec == null) return;
 
         Map<String, Object> components = (Map<String, Object>) spec.get("components");
+        if (components == null) return;
+        // Proto files no longer embed auth options; security policy lives in specs.yaml.
+        // The OpenAPI generator should not emit securitySchemes when no required_role is present.
         Map<String, Object> secSchemes = (Map<String, Object>) components.get("securitySchemes");
-        assertNotNull(secSchemes, "Should have securitySchemes");
-
-        Map<String, Object> bearer = (Map<String, Object>) secSchemes.get("bearerAuth");
-        assertNotNull(bearer, "Should have bearerAuth scheme");
-        assertEquals("http", bearer.get("type"));
-        assertEquals("bearer", bearer.get("scheme"));
+        assertNull(secSchemes, "Proto-only OpenAPI should have no securitySchemes; auth belongs in specs.yaml");
     }
 
     @Test
-    @DisplayName("Authenticated endpoints have security requirement")
-    void testSecurityOnProtectedEndpoints(@TempDir Path tempDir) throws Exception {
+    @DisplayName("Endpoints have no security requirement when proto has no auth options")
+    void testNoSecurityOnEndpointsWithoutAuthOptions(@TempDir Path tempDir) throws Exception {
         Map<String, Object> spec = generateAndLoad(tempDir);
         if (spec == null) return;
 
@@ -236,12 +234,13 @@ class ProtoOpenAPIGeneratorTest {
         Map<String, Object> employees = (Map<String, Object>) paths.get("/employees");
         Map<String, Object> post = (Map<String, Object>) employees.get("post");
 
-        assertNotNull(post.get("security"), "POST /employees should require security");
+        // Auth policy lives in specs.yaml; proto has no required_role options.
+        assertNull(post.get("security"), "POST /employees should have no security requirement when proto has no auth options");
     }
 
     @Test
-    @DisplayName("Unauthenticated endpoints have no security requirement")
-    void testNoSecurityOnPublicEndpoints(@TempDir Path tempDir) throws Exception {
+    @DisplayName("GET endpoints have no per-endpoint security requirement")
+    void testNoSecurityOnGetEndpoints(@TempDir Path tempDir) throws Exception {
         Map<String, Object> spec = generateAndLoad(tempDir);
         if (spec == null) return;
 

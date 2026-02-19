@@ -93,11 +93,11 @@ sourceSets {
 
 // ---- Build Pipeline ----
 // compileGenerators ──┬→ parseSchema (SQL + views → models.yaml)
-//                     ├→ featuresToSpecs (features/*.feature + metadata.yaml → specs.yaml)
 //                     │       ↓
-//                     ├→ modelsToProto (depends on parseSchema + featuresToSpecs)
+//                     ├→ modelsToProto (depends on parseSchema only → .proto files)
 //                     │       ↓
 //                     │   generateProto (protoc: .proto → Java model classes)
+//                     ├→ featuresToSpecs (features/*.feature + metadata.yaml → specs.yaml)
 //                     ├→ generateSpecs (depends on featuresToSpecs + parseSchema)
 //                     └→ generateDescriptorRegistry
 //                            ↓
@@ -131,12 +131,11 @@ task parseSchema(type: JavaExec) {
 
 task modelsToProto(type: JavaExec) {
     group = 'build'
-    description = 'Convert models.yaml + specs.yaml to .proto files'
+    description = 'Convert models.yaml to .proto files'
     mainClass = 'dev.appget.codegen.ModelsToProtoConverter'
     classpath = files(compileGenerators.destinationDirectory.get().getAsFile(), configurations.compileClasspath)
-    args = ['models.yaml', 'src/main/proto', 'specs.yaml']
+    args = ['models.yaml', 'src/main/proto']
     dependsOn 'compileGenerators'
-    dependsOn 'featuresToSpecs'
     dependsOn 'parseSchema'
 }
 
@@ -206,7 +205,7 @@ compileJava.dependsOn 'generateProto'
 
 task cleanGenerated(type: Delete) {
     group = 'build'
-    description = 'Remove generated code, proto files, and specs.yaml (preserves rules.proto)'
+    description = 'Remove generated code, proto files, and specs.yaml'
     delete 'src/main/java-generated'
     delete fileTree(dir: 'src/main/proto', include: ['*_models.proto', '*_views.proto', '*_services.proto'])
     delete 'specs.yaml'

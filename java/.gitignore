@@ -10,9 +10,7 @@ gradlew*
 
 # Generated files - DO NOT COMMIT (regenerate from schema.sql + features)
 src/main/java-generated/
-src/main/proto/*_models.proto
-src/main/proto/*_views.proto
-src/main/proto/*_services.proto
+src/main/proto/*.proto
 generated-server/
 models.yaml
 specs.yaml

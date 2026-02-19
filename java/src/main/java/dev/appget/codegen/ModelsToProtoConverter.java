@@ -13,10 +13,10 @@ import org.yaml.snakeyaml.Yaml;
 
 /**
  * Converts models.yaml to Protocol Buffer (.proto) files.
- * Replaces SchemaToProtoConverter by reading models.yaml (the single intermediate)
- * instead of re-parsing schema.sql and views.sql directly.
+ * Reads models.yaml (the single intermediate) to produce proto schema definitions.
+ * Business rules travel in specs.yaml and are NOT embedded in proto files.
  *
- * Pipeline: models.yaml + specs.yaml -> .proto files -> protoc -> Java classes
+ * Pipeline: models.yaml → .proto files → protoc → model classes (in any target language)
  *
  * models.yaml stores language-agnostic snake_case field names and Java types.
  * This converter translates Java types to proto types via JavaUtils.JAVA_TO_PROTO_TYPE.
@@ -34,50 +34,30 @@ public class ModelsToProtoConverter {
     public static void main(String[] args) throws Exception {
         logger.debug("Entering main with {} arguments", args.length);
         if (args.length < 2) {
-            logger.error("Invalid arguments. Usage: ModelsToProtoConverter <models.yaml> <outputDir> [specs.yaml]");
-            System.err.println("Usage: ModelsToProtoConverter <models.yaml> <outputDir> [specs.yaml]");
+            logger.error("Invalid arguments. Usage: ModelsToProtoConverter <models.yaml> <outputDir>");
+            System.err.println("Usage: ModelsToProtoConverter <models.yaml> <outputDir>");
             System.exit(1);
         }
-
-        ModelsToProtoConverter converter = new ModelsToProtoConverter();
-        if (args.length == 2) {
-            logger.info("Converting models.yaml to proto: {} -> {}", args[0], args[1]);
-            converter.convert(args[0], args[1]);
-        } else {
-            logger.info("Converting models.yaml + specs to proto: {} + {} -> {}", args[0], args[2], args[1]);
-            converter.convert(args[0], args[1], args[2]);
-        }
+        logger.info("Converting models.yaml to proto: {} -> {}", args[0], args[1]);
+        new ModelsToProtoConverter().convert(args[0], args[1]);
         logger.debug("Exiting main");
     }
 
-    public void convert(String modelsFile, String outputDir) throws Exception {
-        convert(modelsFile, outputDir, null);
-    }
-
     @SuppressWarnings("unchecked")
-    public void convert(String modelsFile, String outputDir, String specsFile) throws Exception {
-        logger.debug("Entering convert: modelsFile={}, outputDir={}, specsFile={}", modelsFile, outputDir, specsFile);
+    public void convert(String modelsFile, String outputDir) throws Exception {
+        logger.debug("Entering convert: modelsFile={}, outputDir={}", modelsFile, outputDir);
 
         Map<String, List<ProtoMessage>> domainModels = new TreeMap<>();
         Map<String, List<ProtoMessage>> domainViews = new TreeMap<>();
         parseModelsYaml(modelsFile, domainModels, domainViews);
         logger.info("Parsed {} domain(s) from models.yaml", domainModels.size());
 
-        Map<String, List<Map<String, Object>>> rulesByTarget = new LinkedHashMap<>();
-        if (specsFile != null && new File(specsFile).exists()) {
-            logger.info("Parsing rules from {}", specsFile);
-            rulesByTarget = parseSpecsYaml(specsFile);
-            logger.info("Loaded rules for {} target(s)", rulesByTarget.size());
-        }
-
         Path outputPath = Paths.get(outputDir);
         Files.createDirectories(outputPath);
 
-        boolean hasRules = !rulesByTarget.isEmpty();
-
         for (Map.Entry<String, List<ProtoMessage>> entry : domainModels.entrySet()) {
             String domain = entry.getKey();
-            String content = generateModelProto(domain, entry.getValue(), rulesByTarget, hasRules);
+            String content = generateModelProto(domain, entry.getValue());
             Path protoFile = outputPath.resolve(domain + "_models.proto");
             Files.writeString(protoFile, content);
             logger.info("Generated {}", protoFile);
@@ -86,7 +66,7 @@ public class ModelsToProtoConverter {
 
         for (Map.Entry<String, List<ProtoMessage>> entry : domainViews.entrySet()) {
             String domain = entry.getKey();
-            String content = generateViewProto(domain, entry.getValue(), rulesByTarget, hasRules);
+            String content = generateViewProto(domain, entry.getValue());
             Path protoFile = outputPath.resolve(domain + "_views.proto");
             Files.writeString(protoFile, content);
             logger.info("Generated {}", protoFile);
@@ -95,7 +75,7 @@ public class ModelsToProtoConverter {
 
         for (Map.Entry<String, List<ProtoMessage>> entry : domainModels.entrySet()) {
             String domain = entry.getKey();
-            String content = generateServiceProto(domain, entry.getValue(), hasRules);
+            String content = generateServiceProto(domain, entry.getValue());
             Path protoFile = outputPath.resolve(domain + "_services.proto");
             Files.writeString(protoFile, content);
             logger.info("Generated {}", protoFile);
@@ -166,48 +146,18 @@ public class ModelsToProtoConverter {
         return protoFields;
     }
 
-    @SuppressWarnings("unchecked")
-    private Map<String, List<Map<String, Object>>> parseSpecsYaml(String specsFile) throws Exception {
-        Yaml yaml = new Yaml();
-        Map<String, Object> data;
-        try (InputStream in = new FileInputStream(new File(specsFile))) {
-            data = yaml.load(in);
-        }
-
-        Map<String, List<Map<String, Object>>> rulesByTarget = new LinkedHashMap<>();
-        List<Map<String, Object>> rawRules = (List<Map<String, Object>>) data.get("rules");
-
-        if (rawRules != null) {
-            for (Map<String, Object> raw : rawRules) {
-                Map<String, Object> target = (Map<String, Object>) raw.get("target");
-                String targetName = target != null ? (String) target.get("name") : "Employee";
-                rulesByTarget.computeIfAbsent(targetName, k -> new ArrayList<>()).add(raw);
-            }
-        }
-        return rulesByTarget;
-    }
-
     // ---- Proto Output Generation ----
 
-    private String generateModelProto(String domain, List<ProtoMessage> models,
-            Map<String, List<Map<String, Object>>> rulesByTarget, boolean hasRules) {
+    private String generateModelProto(String domain, List<ProtoMessage> models) {
         StringBuilder sb = new StringBuilder();
         sb.append("// Generated from models.yaml - DO NOT EDIT MANUALLY\n");
         sb.append("syntax = \"proto3\";\n\n");
-        if (hasRules) {
-            sb.append("import \"rules.proto\";\n\n");
-        }
         sb.append("option java_package = \"").append(javaPackage(domain, "model")).append("\";\n");
         sb.append("option java_multiple_files = true;\n\n");
         sb.append("package ").append(domain).append(";\n");
 
         for (ProtoMessage msg : models) {
             sb.append("\nmessage ").append(msg.name()).append(" {\n");
-            List<Map<String, Object>> rules = rulesByTarget.getOrDefault(msg.name(), List.of());
-            if (!rules.isEmpty()) {
-                sb.append("  option (rules.domain) = \"").append(domain).append("\";\n");
-                sb.append(generateRuleSetOption(rules));
-            }
             int fieldNum = 1;
             for (ProtoField field : msg.fields()) {
                 sb.append("  ").append(field.type()).append(" ").append(field.name())
@@ -218,25 +168,16 @@ public class ModelsToProtoConverter {
         return sb.toString();
     }
 
-    private String generateViewProto(String domain, List<ProtoMessage> views,
-            Map<String, List<Map<String, Object>>> rulesByTarget, boolean hasRules) {
+    private String generateViewProto(String domain, List<ProtoMessage> views) {
         StringBuilder sb = new StringBuilder();
         sb.append("// Generated from models.yaml - DO NOT EDIT MANUALLY\n");
         sb.append("syntax = \"proto3\";\n\n");
-        if (hasRules) {
-            sb.append("import \"rules.proto\";\n\n");
-        }
         sb.append("option java_package = \"").append(javaPackage(domain, "view")).append("\";\n");
         sb.append("option java_multiple_files = true;\n\n");
         sb.append("package ").append(domain).append("_views;\n");
 
         for (ProtoMessage msg : views) {
             sb.append("\nmessage ").append(msg.name()).append(" {\n");
-            List<Map<String, Object>> rules = rulesByTarget.getOrDefault(msg.name(), List.of());
-            if (!rules.isEmpty()) {
-                sb.append("  option (rules.domain) = \"").append(domain).append("\";\n");
-                sb.append(generateRuleSetOption(rules));
-            }
             int fieldNum = 1;
             for (ProtoField field : msg.fields()) {
                 sb.append("  ").append(field.type()).append(" ").append(field.name())
@@ -247,15 +188,12 @@ public class ModelsToProtoConverter {
         return sb.toString();
     }
 
-    private String generateServiceProto(String domain, List<ProtoMessage> models, boolean hasRules) {
+    private String generateServiceProto(String domain, List<ProtoMessage> models) {
         StringBuilder sb = new StringBuilder();
         sb.append("// Generated from models.yaml - DO NOT EDIT MANUALLY\n");
         sb.append("syntax = \"proto3\";\n\n");
         sb.append("import \"google/protobuf/empty.proto\";\n");
         sb.append("import \"").append(domain).append("_models.proto\";\n");
-        if (hasRules) {
-            sb.append("import \"rules.proto\";\n");
-        }
         sb.append("\n");
 
         String servicePkg = domain.equals("appget") ? "dev.appget.service" : "dev.appget." + domain + ".service";
@@ -276,99 +214,17 @@ public class ModelsToProtoConverter {
 
             sb.append("\nservice ").append(name).append("Service {\n");
             sb.append("  rpc Create").append(name).append("(").append(domain).append(".").append(name)
-              .append(") returns (").append(domain).append(".").append(name).append(") {");
-            if (hasRules) {
-                sb.append("\n    option (rules.required_role) = \"ROLE_USER\";\n  ");
-            }
-            sb.append("}\n");
+              .append(") returns (").append(domain).append(".").append(name).append(") {}\n");
             sb.append("  rpc Get").append(name).append("(").append(name).append("Id")
               .append(") returns (").append(domain).append(".").append(name).append(") {}\n");
             sb.append("  rpc Update").append(name).append("(").append(domain).append(".").append(name)
-              .append(") returns (").append(domain).append(".").append(name).append(") {");
-            if (hasRules) {
-                sb.append("\n    option (rules.required_role) = \"ROLE_USER\";\n  ");
-            }
-            sb.append("}\n");
+              .append(") returns (").append(domain).append(".").append(name).append(") {}\n");
             sb.append("  rpc Delete").append(name).append("(").append(name).append("Id")
-              .append(") returns (google.protobuf.Empty) {");
-            if (hasRules) {
-                sb.append("\n    option (rules.required_role) = \"ROLE_USER\";\n    option (rules.check_ownership) = true;\n  ");
-            }
-            sb.append("}\n");
+              .append(") returns (google.protobuf.Empty) {}\n");
             sb.append("  rpc List").append(name).append("s(google.protobuf.Empty")
               .append(") returns (").append(name).append("List) {}\n");
             sb.append("}\n");
         }
-        return sb.toString();
-    }
-
-    @SuppressWarnings("unchecked")
-    private String generateRuleSetOption(List<Map<String, Object>> rules) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("  option (rules.rule_set) = {\n");
-        for (Map<String, Object> rule : rules) {
-            sb.append("    rules: {\n");
-            sb.append("      name: \"").append(rule.get("name")).append("\"\n");
-
-            Boolean blocking = (Boolean) rule.get("blocking");
-            if (blocking != null && blocking) {
-                sb.append("      blocking: true\n");
-            }
-
-            Map<String, String> thenBlock = (Map<String, String>) rule.get("then");
-            Map<String, String> elseBlock = (Map<String, String>) rule.get("else");
-            sb.append("      success_status: \"").append(thenBlock.get("status")).append("\"\n");
-            sb.append("      failure_status: \"").append(elseBlock.get("status")).append("\"\n");
-
-            Object conditions = rule.get("conditions");
-            if (conditions instanceof Map) {
-                Map<String, Object> compound = (Map<String, Object>) conditions;
-                sb.append("      compound_conditions: {\n");
-                sb.append("        logic: \"").append(compound.get("operator")).append("\"\n");
-                List<Map<String, Object>> clauses = (List<Map<String, Object>>) compound.get("clauses");
-                if (clauses != null) {
-                    for (Map<String, Object> clause : clauses) {
-                        sb.append("        clauses: {\n");
-                        sb.append("          field: \"").append(clause.get("field")).append("\"\n");
-                        sb.append("          operator: \"").append(clause.get("operator")).append("\"\n");
-                        sb.append("          value: \"").append(clause.get("value")).append("\"\n");
-                        sb.append("        }\n");
-                    }
-                }
-                sb.append("      }\n");
-            } else if (conditions instanceof List) {
-                List<Map<String, Object>> condList = (List<Map<String, Object>>) conditions;
-                for (Map<String, Object> cond : condList) {
-                    sb.append("      simple_conditions: {\n");
-                    sb.append("        field: \"").append(cond.get("field")).append("\"\n");
-                    sb.append("        operator: \"").append(cond.get("operator")).append("\"\n");
-                    sb.append("        value: \"").append(cond.get("value")).append("\"\n");
-                    sb.append("      }\n");
-                }
-            }
-
-            Map<String, Object> requires = (Map<String, Object>) rule.get("requires");
-            if (requires != null) {
-                for (Map.Entry<String, Object> entry : requires.entrySet()) {
-                    sb.append("      metadata_requirements: {\n");
-                    sb.append("        category: \"").append(entry.getKey()).append("\"\n");
-                    List<Map<String, Object>> reqs = (List<Map<String, Object>>) entry.getValue();
-                    if (reqs != null) {
-                        for (Map<String, Object> req : reqs) {
-                            sb.append("        conditions: {\n");
-                            sb.append("          field: \"").append(req.get("field")).append("\"\n");
-                            sb.append("          operator: \"").append(req.get("operator")).append("\"\n");
-                            sb.append("          value: \"").append(req.get("value")).append("\"\n");
-                            sb.append("        }\n");
-                        }
-                    }
-                    sb.append("      }\n");
-                }
-            }
-
-            sb.append("    }\n");
-        }
-        sb.append("  };\n");
         return sb.toString();
     }
 
@@ -377,44 +233,5 @@ public class ModelsToProtoConverter {
             return "dev.appget." + subpackage;
         }
         return "dev.appget." + domain + "." + subpackage;
-    }
-
-    private String toModelName(String tableName) {
-        String singular = singularize(tableName);
-        return singular.substring(0, 1).toUpperCase() + singular.substring(1);
-    }
-
-    private String toViewModelName(String viewName) {
-        StringBuilder result = new StringBuilder();
-        boolean capitalizeNext = true;
-        for (char c : viewName.toCharArray()) {
-            if (c == '_') {
-                capitalizeNext = true;
-            } else if (capitalizeNext) {
-                result.append(Character.toUpperCase(c));
-                capitalizeNext = false;
-            } else {
-                result.append(c);
-            }
-        }
-        return result.toString();
-    }
-
-    private String singularize(String tableName) {
-        String lower = tableName.toLowerCase();
-        if (lower.endsWith("ies")) {
-            return lower.substring(0, lower.length() - 3) + "y";
-        }
-        if (lower.endsWith("ses") || lower.endsWith("xes") || lower.endsWith("zes")
-            || lower.endsWith("ches") || lower.endsWith("shes")) {
-            return lower.substring(0, lower.length() - 2);
-        }
-        if (lower.endsWith("oes")) {
-            return lower.substring(0, lower.length() - 2);
-        }
-        if (lower.endsWith("s")) {
-            return lower.substring(0, lower.length() - 1);
-        }
-        return lower;
     }
 }

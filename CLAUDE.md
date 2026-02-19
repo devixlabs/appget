@@ -115,7 +115,7 @@ make all              # clean → generate → test → build
 make features-to-specs   # .feature files + metadata → specs.yaml
 make parse-schema        # schema.sql → models.yaml
 make generate            # protobuf + specifications + OpenAPI
-make test                # 171 comprehensive tests
+make test                # 213 comprehensive tests
 make run                 # Execute rule engine demo
 make generate-server     # Generate Spring Boot REST API
 ```

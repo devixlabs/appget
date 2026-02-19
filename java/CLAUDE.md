@@ -8,7 +8,7 @@ This file provides Claude Code with Java-specific guidance for the appget.dev/ja
 
 **appget.dev/java** is a production-ready code generation system within the DevixLabs platform. It converts Gherkin business rules and database schemas into fully typed, tested Java domain models with business rule specifications, compound conditions, and metadata-aware authorization.
 
-**Key Responsibility**: Gherkin-first business rules, schema-first Java model generation with protobuf descriptor-based specifications, compound AND/OR logic, metadata authorization, blocking/informational rule enforcement, and comprehensive test coverage (171 tests).
+**Key Responsibility**: Gherkin-first business rules, schema-first Java model generation with protobuf descriptor-based specifications, compound AND/OR logic, metadata authorization, blocking/informational rule enforcement, and comprehensive test coverage (213 tests).
 
 ---
 
@@ -59,12 +59,12 @@ This file provides Claude Code with Java-specific guidance for the appget.dev/ja
 │ features: Simple, compound, metadata-aware      │
 │ targets: Any protobuf model or view class      │
 └──────────┬──────────────────────────────────────┘
-           │ DescriptorRegistry + RuleInterceptor
-           │ dynamic model discovery + rule loading
+           │ DescriptorRegistry
+           │ dynamic model discovery
            ↓
 ┌─────────────────────────────────────────────────┐
 │ Layer 5: Runtime (Descriptor-Based)             │
-│ RuleEngine: descriptor-driven evaluation        │
+│ RuleEngine: specs.yaml-driven evaluation        │
 │ Specification: protobuf getField() API          │
 │ TestDataBuilder: DynamicMessage samples         │
 │ No hard-coded imports or if/else dispatch      │
@@ -91,9 +91,10 @@ Step 2: parseSchema (depends on compileGenerators)
         ├─ Runs: SQLSchemaParser (schema.sql + views.sql → models.yaml)
         └─ Output: models.yaml with models + views (git-ignored)
 
-Step 3: generateProto (depends on featuresToSpecs + parseSchema)
-        ├─ Runs: ModelsToProtoConverter + protoc (models.yaml + specs → .proto → Java)
+Step 3: generateProto (depends on parseSchema only)
+        ├─ Runs: ModelsToProtoConverter + protoc (models.yaml → .proto → Java)
         └─ Output: protobuf model + view classes per domain (build/generated/)
+        Note: Business rules are NOT embedded in .proto files; they travel in specs.yaml
 
 Step 3b: generateOpenAPI (depends on generateProto)
         ├─ Runs: ProtoOpenAPIGenerator (.proto files → openapi.yaml)
@@ -117,15 +118,21 @@ Step 5: compileJava (depends on generateSpecs, generateDescriptorRegistry)
         └─ Output: build/classes/main/*.class
 
 Step 6: test (depends on compileJava)
-        ├─ Runs: 171 JUnit 5 tests
-        └─ Result: 171/171 passing
+        ├─ Runs: 213 JUnit 5 tests
+        └─ Result: 213/213 passing
 
 Step 7: build (depends on test)
         ├─ Packages: JAR, distributions
         └─ Output: build/libs/appget.dev-java.jar
 ```
 
-**Critical Rule**: `generateProto` depends on `featuresToSpecs` + `parseSchema`, NOT on `classes`. This breaks the circular dependency.
+**Critical Rule**: `generateProto` depends on `parseSchema` only (not on `featuresToSpecs`). Business rules are not embedded in proto. This breaks the circular dependency.
+
+**Why this dependency order**:
+- featuresToSpecs and parseSchema are INDEPENDENT (can run in parallel)
+- generateProto waits only on parseSchema (models.yaml) — it does NOT wait for specs.yaml
+- specs.yaml is used by downstream generators (SpecificationGenerator, RuleEngine) but NOT by ModelsToProtoConverter
+- This design enables future language implementations to load rules from the same specs.yaml without regenerating proto
 
 **Note**: `generateServer` depends on `generateSpecs` (spec classes must exist first) but runs separately from default pipeline. Generates complete Spring Boot REST API server in `generated-server/`.
 
@@ -194,6 +201,54 @@ private static Map<String, String> createTypeMapping() {
     return map;
 }
 ```
+
+---
+
+## Schema vs. Policy Architecture
+
+**Critical Rule**: Proto files define SCHEMA (models, fields, types). specs.yaml defines POLICY (rules, authorization, outcomes).
+
+**Problem Avoided**: Embedding business rules in proto custom options mixes schema with policy, creating tight coupling and making rules hard to update without regenerating proto files.
+
+**Solution**: Clean separation:
+- **proto files** (generated from models.yaml): Field names, types, proto type mappings only
+- **specs.yaml** (generated from features + metadata): Rules, metadata requirements, blocking flags, success/failure status
+
+**Impact on Generators**:
+- ModelsToProtoConverter: Converts models.yaml → proto (schema only, no rules)
+- RuleEngine: Loads rules from specs.yaml, not from proto
+- All downstream generators (SpecificationGenerator, SpringBootServerGenerator): Read rules from specs.yaml
+
+This separation ensures that:
+1. Proto files remain language-agnostic schema contracts for all future implementations
+2. Rules can be updated without regenerating proto
+3. Each language implementation reads the same specs.yaml
+
+---
+
+## Protocol Buffers as Universal Schema Layer
+
+Protobuf is the shared schema and code generation medium for ALL future appget.dev language implementations.
+
+**Why Protobuf (not JSON, not custom YAML)?**
+- **Type Safety**: Strongly typed schema with compile-time validation in all major languages
+- **Cross-Language Runtime**: Descriptor/reflection API available in Java, Python, Go, Ruby, Rust, JavaScript/TypeScript, C#
+- **Backward Compatibility**: Wire format evolution (adding fields, changing types) is safe and tested
+- **Code Generation**: `protoc` plugins exist for all target languages; no need to build custom generators per language
+- **Ecosystem**: Wide adoption means library support, documentation, and battle-tested implementations
+
+**Protoc Plugins by Language** (using models.yaml via ModelsToProtoConverter):
+| Language | Plugin | Output | Usage |
+|----------|--------|--------|-------|
+| Java | built-in | .java classes, MessageOrBuilder | appget.dev/java reference implementation |
+| Python | built-in | .py dataclasses, descriptor API | future appget.dev/python |
+| Go | built-in | .pb.go structs with descriptor API | future appget.dev/go |
+| Ruby | built-in | .pb.rb classes | future appget.dev/ruby |
+| Rust | rust-protobuf | .rs structs | future appget.dev/rust |
+| JavaScript/TypeScript | ts-proto or pbjs | .ts/.js classes | future appget.dev/node |
+| C# | built-in | .cs classes | future appget.dev/csharp |
+
+**All implementations use the same .proto files** (generated from models.yaml) as source of truth, then layer language-specific generators on top (like SpringBootServerGenerator for Java, Django server generation for Python, etc.).
 
 ---
 
@@ -367,12 +422,41 @@ Stores typed POJO instances per category (sso, roles, user). Rules with `require
 
 ---
 
+## Language-Agnostic Intermediates
+
+**models.yaml** and **specs.yaml** are the shared intermediate representations consumed by ALL language implementations (Java, Python, Go, Ruby, Rust, etc.).
+
+### models.yaml (generated from schema.sql + views.sql)
+- **Source**: SQLSchemaParser
+- **Format**: YAML with per-domain model/view definitions
+- **Content**: Field names (snake_case), types (Java types), domains
+- **Usage**: ModelsToProtoConverter reads this to generate .proto files for ANY language
+- **Stability**: Name, type, field number must be stable across language implementations
+
+### specs.yaml (generated from features/*.feature + metadata.yaml)
+- **Source**: FeatureToSpecsConverter
+- **Format**: YAML with per-domain rules, metadata definitions, conditions, outcomes
+- **Content**: Rule names, target models, conditions (simple + compound), metadata requirements, blocking flags, status values
+- **Usage**: RuleEngine loads these directly (no proto option parsing); all language implementations use same rules
+
+### Critical Principle
+**No generator should directly parse schema.sql, views.sql, or .feature files** — these are internal implementation details of the Java subproject. Future language implementations will:
+1. Import models.yaml and specs.yaml from the appget.dev/java project
+2. Run their own generators against these intermediates
+3. Generate language-specific code independently
+4. Load rules from specs.yaml at runtime (not from proto)
+
+This ensures that business logic defined once in features/ is automatically available in all language implementations without re-implementing the Gherkin parser.
+
+---
+
 ## Code Generation Strategy
 
 ### ModelsToProtoConverter + protoc: models.yaml → .proto → Java Models + Views
 
-**Input**: `models.yaml` + `specs.yaml` (for rule embedding)
+**Input**: `models.yaml`
 **Output**: `.proto` files → protoc → Java protobuf model + view classes in `build/generated/`
+**Note**: Rules are NOT embedded in proto. All generators that need rules read `specs.yaml` directly.
 
 ### SpecificationGenerator: YAML → Specifications + Metadata POJOs
 
@@ -463,6 +547,42 @@ SpringBootServerGenerator reads specs.yaml
   → generates MetadataExtractor that reads X-{Category}-{Field} headers
   → no runtime YAML parsing, no @PostConstruct, no reflection
 ```
+
+### RuleEngine.java: Specs.yaml-Driven Rule Loading
+
+**Location**: `src/main/java/dev/appget/RuleEngine.java`
+
+The RuleEngine loads business rules from specs.yaml using `loadRulesFromSpecs(String specsFile)`:
+
+```java
+// Parse specs.yaml into Rule objects with pre-built Specification/CompoundSpecification
+List<Rule<?>> rules = ruleEngine.loadRulesFromSpecs("specs.yaml");
+rules.forEach(rule -> evaluate(target, metadata));
+```
+
+**Why from specs.yaml, not from proto?**
+- specs.yaml is the source of truth for rules (generated from features + metadata)
+- Proto contains only schema (model definitions, field types)
+- Separating schema from policy enables rules to be updated without regenerating proto files
+- This pattern is portable across all future language implementations (Python, Go, Ruby, etc.)
+
+**Internal Pattern**:
+The `buildSpec()` method converts YAML condition objects into Specification or CompoundSpecification instances:
+
+```java
+// Simple condition: { field: age, operator: ">", value: 18 }
+// → Specification("age", ">", 18)
+
+// Compound condition: { operator: "AND", clauses: [...] }
+// → CompoundSpecification(Logic.AND, [Specification(...), ...])
+```
+
+**Pattern for Future Implementations**:
+All language implementations should:
+1. Use protoc to generate models from shared .proto files
+2. Load rules directly from specs.yaml (not from proto custom options)
+3. Implement a RuleEngine equivalent that parses specs.yaml and evaluates conditions against protobuf model instances
+4. The logic is language-agnostic: parse condition objects, build specification instances, evaluate against target
 
 **RuleService Generated Pattern**:
 ```java
@@ -636,7 +756,7 @@ make run                      # 6. Execute
 - Note: Requires Spring Boot dependencies installed
 
 ### make test
-- Runs: `gradle test` (171 tests)
+- Runs: `gradle test` (213 tests)
 
 ### make build
 - Full pipeline: parse → generate → compile → package
@@ -670,7 +790,7 @@ All non-generated classes have logging:
 - `SpecificationGenerator.java` - Specification and metadata POJO generation
 - `ProtoOpenAPIGenerator.java` - Proto-first OpenAPI spec generation
 - `SpringBootServerGenerator.java` - Spring Boot REST API generation
-- `RuleInterceptor.java` - Loading rules from protobuf descriptors
+- `RuleEngine.java` - Loading rules from specs.yaml and evaluating them
 - `Specification.java` - Specification evaluation with field resolution
 - `CompoundSpecification.java` - AND/OR compound condition evaluation
 - `MetadataContext.java` - Metadata context management
@@ -719,7 +839,7 @@ These are created once and reused efficiently across all invocations.
 
 ### Test Suite Overview
 
-**171 comprehensive unit tests** in 13 suites covering all components:
+**213 comprehensive unit tests** in 14 suites covering all components:
 
 #### 1. Feature To Specs Converter Tests (24 tests)
 - Gherkin `.feature` file parsing
@@ -731,10 +851,10 @@ These are created once and reused efficiently across all invocations.
 - Full conversion with metadata + rules
 - Structural equivalence with original specs.yaml
 
-#### 3. Schema To Proto Converter Tests (20 tests)
-- Proto file generation from schema.sql
-- Field type mapping (SQL → proto)
-- Rule embedding from specs.yaml
+#### 3. Models To Proto Converter Tests (14 tests)
+- Proto file generation from models.yaml
+- Field type mapping (Java type → proto type)
+- No rule options embedded in generated proto
 - Service CRUD operations
 - View proto generation
 
@@ -765,17 +885,12 @@ These are created once and reused efficiently across all invocations.
 - MetadataExtractor reads correct X-{Category}-{Field} headers
 - MetadataExtractor uses builder pattern with context.with()
 
-#### 7. Rule Interceptor Tests (11 tests)
-- Loading rules from protobuf descriptors (Employee, Salary, View)
-- Compound rule evaluation via interceptor
-- Metadata-aware rule evaluation
-- getDomain and hasBlockingRules
-
-#### 8. gRPC Service Stub Tests (7 tests)
+#### 7. gRPC Service Stub Tests (7 tests)
 - Service stub existence and CRUD method descriptors
 - All 5 domain services verified
 
-#### 9. Rule Engine Tests (15 tests)
+#### 8. Rule Engine Tests (15 tests)
+- RuleEngine loads rules from specs.yaml (not from proto custom options)
 - Generic rule evaluation with any model/view
 - Compound specification evaluation
 - Metadata requirement validation
@@ -784,29 +899,29 @@ These are created once and reused efficiently across all invocations.
 - View field evaluated against wrong model type returns failure (type mismatch guard)
 - View field evaluated against correct view type succeeds
 
-#### 10. Compound Specification Tests (6 tests)
+#### 9. Compound Specification Tests (6 tests)
 - AND logic (all conditions must be true)
 - OR logic (at least one condition true)
 - Single condition edge cases
 
-#### 11. Metadata Context Tests (5 tests)
+#### 10. Metadata Context Tests (5 tests)
 - Category storage and retrieval
 - Reflection-based POJO evaluation (metadata contexts are Lombok)
 - Missing category handling
 
-#### 12. Specification Pattern Tests (21 tests)
+#### 11. Specification Pattern Tests (21 tests)
 - Comparison operators: >, <, >=, <=, ==, !=
 - Type handling: Number, BigDecimal, Boolean, String
 - Edge cases and boundary values
 - Invalid field/operator handling
 
-#### 13. Descriptor Registry Tests (8 tests)
+#### 12. Descriptor Registry Tests (9 tests)
 - Registry contains all 7 models and views
 - Lookup by name for each model/view
 - Unknown model returns null
 - Field descriptors accessible
 
-#### 14. Test Data Builder Tests (6 tests)
+#### 13. Test Data Builder Tests (6 tests)
 - Build Employee/Salary/View with generic defaults
 - String fields get "Sample_" prefix
 - Int fields default to 42, double to 42.0
@@ -816,8 +931,10 @@ These are created once and reused efficiently across all invocations.
 ```
 src/test/java/dev/appget/
 ├── codegen/
+│   ├── CodeGenUtilsTest.java                (42 tests)
 │   ├── FeatureToSpecsConverterTest.java     (24 tests)
-│   ├── ModelsToProtoConverterTest.java      (20 tests)
+│   ├── JavaUtilsTest.java                   (16 tests)
+│   ├── ModelsToProtoConverterTest.java      (14 tests)
 │   ├── ProtoOpenAPIGeneratorTest.java       (23 tests)
 │   ├── SpecificationGeneratorTest.java      (13 tests)
 │   └── SpringBootServerGeneratorTest.java   (12 tests)
@@ -828,10 +945,9 @@ src/test/java/dev/appget/
 ├── specification/
 │   ├── SpecificationTest.java               (21 tests)
 │   ├── CompoundSpecificationTest.java        (6 tests)
-│   ├── MetadataContextTest.java              (5 tests)
-│   └── RuleInterceptorTest.java             (11 tests)
+│   └── MetadataContextTest.java              (5 tests)
 └── util/
-    ├── DescriptorRegistryTest.java           (8 tests)
+    ├── DescriptorRegistryTest.java           (9 tests)
     └── TestDataBuilderTest.java              (6 tests)
 ```
 
@@ -893,7 +1009,7 @@ build/
 - `make clean`: ~0.7s
 - `make parse-schema`: ~0.9s
 - `make generate`: ~1s
-- `make test`: ~2s (171 tests)
+- `make test`: ~2s (213 tests)
 - `make build`: ~1s
 - `make all`: ~5-6s total
 
@@ -985,13 +1101,13 @@ DON'T commit (all auto-generated):
 | `src/main/java/dev/appget/specification/Specification.java` | Dual-path evaluation (descriptor + reflection) |
 | `src/main/java/dev/appget/specification/CompoundSpecification.java` | AND/OR compound logic |
 | `src/main/java/dev/appget/specification/MetadataContext.java` | Authorization metadata holder |
-| `src/main/java/dev/appget/specification/RuleInterceptor.java` | Reads rules from protobuf custom options |
+| `src/main/java/dev/appget/RuleEngine.java` | Loads rules from specs.yaml, evaluates against protobuf model instances |
 | `src/main/java/dev/appget/model/Rule.java` | Generic rule with metadata support |
 | `src/main/java-generated/dev/appget/util/DescriptorRegistry.java` | Auto-generated protobuf descriptor registry (from models.yaml) |
 | `src/main/java/dev/appget/util/TestDataBuilder.java` | DynamicMessage-based sample data builder |
 | `src/main/java/dev/appget/RuleEngine.java` | Descriptor-driven rule evaluation engine |
 | `generated-server/` | Auto-generated Spring Boot REST API (git-ignored) |
-| `src/test/java/dev/appget/...` | 171 unit tests (13 suites) |
+| `src/test/java/dev/appget/...` | 213 unit tests (14 suites) |
 
 ---
 
@@ -1025,7 +1141,7 @@ DON'T commit (all auto-generated):
 9. **Spring Boot REST API**: Complete server with Controllers/Services/Repositories
 
 ### Quality & Operations
-10. **Comprehensive testing**: 171 tests verify entire pipeline (13 test suites)
+10. **Comprehensive testing**: 213 tests verify entire pipeline (12 test suites)
 11. **Reproducible builds**: Same schema + features → same code, always
 12. **Logging**: Log4j2 integrated in all non-generated classes
 13. **Isolated generation**: Independent compilation breaks circular dependencies
@@ -1040,7 +1156,7 @@ DON'T commit (all auto-generated):
 
 **Last Updated**: 2026-02-12
 **Status**: Production Ready
-**Test Coverage**: 171 tests, 100% passing
+**Test Coverage**: 213 tests, 100% passing
 **Logging**: Log4j2 integrated in all non-generated classes
-**Testing**: 13 test suites, comprehensive pipeline coverage
+**Testing**: 14 test suites, comprehensive pipeline coverage
 **New (2026-02-12)**: Gherkin .feature files as source of truth for business rules, FeatureToSpecsConverter, 24 new tests

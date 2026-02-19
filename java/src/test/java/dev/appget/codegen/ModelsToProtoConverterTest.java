@@ -145,84 +145,25 @@ class ModelsToProtoConverterTest {
         assertTrue(content.contains("DO NOT EDIT MANUALLY"), "Should have do-not-edit warning");
     }
 
-    // ---- Phase 2: Rule embedding tests ----
-
     @Test
-    @DisplayName("Proto with specs.yaml imports rules.proto")
-    void testRulesImport(@TempDir Path tempDir) throws Exception {
-        if (tempModelsYaml == null || !new File("specs.yaml").exists()) return;
-        converter.convert(tempModelsYaml.toString(), tempDir.toString(), "specs.yaml");
-
-        String content = Files.readString(tempDir.resolve("appget_models.proto"));
-        assertTrue(content.contains("import \"rules.proto\""), "Should import rules.proto when specs are provided");
-    }
-
-    @Test
-    @DisplayName("Employee message has embedded business rules")
-    void testEmployeeRulesEmbedded(@TempDir Path tempDir) throws Exception {
-        if (tempModelsYaml == null || !new File("specs.yaml").exists()) return;
-        converter.convert(tempModelsYaml.toString(), tempDir.toString(), "specs.yaml");
-
-        String content = Files.readString(tempDir.resolve("appget_models.proto"));
-        assertTrue(content.contains("option (rules.rule_set)"), "Employee should have rule_set option");
-        assertTrue(content.contains("name: \"EmployeeAgeCheck\""), "Should contain EmployeeAgeCheck rule");
-        assertTrue(content.contains("name: \"SeniorManagerCheck\""), "Should contain SeniorManagerCheck rule");
-        assertTrue(content.contains("name: \"AuthenticatedApproval\""), "Should contain AuthenticatedApproval rule");
-        assertTrue(content.contains("blocking: true"), "EmployeeAgeCheck should be blocking");
-    }
-
-    @Test
-    @DisplayName("Compound rule has correct AND/OR structure in proto")
-    void testCompoundRuleStructure(@TempDir Path tempDir) throws Exception {
-        if (tempModelsYaml == null || !new File("specs.yaml").exists()) return;
-        converter.convert(tempModelsYaml.toString(), tempDir.toString(), "specs.yaml");
-
-        String content = Files.readString(tempDir.resolve("appget_models.proto"));
-        assertTrue(content.contains("compound_conditions:"), "SeniorManagerCheck should have compound_conditions");
-        assertTrue(content.contains("logic: \"AND\""), "SeniorManagerCheck should use AND logic");
-    }
-
-    @Test
-    @DisplayName("Metadata requirements embedded in proto options")
-    void testMetadataRequirementsEmbedded(@TempDir Path tempDir) throws Exception {
-        if (tempModelsYaml == null || !new File("specs.yaml").exists()) return;
-        converter.convert(tempModelsYaml.toString(), tempDir.toString(), "specs.yaml");
-
-        String content = Files.readString(tempDir.resolve("appget_models.proto"));
-        assertTrue(content.contains("metadata_requirements:"), "AuthenticatedApproval should have metadata_requirements");
-        assertTrue(content.contains("category: \"sso\""), "Should require sso metadata");
-        assertTrue(content.contains("category: \"roles\""), "Should require roles metadata");
-    }
-
-    @Test
-    @DisplayName("View proto has embedded rules when specs provided")
-    void testViewRulesEmbedded(@TempDir Path tempDir) throws Exception {
-        if (tempModelsYaml == null || !new File("specs.yaml").exists()) return;
-        converter.convert(tempModelsYaml.toString(), tempDir.toString(), "specs.yaml");
-
-        String content = Files.readString(tempDir.resolve("appget_views.proto"));
-        assertTrue(content.contains("name: \"HighEarnerCheck\""), "EmployeeSalaryView should have HighEarnerCheck rule");
-        assertTrue(content.contains("import \"rules.proto\""), "View proto should import rules.proto");
-    }
-
-    @Test
-    @DisplayName("Proto without specs.yaml has no rules import")
-    void testNoRulesWithoutSpecs(@TempDir Path tempDir) throws Exception {
+    @DisplayName("Generated proto does not embed rule options")
+    void testNoRuleOptionsInProto(@TempDir Path tempDir) throws Exception {
         if (tempModelsYaml == null) return;
         converter.convert(tempModelsYaml.toString(), tempDir.toString());
 
         String content = Files.readString(tempDir.resolve("appget_models.proto"));
-        assertFalse(content.contains("import \"rules.proto\""), "Should not import rules.proto without specs");
-        assertFalse(content.contains("rule_set"), "Should not have rule_set without specs");
+        assertFalse(content.contains("import \"rules.proto\""), "Should not import rules.proto");
+        assertFalse(content.contains("rule_set"), "Should not embed rule_set options");
+        assertFalse(content.contains("(rules."), "Should not contain any rules custom options");
     }
 
-    // ---- Phase 3: gRPC service generation tests ----
+    // ---- gRPC service generation tests ----
 
     @Test
     @DisplayName("Service proto files are generated for each domain")
     void testServiceProtoGeneration(@TempDir Path tempDir) throws Exception {
-        if (tempModelsYaml == null || !new File("specs.yaml").exists()) return;
-        converter.convert(tempModelsYaml.toString(), tempDir.toString(), "specs.yaml");
+        if (tempModelsYaml == null) return;
+        converter.convert(tempModelsYaml.toString(), tempDir.toString());
 
         assertTrue(Files.exists(tempDir.resolve("appget_services.proto")), "appget_services.proto should be generated");
         assertTrue(Files.exists(tempDir.resolve("hr_services.proto")), "hr_services.proto should be generated");
@@ -232,8 +173,8 @@ class ModelsToProtoConverterTest {
     @Test
     @DisplayName("Service proto has CRUD operations for Employee")
     void testServiceCrudOperations(@TempDir Path tempDir) throws Exception {
-        if (tempModelsYaml == null || !new File("specs.yaml").exists()) return;
-        converter.convert(tempModelsYaml.toString(), tempDir.toString(), "specs.yaml");
+        if (tempModelsYaml == null) return;
+        converter.convert(tempModelsYaml.toString(), tempDir.toString());
 
         String content = Files.readString(tempDir.resolve("appget_services.proto"));
         assertTrue(content.contains("service EmployeeService"), "Should have EmployeeService");
@@ -247,24 +188,13 @@ class ModelsToProtoConverterTest {
     @Test
     @DisplayName("Service proto has correct java_package")
     void testServiceProtoPackage(@TempDir Path tempDir) throws Exception {
-        if (tempModelsYaml == null || !new File("specs.yaml").exists()) return;
-        converter.convert(tempModelsYaml.toString(), tempDir.toString(), "specs.yaml");
+        if (tempModelsYaml == null) return;
+        converter.convert(tempModelsYaml.toString(), tempDir.toString());
 
         String appgetContent = Files.readString(tempDir.resolve("appget_services.proto"));
         assertTrue(appgetContent.contains("java_package = \"dev.appget.service\""), "Appget service package");
 
         String hrContent = Files.readString(tempDir.resolve("hr_services.proto"));
         assertTrue(hrContent.contains("java_package = \"dev.appget.hr.service\""), "HR service package");
-    }
-
-    @Test
-    @DisplayName("Service proto has method-level authorization options")
-    void testServiceAuthOptions(@TempDir Path tempDir) throws Exception {
-        if (tempModelsYaml == null || !new File("specs.yaml").exists()) return;
-        converter.convert(tempModelsYaml.toString(), tempDir.toString(), "specs.yaml");
-
-        String content = Files.readString(tempDir.resolve("appget_services.proto"));
-        assertTrue(content.contains("required_role"), "Create/Update should require role");
-        assertTrue(content.contains("check_ownership"), "Delete should check ownership");
     }
 }
