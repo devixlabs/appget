@@ -4,9 +4,15 @@ import dev.appget.model.Employee;
 import dev.appget.hr.model.Salary;
 import dev.appget.hr.model.Department;
 import dev.appget.finance.model.Invoice;
+import dev.appget.common.Decimal;
+import com.google.protobuf.ByteString;
+import com.google.protobuf.Timestamp;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+
+import java.math.BigDecimal;
+import java.math.BigInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -154,14 +160,30 @@ class SpecificationTest {
         assertTrue(spec.isSatisfiedBy(seniorEmployee), "Age 65 >= 60 should be true");
     }
 
+    // ---- Decimal helper ----
+
+    /**
+     * Build an appget.common.Decimal proto message from a double value.
+     * Uses BigDecimal to extract unscaled value and scale.
+     */
+    private static Decimal decimalOf(double value) {
+        BigDecimal bd = new BigDecimal(String.valueOf(value));
+        BigInteger unscaled = bd.unscaledValue();
+        int scale = bd.scale();
+        return Decimal.newBuilder()
+                .setUnscaled(ByteString.copyFrom(unscaled.toByteArray()))
+                .setScale(scale)
+                .build();
+    }
+
     // Tests for non-Employee models
 
     @Test
-    @DisplayName("Salary double amount comparison")
+    @DisplayName("Salary Decimal amount comparison")
     void testSalaryAmountComparison() {
         Salary salary = Salary.newBuilder()
                 .setEmployeeId("Alice")
-                .setAmount(75000.50)
+                .setAmount(decimalOf(75000.50))
                 .setYearsOfService(5)
                 .build();
 
@@ -170,12 +192,12 @@ class SpecificationTest {
     }
 
     @Test
-    @DisplayName("Department budget double comparison")
+    @DisplayName("Department budget Decimal comparison")
     void testDepartmentBudgetComparison() {
         Department dept = Department.newBuilder()
                 .setId("D1")
                 .setName("Engineering")
-                .setBudget(500000.0)
+                .setBudget(decimalOf(500000.0))
                 .build();
 
         Specification spec = new Specification("budget", ">=", 500000);
@@ -187,8 +209,8 @@ class SpecificationTest {
     void testInvoiceStringFieldComparison() {
         Invoice invoice = Invoice.newBuilder()
                 .setInvoiceNumber("INV-001")
-                .setAmount(1500.0)
-                .setIssueDate("2025-06-15")
+                .setAmount(decimalOf(1500.0))
+                .setIssueDate(Timestamp.newBuilder().setSeconds(1749945600L).build())
                 .build();
 
         Specification spec = new Specification("invoice_number", "==", "INV-001");
@@ -200,7 +222,7 @@ class SpecificationTest {
     void testSalaryIntegerField() {
         Salary salary = Salary.newBuilder()
                 .setEmployeeId("Bob")
-                .setAmount(60000.0)
+                .setAmount(decimalOf(60000.0))
                 .setYearsOfService(10)
                 .build();
 

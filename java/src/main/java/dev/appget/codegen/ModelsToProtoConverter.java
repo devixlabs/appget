@@ -18,8 +18,8 @@ import org.yaml.snakeyaml.Yaml;
  *
  * Pipeline: models.yaml → .proto files → protoc → model classes (in any target language)
  *
- * models.yaml stores language-agnostic snake_case field names and Java types.
- * This converter translates Java types to proto types via JavaUtils.JAVA_TO_PROTO_TYPE.
+ * models.yaml stores language-neutral types (string, int32, int64, float64, bool, date, datetime, decimal).
+ * This converter uses JavaTypeRegistry.INSTANCE.neutralToProto() for all type lookups.
  *
  * Generated .proto files are intermediate artifacts (git-ignored).
  * models.yaml is the single source of truth for model definitions.
@@ -28,7 +28,7 @@ public class ModelsToProtoConverter {
 
     private static final Logger logger = LogManager.getLogger(ModelsToProtoConverter.class);
 
-    private record ProtoField(String name, String type) {}
+    private record ProtoField(String name, String protoType, boolean optional, int fieldNumber) {}
     private record ProtoMessage(String name, List<ProtoField> fields) {}
 
     public static void main(String[] args) throws Exception {
@@ -54,6 +54,18 @@ public class ModelsToProtoConverter {
 
         Path outputPath = Paths.get(outputDir);
         Files.createDirectories(outputPath);
+
+        // Detect if any domain has decimal or timestamp fields for shared imports
+        boolean anyDecimal = hasDecimalFields(domainModels, domainViews);
+
+        // Generate appget_common.proto if any decimal fields exist
+        if (anyDecimal) {
+            String commonContent = generateCommonProto();
+            Path commonProto = outputPath.resolve("appget_common.proto");
+            Files.writeString(commonProto, commonContent);
+            logger.info("Generated {}", commonProto);
+            System.out.println("Generated " + commonProto);
+        }
 
         for (Map.Entry<String, List<ProtoMessage>> entry : domainModels.entrySet()) {
             String domain = entry.getKey();
@@ -137,31 +149,120 @@ public class ModelsToProtoConverter {
         if (fields == null) {
             return protoFields;
         }
+        int fallbackFieldNum = 1;
         for (Map<String, Object> field : fields) {
             String name = (String) field.get("name");
-            String javaType = (String) field.get("type");
-            String protoType = JavaUtils.JAVA_TO_PROTO_TYPE.getOrDefault(javaType, "string");
-            protoFields.add(new ProtoField(name, protoType));
+            String neutralType = (String) field.get("type");
+
+            // Handle both neutral types (new) and legacy Java types (backward compat)
+            String protoType;
+            if (isNeutralType(neutralType)) {
+                protoType = JavaTypeRegistry.INSTANCE.neutralToProto(neutralType);
+            } else {
+                // Legacy Java type from old models.yaml - convert via javaToNeutral
+                String neutral = JavaTypeRegistry.javaToNeutral(neutralType);
+                protoType = JavaTypeRegistry.INSTANCE.neutralToProto(neutral);
+            }
+
+            Object nullableObj = field.get("nullable");
+            boolean nullable = (nullableObj instanceof Boolean) ? (Boolean) nullableObj : false;
+
+            // Use field_number from models.yaml if present, otherwise sequential
+            Object fnObj = field.get("field_number");
+            int fieldNumber;
+            if (fnObj instanceof Integer) {
+                fieldNumber = (Integer) fnObj;
+            } else {
+                fieldNumber = fallbackFieldNum;
+            }
+            fallbackFieldNum = fieldNumber + 1;
+
+            protoFields.add(new ProtoField(name, protoType, nullable, fieldNumber));
         }
         return protoFields;
     }
 
+    /**
+     * Check if a type string is a neutral type (models.yaml new format).
+     * Neutral types: string, int32, int64, float64, bool, date, datetime, decimal
+     */
+    private boolean isNeutralType(String type) {
+        if (type == null) return false;
+        if ("string".equals(type)) return true;
+        if ("int32".equals(type)) return true;
+        if ("int64".equals(type)) return true;
+        if ("float64".equals(type)) return true;
+        if ("bool".equals(type)) return true;
+        if ("date".equals(type)) return true;
+        if ("datetime".equals(type)) return true;
+        if ("decimal".equals(type)) return true;
+        return false;
+    }
+
+    private boolean hasDecimalFields(Map<String, List<ProtoMessage>> domainModels,
+                                      Map<String, List<ProtoMessage>> domainViews) {
+        for (List<ProtoMessage> msgs : domainModels.values()) {
+            for (ProtoMessage msg : msgs) {
+                for (ProtoField f : msg.fields()) {
+                    if ("appget.common.Decimal".equals(f.protoType())) return true;
+                }
+            }
+        }
+        for (List<ProtoMessage> msgs : domainViews.values()) {
+            for (ProtoMessage msg : msgs) {
+                for (ProtoField f : msg.fields()) {
+                    if ("appget.common.Decimal".equals(f.protoType())) return true;
+                }
+            }
+        }
+        return false;
+    }
+
     // ---- Proto Output Generation ----
 
+    private String generateCommonProto() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("// Generated - DO NOT EDIT MANUALLY\n");
+        sb.append("syntax = \"proto3\";\n\n");
+        sb.append("option java_package = \"dev.appget.common\";\n");
+        sb.append("option java_multiple_files = true;\n\n");
+        sb.append("package appget.common;\n\n");
+        sb.append("message Decimal {\n");
+        sb.append("  bytes unscaled = 1;\n");
+        sb.append("  int32 scale    = 2;\n");
+        sb.append("}\n");
+        return sb.toString();
+    }
+
     private String generateModelProto(String domain, List<ProtoMessage> models) {
+        boolean needsTimestamp = needsTimestampImport(models);
+        boolean needsDecimal = needsDecimalImport(models);
+
         StringBuilder sb = new StringBuilder();
         sb.append("// Generated from models.yaml - DO NOT EDIT MANUALLY\n");
         sb.append("syntax = \"proto3\";\n\n");
+        if (needsTimestamp) {
+            sb.append("import \"google/protobuf/timestamp.proto\";\n");
+        }
+        if (needsDecimal) {
+            sb.append("import \"appget_common.proto\";\n");
+        }
+        if (needsTimestamp || needsDecimal) {
+            sb.append("\n");
+        }
         sb.append("option java_package = \"").append(javaPackage(domain, "model")).append("\";\n");
         sb.append("option java_multiple_files = true;\n\n");
         sb.append("package ").append(domain).append(";\n");
 
         for (ProtoMessage msg : models) {
             sb.append("\nmessage ").append(msg.name()).append(" {\n");
-            int fieldNum = 1;
             for (ProtoField field : msg.fields()) {
-                sb.append("  ").append(field.type()).append(" ").append(field.name())
-                  .append(" = ").append(fieldNum++).append(";\n");
+                sb.append("  ");
+                if (field.optional()) {
+                    sb.append("optional ");
+                }
+                sb.append(field.protoType()).append(" ").append(field.name())
+                  .append(" = ").append(field.fieldNumber()).append(";\n");
             }
             sb.append("}\n");
         }
@@ -169,19 +270,34 @@ public class ModelsToProtoConverter {
     }
 
     private String generateViewProto(String domain, List<ProtoMessage> views) {
+        boolean needsTimestamp = needsTimestampImport(views);
+        boolean needsDecimal = needsDecimalImport(views);
+
         StringBuilder sb = new StringBuilder();
         sb.append("// Generated from models.yaml - DO NOT EDIT MANUALLY\n");
         sb.append("syntax = \"proto3\";\n\n");
+        if (needsTimestamp) {
+            sb.append("import \"google/protobuf/timestamp.proto\";\n");
+        }
+        if (needsDecimal) {
+            sb.append("import \"appget_common.proto\";\n");
+        }
+        if (needsTimestamp || needsDecimal) {
+            sb.append("\n");
+        }
         sb.append("option java_package = \"").append(javaPackage(domain, "view")).append("\";\n");
         sb.append("option java_multiple_files = true;\n\n");
         sb.append("package ").append(domain).append("_views;\n");
 
         for (ProtoMessage msg : views) {
             sb.append("\nmessage ").append(msg.name()).append(" {\n");
-            int fieldNum = 1;
             for (ProtoField field : msg.fields()) {
-                sb.append("  ").append(field.type()).append(" ").append(field.name())
-                  .append(" = ").append(fieldNum++).append(";\n");
+                sb.append("  ");
+                if (field.optional()) {
+                    sb.append("optional ");
+                }
+                sb.append(field.protoType()).append(" ").append(field.name())
+                  .append(" = ").append(field.fieldNumber()).append(";\n");
             }
             sb.append("}\n");
         }
@@ -226,6 +342,24 @@ public class ModelsToProtoConverter {
             sb.append("}\n");
         }
         return sb.toString();
+    }
+
+    private boolean needsTimestampImport(List<ProtoMessage> messages) {
+        for (ProtoMessage msg : messages) {
+            for (ProtoField f : msg.fields()) {
+                if ("google.protobuf.Timestamp".equals(f.protoType())) return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean needsDecimalImport(List<ProtoMessage> messages) {
+        for (ProtoMessage msg : messages) {
+            for (ProtoField f : msg.fields()) {
+                if ("appget.common.Decimal".equals(f.protoType())) return true;
+            }
+        }
+        return false;
     }
 
     private String javaPackage(String domain, String subpackage) {

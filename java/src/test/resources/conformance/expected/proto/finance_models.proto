@@ -1,0 +1,16 @@
+// Generated from models.yaml - DO NOT EDIT MANUALLY
+syntax = "proto3";
+
+import "google/protobuf/timestamp.proto";
+import "appget_common.proto";
+
+option java_package = "dev.appget.finance.model";
+option java_multiple_files = true;
+
+package finance;
+
+message Invoice {
+  string invoice_number = 1;
+  appget.common.Decimal amount = 2;
+  google.protobuf.Timestamp issue_date = 3;
+}

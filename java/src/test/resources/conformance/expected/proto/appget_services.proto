@@ -1,0 +1,74 @@
+// Generated from models.yaml - DO NOT EDIT MANUALLY
+syntax = "proto3";
+
+import "google/protobuf/empty.proto";
+import "appget_models.proto";
+
+option java_package = "dev.appget.service";
+option java_multiple_files = true;
+
+package appget_services;
+
+message RoleId {
+  string id = 1;
+}
+
+message RoleList {
+  repeated appget.Role items = 1;
+}
+
+service RoleService {
+  rpc CreateRole(appget.Role) returns (appget.Role) {}
+  rpc GetRole(RoleId) returns (appget.Role) {}
+  rpc UpdateRole(appget.Role) returns (appget.Role) {}
+  rpc DeleteRole(RoleId) returns (google.protobuf.Empty) {}
+  rpc ListRoles(google.protobuf.Empty) returns (RoleList) {}
+}
+
+message EmployeeId {
+  string id = 1;
+}
+
+message EmployeeList {
+  repeated appget.Employee items = 1;
+}
+
+service EmployeeService {
+  rpc CreateEmployee(appget.Employee) returns (appget.Employee) {}
+  rpc GetEmployee(EmployeeId) returns (appget.Employee) {}
+  rpc UpdateEmployee(appget.Employee) returns (appget.Employee) {}
+  rpc DeleteEmployee(EmployeeId) returns (google.protobuf.Empty) {}
+  rpc ListEmployees(google.protobuf.Empty) returns (EmployeeList) {}
+}
+
+message VendorId {
+  string id = 1;
+}
+
+message VendorList {
+  repeated appget.Vendor items = 1;
+}
+
+service VendorService {
+  rpc CreateVendor(appget.Vendor) returns (appget.Vendor) {}
+  rpc GetVendor(VendorId) returns (appget.Vendor) {}
+  rpc UpdateVendor(appget.Vendor) returns (appget.Vendor) {}
+  rpc DeleteVendor(VendorId) returns (google.protobuf.Empty) {}
+  rpc ListVendors(google.protobuf.Empty) returns (VendorList) {}
+}
+
+message LocationId {
+  string id = 1;
+}
+
+message LocationList {
+  repeated appget.Location items = 1;
+}
+
+service LocationService {
+  rpc CreateLocation(appget.Location) returns (appget.Location) {}
+  rpc GetLocation(LocationId) returns (appget.Location) {}
+  rpc UpdateLocation(appget.Location) returns (appget.Location) {}
+  rpc DeleteLocation(LocationId) returns (google.protobuf.Empty) {}
+  rpc ListLocations(google.protobuf.Empty) returns (LocationList) {}
+}

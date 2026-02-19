@@ -8,7 +8,7 @@ This file provides Claude Code with Java-specific guidance for the appget.dev/ja
 
 **appget.dev/java** is a production-ready code generation system within the DevixLabs platform. It converts Gherkin business rules and database schemas into fully typed, tested Java domain models with business rule specifications, compound conditions, and metadata-aware authorization.
 
-**Key Responsibility**: Gherkin-first business rules, schema-first Java model generation with protobuf descriptor-based specifications, compound AND/OR logic, metadata authorization, blocking/informational rule enforcement, and comprehensive test coverage (213 tests).
+**Key Responsibility**: Gherkin-first business rules, schema-first Java model generation with protobuf descriptor-based specifications, compound AND/OR logic, metadata authorization, blocking/informational rule enforcement, and comprehensive test coverage (277 tests).
 
 ---
 
@@ -223,6 +223,38 @@ This separation ensures that:
 1. Proto files remain language-agnostic schema contracts for all future implementations
 2. Rules can be updated without regenerating proto
 3. Each language implementation reads the same specs.yaml
+
+---
+
+## TypeRegistry Pattern
+
+All type mappings are consolidated in a single per-language registry. This is the primary extension point for adding new language implementations.
+
+**Interface**: `src/main/java/dev/appget/codegen/TypeRegistry.java`
+**Java implementation**: `src/main/java/dev/appget/codegen/JavaTypeRegistry.java`
+
+```java
+TypeRegistry.INSTANCE.neutralToProto("decimal")   // → "appget.common.Decimal"
+TypeRegistry.INSTANCE.neutralToJava("decimal")    // → "BigDecimal"
+TypeRegistry.INSTANCE.neutralToOpenApi("datetime") // → ["string", "date-time"]
+```
+
+**Neutral types** stored in `models.yaml` (language-agnostic):
+
+| models.yaml type | Java (neutralToJava) | Proto (neutralToProto) | OpenAPI |
+|-----------------|----------------------|------------------------|---------|
+| `string` | `String` | `string` | string |
+| `int32` | `int` / `Integer` | `int32` | integer/int32 |
+| `int64` | `long` / `Long` | `int64` | integer/int64 |
+| `float64` | `double` / `Double` | `double` | number/double |
+| `bool` | `boolean` / `Boolean` | `bool` | boolean |
+| `date` | `LocalDate` | `google.protobuf.Timestamp` | string/date |
+| `datetime` | `LocalDateTime` | `google.protobuf.Timestamp` | string/date-time |
+| `decimal` | `BigDecimal` | `appget.common.Decimal` | string/decimal |
+
+**For new language implementations** (Go, Python, Ruby): Create `GoTypeRegistry implements TypeRegistry`, `PythonTypeRegistry implements TypeRegistry`, etc. Each language writes exactly one registry class; all generators read from it. Never add type mappings inside individual generators.
+
+**`appget_common.proto`**: Generated automatically by `ModelsToProtoConverter` when any domain has `decimal` fields. Contains the shared `Decimal` message (`bytes unscaled`, `int32 scale`).
 
 ---
 

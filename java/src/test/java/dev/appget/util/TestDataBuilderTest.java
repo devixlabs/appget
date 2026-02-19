@@ -1,6 +1,7 @@
 package dev.appget.util;
 
 import com.google.protobuf.Descriptors;
+import com.google.protobuf.Message;
 import com.google.protobuf.MessageOrBuilder;
 import dev.appget.model.Employee;
 import dev.appget.hr.model.Salary;
@@ -41,7 +42,11 @@ class TestDataBuilderTest {
 
         Descriptors.Descriptor desc = Salary.getDescriptor();
         assertEquals("Sample_employee_id", salary.getField(desc.findFieldByName("employee_id")));
-        assertEquals(42.0, salary.getField(desc.findFieldByName("amount")));
+        // amount is now appget.common.Decimal (a message type)
+        Object amountField = salary.getField(desc.findFieldByName("amount"));
+        assertNotNull(amountField, "amount field (Decimal) should not be null");
+        assertInstanceOf(Message.class, amountField, "amount should be a Decimal message");
+        // years_of_service is optional int32
         assertEquals(42, salary.getField(desc.findFieldByName("years_of_service")));
     }
 
@@ -54,7 +59,10 @@ class TestDataBuilderTest {
         Descriptors.Descriptor desc = EmployeeSalaryView.getDescriptor();
         assertEquals("Sample_employee_name", view.getField(desc.findFieldByName("employee_name")));
         assertEquals(42, view.getField(desc.findFieldByName("employee_age")));
-        assertEquals(42.0, view.getField(desc.findFieldByName("salary_amount")));
+        // salary_amount is now appget.common.Decimal (a message type)
+        Object salaryAmount = view.getField(desc.findFieldByName("salary_amount"));
+        assertNotNull(salaryAmount, "salary_amount field (Decimal) should not be null");
+        assertInstanceOf(Message.class, salaryAmount, "salary_amount should be a Decimal message");
     }
 
     @Test
@@ -74,10 +82,12 @@ class TestDataBuilderTest {
     }
 
     @Test
-    @DisplayName("Double fields should default to 42.0")
-    void testDoubleFieldDefault() {
+    @DisplayName("Decimal fields should default to a Decimal message with value 42.0")
+    void testDecimalFieldDefault() {
         MessageOrBuilder salary = builder.buildSampleMessage(Salary.getDescriptor());
         Object amount = salary.getField(Salary.getDescriptor().findFieldByName("amount"));
-        assertEquals(42.0, amount);
+        // amount is now appget.common.Decimal (a message), not a raw double
+        assertNotNull(amount, "Decimal field should not be null");
+        assertInstanceOf(Message.class, amount, "Decimal field should be a Message");
     }
 }

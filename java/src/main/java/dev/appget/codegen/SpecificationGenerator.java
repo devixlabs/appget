@@ -167,23 +167,31 @@ public class SpecificationGenerator {
 
         Set<String> imports = new LinkedHashSet<>();
 
-        Map<String, String> typeImports = Map.of(
-            "LocalDate", "java.time.LocalDate",
-            "LocalDateTime", "java.time.LocalDateTime",
-            "BigDecimal", "java.math.BigDecimal"
-        );
+        Map<String, String> typeImports = new HashMap<>();
+        typeImports.put("LocalDate", "java.time.LocalDate");
+        typeImports.put("LocalDateTime", "java.time.LocalDateTime");
+        typeImports.put("BigDecimal", "java.math.BigDecimal");
 
+        // Convert field types to Java types (neutral types → Java types)
+        // and build a new fields list with Java type names
+        List<Map<String, Object>> javaFields = new ArrayList<>();
         for (Map<String, Object> field : fields) {
-            String type = (String) field.get("type");
-            if (type != null && typeImports.containsKey(type)) {
-                imports.add(typeImports.get(type));
+            String rawType = (String) field.get("type");
+            // Convert neutral type to Java type; fall back to raw if already Java
+            String javaType = JavaTypeRegistry.INSTANCE.neutralToJava(rawType);
+            if (typeImports.containsKey(javaType)) {
+                imports.add(typeImports.get(javaType));
             }
+            // Build new field map with Java type
+            Map<String, Object> javaField = new LinkedHashMap<>(field);
+            javaField.put("type", javaType);
+            javaFields.add(javaField);
         }
 
         Map<String, Object> context = new HashMap<>();
         context.put("className", className);
         context.put("imports", imports);
-        context.put("fields", fields);
+        context.put("fields", javaFields);
 
         logger.debug("Rendering MetadataPojo template for {}", className);
         return templateEngine.render("specification/MetadataPojo.java", context);

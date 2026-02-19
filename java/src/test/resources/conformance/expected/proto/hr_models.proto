@@ -1,0 +1,21 @@
+// Generated from models.yaml - DO NOT EDIT MANUALLY
+syntax = "proto3";
+
+import "appget_common.proto";
+
+option java_package = "dev.appget.hr.model";
+option java_multiple_files = true;
+
+package hr;
+
+message Department {
+  string id = 1;
+  string name = 2;
+  appget.common.Decimal budget = 3;
+}
+
+message Salary {
+  string employee_id = 1;
+  appget.common.Decimal amount = 2;
+  optional int32 years_of_service = 3;
+}

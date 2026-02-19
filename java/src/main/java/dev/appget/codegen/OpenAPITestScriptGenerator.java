@@ -376,7 +376,13 @@ public class OpenAPITestScriptGenerator {
 
             json.append("\"").append(propName).append("\": ");
 
-            if ("string".equals(type)) {
+            if ("string".equals(type) && "decimal".equals(format)) {
+                json.append("\"99.99\"");
+            } else if ("string".equals(type) && "date-time".equals(format)) {
+                json.append("\"2024-01-15T10:30:00Z\"");
+            } else if ("string".equals(type) && "date".equals(format)) {
+                json.append("\"2024-01-15\"");
+            } else if ("string".equals(type)) {
                 json.append("\"").append(prefix).append(capitalize(propName)).append("\"");
             } else if ("integer".equals(type)) {
                 json.append(propName.toLowerCase().contains("id") ? "1" : "42");

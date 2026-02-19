@@ -2,15 +2,19 @@ package dev.appget.model;
 
 import dev.appget.hr.model.Salary;
 import dev.appget.view.EmployeeSalaryView;
+import dev.appget.common.Decimal;
 import dev.appget.specification.CompoundSpecification;
 import dev.appget.specification.MetadataContext;
 import dev.appget.specification.Specification;
 import dev.appget.specification.context.SsoContext;
 import dev.appget.specification.context.RolesContext;
+import com.google.protobuf.ByteString;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.List;
 import java.util.Map;
 
@@ -29,6 +33,17 @@ class RuleTest {
                 .setName("Alice")
                 .setAge(28)
                 .setRoleId("Engineer")
+                .build();
+    }
+
+    /** Build an appget.common.Decimal proto message from a double value. */
+    private static Decimal decimalOf(double value) {
+        BigDecimal bd = new BigDecimal(String.valueOf(value));
+        BigInteger unscaled = bd.unscaledValue();
+        int scale = bd.scale();
+        return Decimal.newBuilder()
+                .setUnscaled(ByteString.copyFrom(unscaled.toByteArray()))
+                .setScale(scale)
                 .build();
     }
 
@@ -196,7 +211,7 @@ class RuleTest {
     void testRuleWithSalaryModel() {
         Salary salary = Salary.newBuilder()
                 .setEmployeeId("Alice")
-                .setAmount(75000.0)
+                .setAmount(decimalOf(75000.0))
                 .setYearsOfService(5)
                 .build();
 
@@ -302,7 +317,7 @@ class RuleTest {
         EmployeeSalaryView view = EmployeeSalaryView.newBuilder()
                 .setEmployeeName("Alice")
                 .setEmployeeAge(35)
-                .setSalaryAmount(150000.0)
+                .setSalaryAmount(decimalOf(150000.0))
                 .build();
 
         Specification viewFieldSpec = new Specification("salary_amount", ">", 100000);

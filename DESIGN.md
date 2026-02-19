@@ -167,7 +167,7 @@ Generating native specification modules from `specs.yaml` instead of loading and
 
 **Why one specification module per rule?**
 
-One-to-one traceability: every Gherkin scenario becomes exactly one specification module with the same name. Finding, reading, and modifying a rule requires navigating to a single, predictably-named file. The verbosity trade-off (many small files) is acknowledged in [Section 3, Improvement 6](#improvement-6-spec-module-verbosity--n-rules--n-files).
+One-to-one traceability: every Gherkin scenario becomes exactly one specification module with the same name. Finding, reading, and modifying a rule requires navigating to a single, predictably-named file. The verbosity trade-off (many small files) is addressed in [Section 3, IMPROVEMENT-6B](#improvement-6b-specification-registry-auto-discovery).
 
 ---
 
@@ -327,164 +327,271 @@ Each improvement is labeled **[IMPROVEMENT-N]** for reference in discussion and 
 
 ---
 
-### [IMPROVEMENT-1] Type Mapping is Scattered Across Generators
+### [IMPROVEMENT-5] Generated Server Uses In-Memory Storage Only
 
-**Current state** (Java reference implementation):
-
-Four separate type mapping tables exist, each maintained independently:
-
-| Component | Mapping | Location |
-|-----------|---------|----------|
-| Schema parser | SQL type → application type | `createSqlToJavaTypeMapping()` in `SQLSchemaParser` |
-| Model converter | Application type → proto type | `JavaUtils.JAVA_TO_PROTO_TYPE` |
-| OpenAPI generator | Proto type → OpenAPI type | internal to `ProtoOpenAPIGenerator` |
-| Server generator | Application type → framework annotations | internal to `SpringBootServerGenerator` |
-
-A divergence in any one table produces inconsistent output across the pipeline. Today these are aligned; as the system evolves, they will drift.
-
-**Proposed solution**:
-
-Define a `TypeRegistry` interface that holds all mappings for a given language target in one place:
-
-```
-SQL type → native application type     (schema parser reads this)
-Native type → wire/serialization type  (model converter reads this)
-Native type → OpenAPI schema type      (OpenAPI generator reads this)
-Native type → framework type/decorator (server generator reads this)
-```
-
-`JavaUtils` expands into the `JavaTypeRegistry` implementation. Future `GoTypeRegistry`, `PythonTypeRegistry` implementations follow the same interface with their own mappings.
-
-**Why this is the right architecture**: Adding a new language implementation means writing exactly one `*TypeRegistry` class. Every generator in that implementation reads from the registry. No generator contains type mapping logic directly.
-
-**Effort**: Medium — requires auditing all four generators to extract current mappings, then updating call sites.
-
-**Files affected** (Java): `JavaUtils.java`, `SQLSchemaParser.java`, `ModelsToProtoConverter.java`, `ProtoOpenAPIGenerator.java`, `SpringBootServerGenerator.java`
-
----
-
-### [IMPROVEMENT-2] Date/Time Fields Use `string` Instead of `google.protobuf.Timestamp`
+**Status**: Open
 
 **Current state**:
 
-SQL `DATE` and `DATETIME` columns map to `String` (Java type) in `SQLSchemaParser`, then to `string` (proto type) in `ModelsToProtoConverter`. Proto has a well-typed time representation: `google.protobuf.Timestamp`.
+`SpringBootServerGenerator` generates one concrete `@Component` repository class per entity. The class is a direct `ConcurrentHashMap`-backed implementation. The generated service constructor depends on this concrete class:
+
+```java
+// Currently generated: concrete class, no interface
+@Component
+public class EmployeeRepository {
+    private final Map<String, Employee> store = new ConcurrentHashMap<>();
+
+    public Employee save(Employee entity) { ... }
+    public Employee findById(String id) { ... }
+    public List<Employee> findAll() { ... }
+    public void deleteById(String id) { ... }
+}
+```
 
 **Problem**:
 
-Using `string` for dates and timestamps:
-- Requires callers to know the encoding format (ISO 8601? locale-specific? with or without timezone?)
-- Loses sub-second precision for `DATETIME` fields
-- Is inconsistent with proto best practices and the established `google/protobuf/timestamp.proto` well-known type
-- Prevents type-aware serialization in generated gRPC clients and servers across all languages
+Replacing the in-memory store with a database adapter requires modifying generated code — which is never supposed to be modified. There is no abstraction point.
 
 **Proposed solution**:
 
-Map `DATETIME`/`LocalDateTime` → `google.protobuf.Timestamp`. Map `DATE`/`LocalDate` → `google.protobuf.Timestamp` (midnight UTC convention). Import `google/protobuf/timestamp.proto` in any generated `.proto` file that uses date or time fields. Update `JavaUtils.JAVA_TO_PROTO_TYPE` and the SQL→Java type mapping in `SQLSchemaParser`.
+Generate two files per model instead of one:
+1. `{Model}Repository` — a Java **interface** (the service layer's dependency contract)
+2. `InMemory{Model}Repository implements {Model}Repository` — the concrete default, annotated `@Component`
 
-**Effort**: Low-Medium
+The service layer already uses `{Model}Repository` as its constructor parameter name. Since the interface keeps that name and the old concrete class is renamed `InMemory{Model}Repository`, the **service file requires no changes**. Spring injects `InMemory{Model}Repository` automatically as the sole `@Component` implementing the interface.
 
-**Files affected** (Java): `JavaUtils.java`, `SQLSchemaParser.java`, `ModelsToProtoConverter.java`, `JavaUtilsTest.java`, `SQLSchemaParserTest.java`, `ModelsToProtoConverterTest.java`
+**Implementation — `SpringBootServerGenerator.java`**:
+
+Modify `generateRepository(ModelInfo model, String outputDir)`. Currently it writes one file. Change it to write two files:
+
+**File 1 — `repository/{Model}Repository.java` (interface)**:
+
+```java
+package dev.appget.server.repository;
+
+import {fully.qualified.Model};
+import java.util.List;
+import java.util.Optional;
+
+public interface {Model}Repository {
+    {Model} save({Model} entity);
+    Optional<{Model}> findById(String id);
+    List<{Model}> findAll();
+    void deleteById(String id);
+}
+```
+
+**File 2 — `repository/InMemory{Model}Repository.java` (implementation)**:
+
+```java
+package dev.appget.server.repository;
+
+import {fully.qualified.Model};
+import org.springframework.stereotype.Component;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+
+/**
+ * Default in-memory repository for {Model}.
+ * Replace by providing a @Primary bean of type {Model}Repository.
+ * DO NOT EDIT MANUALLY — Generated from models.yaml
+ */
+@Component
+public class InMemory{Model}Repository implements {Model}Repository {
+    private final Map<String, {Model}> store = new ConcurrentHashMap<>();
+
+    @Override
+    public {Model} save({Model} entity) {
+        String id = entity.getId();
+        store.put(id, entity);
+        return entity;
+    }
+
+    @Override
+    public Optional<{Model}> findById(String id) {
+        return Optional.ofNullable(store.get(id));
+    }
+
+    @Override
+    public List<{Model}> findAll() {
+        return new ArrayList<>(store.values());
+    }
+
+    @Override
+    public void deleteById(String id) {
+        store.remove(id);
+    }
+}
+```
+
+**`generateService()` and `generateServer()` — no changes required**: The service imports and injects `{Model}Repository` by that name; the interface keeps that name. The `generateServer()` call to `generateRepository(model, outputDir)` already exists; the method now produces two files instead of one.
+
+**Test additions — `SpringBootServerGeneratorTest.java`**:
+
+Add assertions (new test method or extend an existing repository test):
+1. File `repository/InMemory{Model}Repository.java` exists in the output directory
+2. `repository/{Model}Repository.java` contains the keyword `interface` (not `class`)
+3. `repository/{Model}Repository.java` contains all four method signatures: `save(`, `findById(`, `findAll(`, `deleteById(`
+4. `InMemory{Model}Repository.java` contains `implements {Model}Repository`
+5. `InMemory{Model}Repository.java` contains `@Component`
+6. `{Model}Service.java` still contains `{Model}Repository` in its constructor (import and parameter type unchanged)
+
+**Why this is the right architecture**: Whoever adds a database adapter simply implements `{Model}Repository`, annotates it `@Primary`, and the in-memory default is displaced automatically. The generator never needs to change.
+
+**Effort**: Low — one method split into two file writes
+
+**Files affected**: `SpringBootServerGenerator.java`, `SpringBootServerGeneratorTest.java`
 
 ---
 
-### [IMPROVEMENT-3] Nullable SQL Columns Have No Proto Representation
+### [IMPROVEMENT-6B] Specification Registry Auto-Discovery
+
+**Status**: Open
 
 **Current state**:
 
-SQL `NOT NULL` columns and nullable columns produce identical proto field definitions. Proto3's implicit default-value semantics make every field optionally present, losing the `NOT NULL` constraint that was defined in the source SQL schema.
+`SpringBootServerGenerator.generateRuleService()` generates a `RuleService` class with a hard-coded list of all specification class instantiations derived from `specs.yaml`:
+
+```java
+// Currently generated — must regenerate whenever a rule is added or removed
+@Service
+public class RuleService {
+    private final List<Object> allSpecs = List.of(
+        new EmployeeAgeCheck(),
+        new SeniorManagerCheck(),
+        new AuthenticatedApproval()
+    );
+
+    public List<RuleOutcome> evaluateAll(Object entity, MetadataContext ctx) {
+        return allSpecs.stream()
+            .filter(spec -> targetMatches(spec, entity))
+            .map(spec -> evaluate(spec, entity, ctx))
+            .collect(Collectors.toList());
+    }
+}
+```
 
 **Problem**:
 
-The `NOT NULL` constraint from SQL is dropped after `models.yaml`. Generated model classes cannot distinguish between "this field was not set" and "this field was explicitly set to zero/empty". For business rules that check field presence, this produces incorrect results.
+- `RuleService` must regenerate whenever any rule is added or removed, even though its evaluation logic is identical regardless of which specs exist
+- No way to retrieve a single spec by name for targeted testing
+- A spec class present on the classpath but not in the inline list is silently ignored
 
 **Proposed solution**:
 
-The nullable flag is already tracked in `models.yaml` (the schema parser records it). `ModelsToProtoConverter` should emit the `optional` keyword (available in proto3.15+) for nullable fields, enabling `hasField()` checks in generated classes. This accurately preserves the SQL schema semantics in the generated types.
+Extract the spec list into a new generated `SpecificationRegistry` class. `RuleService` becomes a stable, generic evaluator that injects the registry and never needs to change when rules change.
+
+**Implementation — `SpringBootServerGenerator.java`**:
+
+**Step 1**: Add a new method `generateSpecificationRegistry(String outputDir, List<Map<String,Object>> rules)`.
+
+Read the rule list from `specs.yaml` — the same source already used by `generateRuleService()`. For each rule entry, emit one `register(...)` call using the rule's `name` field.
+
+**File: `service/SpecificationRegistry.java`**:
+
+```java
+package dev.appget.server.service;
+
+import dev.appget.specification.*;
+import org.springframework.stereotype.Component;
+import java.util.Collection;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+/**
+ * Registry of all compiled specification classes.
+ * DO NOT EDIT MANUALLY — Regenerated from specs.yaml when rules change.
+ */
+@Component
+public class SpecificationRegistry {
+    private final Map<String, Object> specs = new LinkedHashMap<>();
+
+    public SpecificationRegistry() {
+        register("EmployeeAgeCheck", new EmployeeAgeCheck());
+        register("SeniorManagerCheck", new SeniorManagerCheck());
+        // one register() call per rule in specs.yaml, in declaration order
+    }
+
+    private void register(String name, Object spec) {
+        specs.put(name, spec);
+    }
+
+    /** Retrieve a single spec by rule name. Returns null if not found. */
+    public Object get(String name) {
+        return specs.get(name);
+    }
+
+    /** All registered specs. */
+    public Collection<Object> getAll() {
+        return specs.values();
+    }
+
+    /**
+     * All specs whose target model name matches the given class simple name.
+     * Uses getTargetModel() — all generated spec classes expose this method.
+     */
+    public List<Object> getByTarget(String modelName) {
+        return specs.values().stream()
+            .filter(s -> modelName.equals(getTargetName(s)))
+            .collect(Collectors.toList());
+    }
+
+    private String getTargetName(Object spec) {
+        try {
+            return (String) spec.getClass().getMethod("getTargetModel").invoke(spec);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+}
+```
+
+**Step 2**: Modify `generateRuleService(String outputDir)` so `RuleService` injects `SpecificationRegistry` instead of building the spec list inline:
+
+```java
+// New generated RuleService — stable, never changes when rules are added/removed
+@Service
+public class RuleService {
+    private final SpecificationRegistry registry;
+
+    public RuleService(SpecificationRegistry registry) {
+        this.registry = registry;
+    }
+
+    public List<RuleOutcome> evaluateAll(Object entity, MetadataContext ctx) {
+        String modelName = entity.getClass().getSimpleName();
+        return registry.getByTarget(modelName).stream()
+            .map(spec -> evaluate(spec, entity, ctx))
+            .collect(Collectors.toList());
+    }
+
+    // evaluate() private method — unchanged from current implementation
+}
+```
+
+**Step 3**: In `generateServer()`, add a call to `generateSpecificationRegistry(outputDir, rules)` alongside the existing generate method calls. The `rules` list is already loaded from `specs.yaml` in `generateServer()`.
+
+**Test additions — `SpringBootServerGeneratorTest.java`**:
+
+Add a new test method with these assertions:
+1. File `service/SpecificationRegistry.java` exists in the output directory
+2. The file contains `@Component`
+3. The file contains one `register(` call per rule in `specs.yaml` (assert count: occurrences of `"register("` equals `rules.size()`)
+4. The file contains `getByTarget(` method
+5. `service/RuleService.java` constructor parameter type is `SpecificationRegistry`
+6. `service/RuleService.java` does NOT contain `new EmployeeAgeCheck()` (no inline spec class instantiation)
+7. `service/RuleService.java` contains `registry.getByTarget(`
+
+**Why this matters**: When rules change, only `SpecificationRegistry` regenerates — `RuleService` is stable. The registry also enables targeted single-rule testing: `registry.get("EmployeeAgeCheck")` fetches one spec for focused assertions without evaluating all rules.
 
 **Effort**: Low
 
-**Files affected**: `ModelsToProtoConverter.java`, `ModelsToProtoConverterTest.java`
-
----
-
-### [IMPROVEMENT-4] Field Numbers Are Sequential and Not Stable
-
-**Current state**:
-
-Field numbers in generated `.proto` files are assigned sequentially (1, 2, 3, …) in the order fields appear in `models.yaml`. Adding a column to a SQL table between existing columns shifts all subsequent field numbers.
-
-**Problem**:
-
-Protobuf uses field numbers (not field names) for wire encoding. Changing a field number is a **breaking wire-format change**: existing serialized data cannot be decoded correctly after the field numbers shift. The current sequential assignment makes any column insertion a silent breaking change.
-
-**Proposed solution**:
-
-Persist field numbers in `models.yaml` alongside field definitions. The schema parser assigns new (incrementing) field numbers only to new fields, preserving existing ones across regenerations. `ModelsToProtoConverter` reads persisted field numbers from `models.yaml` instead of sequentially assigning.
-
-**Effort**: Medium — requires `models.yaml` to carry field numbers and `SQLSchemaParser` to track them across regenerations
-
-**Files affected**: `SQLSchemaParser.java`, `ModelsToProtoConverter.java`, `models.yaml` format, `SQLSchemaParserTest.java`, `ModelsToProtoConverterTest.java`
-
----
-
-### [IMPROVEMENT-5] Generated Server Uses In-Memory Storage Only
-
-**Current state**:
-
-The server generator produces one in-memory storage implementation per entity (e.g., a `ConcurrentHashMap`-backed store in Java). This is suitable for demos and integration testing but not for production.
-
-**Problem**:
-
-There is no storage abstraction. Replacing the in-memory store with a real database adapter requires modifying generated code — which is never supposed to be modified.
-
-**Proposed solution**:
-
-Generate a storage interface alongside the default in-memory implementation. The business logic layer depends on the interface, not the implementation. A database adapter implementing the same interface is a separate, non-generated concern.
-
-**Example** (Java reference implementation):
-```java
-// Generated interface
-interface EmployeeRepository {
-    Employee save(Employee e);
-    Optional<Employee> findById(String id);
-    List<Employee> findAll();
-    void delete(String id);
-}
-
-// Generated default (in-memory)
-class InMemoryEmployeeRepository implements EmployeeRepository { ... }
-```
-
-**Why this matters**: The generator should produce a complete, swappable storage abstraction. The in-memory default is the right starting point; the interface is the right architecture.
-
-**Effort**: Low-Medium
-
-**Files affected** (Java): `SpringBootServerGenerator.java`, `SpringBootServerGeneratorTest.java`
-
----
-
-### [IMPROVEMENT-6] Spec Module Verbosity — N Rules = N Files
-
-**Current state**:
-
-Each Gherkin scenario generates one standalone specification file. With many rules across many domains, this produces a large number of small, nearly-identical files.
-
-**Proposed solution A — Rule registry with grouped specifications** (recommended long-term):
-
-Generate one rule registry per domain that contains all specifications for that domain and exposes them by name. Consistent with the model registry pattern already in use.
-
-Pro: File count scales with domains, not with rule count.
-Con: Individual specifications inside the registry are harder to test in isolation.
-
-**Proposed solution B — Keep separate files, add auto-discovery** (lower effort, implement first):
-
-Keep the current one-file-per-rule structure but generate a specification registry that auto-registers all specification modules by name at startup. This enables dynamic rule loading without enumeration — the same benefit as Solution A for the rule engine, without restructuring the file layout.
-
-**Recommendation**: Implement Solution B first (low effort, immediate value for the rule engine). Evaluate Solution A when rule count becomes a maintenance burden.
-
-**Effort**: Low (Solution B). Medium (Solution A).
-
-**Files affected** (Java): `SpecificationGenerator.java`, `SpringBootServerGenerator.java`, `SpecificationGeneratorTest.java`
+**Files affected**: `SpringBootServerGenerator.java`, `SpringBootServerGeneratorTest.java`
 
 ---
 
@@ -594,18 +701,13 @@ This invariant is what makes the platform multi-language. If a generator bypasse
 
 ## Summary Table
 
-| Item | Type | Effort | Priority |
-|------|------|--------|----------|
-| [IMPROVEMENT-1] Unified type registry (`TypeRegistry` interface) | Refactor | Medium | High — prerequisite for clean language portability |
-| [IMPROVEMENT-2] Date/time fields → `google.protobuf.Timestamp` | Proto correctness | Low-Medium | High — affects all generated model classes |
-| [IMPROVEMENT-3] Nullable fields → `optional` keyword in proto | Proto correctness | Low | High — preserves SQL `NOT NULL` semantics |
-| [IMPROVEMENT-4] Stable field numbers in generated `.proto` files | Proto correctness | Medium | High — prevents silent wire-format breaking changes |
-| [IMPROVEMENT-5] Storage interface abstraction in generated server | Feature | Low-Medium | Medium — required for production-suitable output |
-| [IMPROVEMENT-6B] Specification registry auto-discovery | Feature | Low | Medium — enables dynamic rule loading |
-| [IMPROVEMENT-6A] Domain-grouped rule registry | Refactor | Medium | Low — addresses file count at scale |
+| Item | Type | Effort | Status |
+|------|------|--------|--------|
+| [IMPROVEMENT-5] Storage interface abstraction in generated server | Feature | Low | Open |
+| [IMPROVEMENT-6B] Specification registry auto-discovery | Feature | Low | Open |
 | First non-Java language (Phase 1–4) | New implementation | High | Future |
 
 ---
 
 **Last Updated**: 2026-02-18
-**Status**: Design document — items are proposals for discussion, not committed changes
+**Status**: Active — IMPROVEMENT-5 and IMPROVEMENT-6B are open; improvements 1–4 completed

@@ -120,12 +120,13 @@ class ProtoOpenAPIGeneratorTest {
         if (spec == null) return;
 
         Map<String, Object> schemas = getSchemas(spec);
-        Map<String, Object> salary = (Map<String, Object>) schemas.get("Salary");
-        Map<String, Object> props = (Map<String, Object>) salary.get("properties");
+        // Location has double fields (longitude, latitude) which remain proto double
+        Map<String, Object> location = (Map<String, Object>) schemas.get("Location");
+        Map<String, Object> props = (Map<String, Object>) location.get("properties");
 
-        Map<String, Object> amount = (Map<String, Object>) props.get("amount");
-        assertEquals("number", amount.get("type"), "double -> number");
-        assertEquals("double", amount.get("format"), "double -> format double");
+        Map<String, Object> longitude = (Map<String, Object>) props.get("longitude");
+        assertEquals("number", longitude.get("type"), "double -> number");
+        assertEquals("double", longitude.get("format"), "double -> format double");
     }
 
     @Test
@@ -135,7 +136,7 @@ class ProtoOpenAPIGeneratorTest {
         if (spec == null) return;
 
         Map<String, Object> paths = (Map<String, Object>) spec.get("paths");
-        String[] expectedPaths = {"/roles", "/employees", "/departments", "/salarys", "/invoices"};
+        String[] expectedPaths = {"/roles", "/employees", "/departments", "/salaries", "/invoices"};
         for (String path : expectedPaths) {
             assertNotNull(paths.get(path), "Collection path " + path + " should exist");
         }
@@ -149,7 +150,7 @@ class ProtoOpenAPIGeneratorTest {
 
         Map<String, Object> paths = (Map<String, Object>) spec.get("paths");
         String[] expectedPaths = {"/roles/{id}", "/employees/{id}", "/departments/{id}",
-                "/salarys/{id}", "/invoices/{id}"};
+                "/salaries/{id}", "/invoices/{id}"};
         for (String path : expectedPaths) {
             assertNotNull(paths.get(path), "Item path " + path + " should exist");
         }

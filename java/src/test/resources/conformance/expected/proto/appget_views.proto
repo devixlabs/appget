@@ -1,0 +1,17 @@
+// Generated from models.yaml - DO NOT EDIT MANUALLY
+syntax = "proto3";
+
+import "appget_common.proto";
+
+option java_package = "dev.appget.view";
+option java_multiple_files = true;
+
+package appget_views;
+
+message EmployeeSalaryView {
+  string employee_name = 1;
+  int32 employee_age = 2;
+  string role_id = 3;
+  appget.common.Decimal salary_amount = 4;
+  optional int32 years_of_service = 5;
+}

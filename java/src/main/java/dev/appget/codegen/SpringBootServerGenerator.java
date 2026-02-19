@@ -69,6 +69,7 @@ public class SpringBootServerGenerator {
         // Generate infrastructure
         generateBuildGradle(outputDir);
         generateApplicationClass(outputDir);
+        generateDecimalModule(outputDir);
         generateApplicationYaml(outputDir);
         generateLog4j2Properties(outputDir);
         generateMetadataExtractor(outputDir);
@@ -121,6 +122,7 @@ public class SpringBootServerGenerator {
                     info.name = modelName;
                     info.domain = domainName;
                     info.namespace = namespace;
+                    info.resource = (String) model.get("resource");
                     info.fields = fields != null ? new ArrayList<>(fields) : new ArrayList<>();
 
                     modelIndex.put(modelName, info);
@@ -189,7 +191,8 @@ public class SpringBootServerGenerator {
         code.append("import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;\n");
         code.append("import com.fasterxml.jackson.databind.ObjectMapper;\n");
         code.append("import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;\n");
-        code.append("import com.hubspot.jackson.datatype.protobuf.ProtobufModule;\n\n");
+        code.append("import com.hubspot.jackson.datatype.protobuf.ProtobufModule;\n");
+        code.append("import dev.appget.server.config.DecimalJacksonModule;\n\n");
 
         code.append("/**\n");
         code.append(" * Generated Spring Boot server for APPGET REST API\n");
@@ -203,12 +206,73 @@ public class SpringBootServerGenerator {
         code.append("    @Bean\n");
         code.append("    public ObjectMapper objectMapper() {\n");
         code.append("        return Jackson2ObjectMapperBuilder.json()\n");
-        code.append("            .modules(new ProtobufModule(), new JavaTimeModule())\n");
+        code.append("            .modules(new ProtobufModule(), new JavaTimeModule(), new DecimalJacksonModule())\n");
         code.append("            .build();\n");
         code.append("    }\n");
         code.append("}\n");
 
         writefile(outputDir, BASE_PACKAGE, "Application", code.toString());
+    }
+
+    private void generateDecimalModule(String outputDir) throws IOException {
+        String pkg = BASE_PACKAGE + ".config";
+        StringBuilder code = new StringBuilder();
+        code.append("package ").append(pkg).append(";\n\n");
+        code.append("import com.fasterxml.jackson.core.JsonGenerator;\n");
+        code.append("import com.fasterxml.jackson.core.JsonParser;\n");
+        code.append("import com.fasterxml.jackson.core.JsonToken;\n");
+        code.append("import com.fasterxml.jackson.databind.DeserializationContext;\n");
+        code.append("import com.fasterxml.jackson.databind.JsonDeserializer;\n");
+        code.append("import com.fasterxml.jackson.databind.JsonSerializer;\n");
+        code.append("import com.fasterxml.jackson.databind.SerializerProvider;\n");
+        code.append("import com.fasterxml.jackson.databind.module.SimpleModule;\n");
+        code.append("import com.google.protobuf.ByteString;\n");
+        code.append("import dev.appget.common.Decimal;\n");
+        code.append("import java.io.IOException;\n");
+        code.append("import java.math.BigDecimal;\n");
+        code.append("import java.math.BigInteger;\n\n");
+        code.append("/**\n");
+        code.append(" * Jackson module for appget.common.Decimal serialization.\n");
+        code.append(" * Accepts JSON strings like \"99.99\" and maps to/from dev.appget.common.Decimal.\n");
+        code.append(" * DO NOT EDIT MANUALLY - Generated from models.yaml and specs.yaml\n");
+        code.append(" */\n");
+        code.append("public class DecimalJacksonModule extends SimpleModule {\n\n");
+        code.append("    public DecimalJacksonModule() {\n");
+        code.append("        super(\"DecimalJacksonModule\");\n");
+        code.append("        addDeserializer(Decimal.class, new DecimalDeserializer());\n");
+        code.append("        addSerializer(Decimal.class, new DecimalSerializer());\n");
+        code.append("    }\n\n");
+        code.append("    private static class DecimalDeserializer extends JsonDeserializer<Decimal> {\n");
+        code.append("        @Override\n");
+        code.append("        public Decimal deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {\n");
+        code.append("            JsonToken token = p.currentToken();\n");
+        code.append("            if (token == JsonToken.VALUE_STRING\n");
+        code.append("                    || token == JsonToken.VALUE_NUMBER_FLOAT\n");
+        code.append("                    || token == JsonToken.VALUE_NUMBER_INT) {\n");
+        code.append("                BigDecimal bd = new BigDecimal(p.getText());\n");
+        code.append("                byte[] unscaledBytes = bd.unscaledValue().toByteArray();\n");
+        code.append("                return Decimal.newBuilder()\n");
+        code.append("                    .setUnscaled(ByteString.copyFrom(unscaledBytes))\n");
+        code.append("                    .setScale(bd.scale())\n");
+        code.append("                    .build();\n");
+        code.append("            }\n");
+        code.append("            return Decimal.newBuilder().build();\n");
+        code.append("        }\n");
+        code.append("    }\n\n");
+        code.append("    private static class DecimalSerializer extends JsonSerializer<Decimal> {\n");
+        code.append("        @Override\n");
+        code.append("        public void serialize(Decimal value, JsonGenerator gen, SerializerProvider serializers) throws IOException {\n");
+        code.append("            if (value.getUnscaled().isEmpty()) {\n");
+        code.append("                gen.writeString(\"0\");\n");
+        code.append("            } else {\n");
+        code.append("                BigInteger unscaled = new BigInteger(value.getUnscaled().toByteArray());\n");
+        code.append("                BigDecimal bd = new BigDecimal(unscaled, value.getScale());\n");
+        code.append("                gen.writeString(bd.toPlainString());\n");
+        code.append("            }\n");
+        code.append("        }\n");
+        code.append("    }\n");
+        code.append("}\n");
+        writefile(outputDir, pkg, "DecimalJacksonModule", code.toString());
     }
 
     private void generateApplicationYaml(String outputDir) throws IOException {
@@ -962,7 +1026,7 @@ public class SpringBootServerGenerator {
         String className = model.name + "Controller";
         String packageName = BASE_PACKAGE + ".controller";
         String serviceClass = model.name + "Service";
-        String resourcePath = "/" + camelToKebab(model.name) + "s";
+        String resourcePath = "/" + (model.resource != null ? model.resource : camelToKebab(model.name) + "s");
 
         StringBuilder code = new StringBuilder();
         code.append("package ").append(packageName).append(";\n\n");
@@ -1089,15 +1153,16 @@ public class SpringBootServerGenerator {
     }
 
     private String parseHeaderValue(String varName, String type) {
-        if ("boolean".equals(type)) {
+        // Support both neutral types (bool, int32, int64, float64) and legacy Java types
+        if ("boolean".equals(type) || "bool".equals(type)) {
             return varName + " != null ? Boolean.parseBoolean(" + varName + ") : false";
-        } else if ("int".equals(type)) {
+        } else if ("int".equals(type) || "int32".equals(type)) {
             return varName + " != null ? Integer.parseInt(" + varName + ") : 0";
-        } else if ("long".equals(type)) {
+        } else if ("long".equals(type) || "int64".equals(type)) {
             return varName + " != null ? Long.parseLong(" + varName + ") : 0L";
         } else if ("float".equals(type)) {
             return varName + " != null ? Float.parseFloat(" + varName + ") : 0.0f";
-        } else if ("double".equals(type)) {
+        } else if ("double".equals(type) || "float64".equals(type)) {
             return varName + " != null ? Double.parseDouble(" + varName + ") : 0.0";
         } else {
             return varName + " != null ? " + varName + " : \"\"";
@@ -1120,6 +1185,7 @@ public class SpringBootServerGenerator {
         String name;
         String domain;
         String namespace;
+        String resource;
         List<Map<String, Object>> fields;
     }
 

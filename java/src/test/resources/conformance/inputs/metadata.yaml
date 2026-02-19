@@ -1,0 +1,29 @@
+metadata:
+  sso:
+    fields:
+      - name: authenticated
+        type: boolean
+      - name: sessionId
+        type: String
+  roles:
+    fields:
+      - name: roleName
+        type: String
+      - name: roleLevel
+        type: int
+  user:
+    fields:
+      - name: userId
+        type: String
+      - name: clearanceLevel
+        type: int
+  location:
+    fields:
+      - name: locationId
+        type: String
+      - name: locationName
+        type: String
+      - name: longitude
+        type: float
+      - name: latitude
+        type: float

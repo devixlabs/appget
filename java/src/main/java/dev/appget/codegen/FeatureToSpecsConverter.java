@@ -351,13 +351,41 @@ public class FeatureToSpecsConverter {
 
     // ---- YAML Output ----
 
+    /**
+     * Map Java/legacy metadata types to neutral types for specs.yaml output.
+     * boolean → bool, int → int32, long → int64, double/float → float64, String → string
+     */
+    private static String toNeutralMetadataType(String rawType) {
+        if (rawType == null) return "string";
+        if ("boolean".equals(rawType) || "Boolean".equals(rawType)) return "bool";
+        if ("int".equals(rawType) || "Integer".equals(rawType)) return "int32";
+        if ("long".equals(rawType) || "Long".equals(rawType)) return "int64";
+        if ("double".equals(rawType) || "Double".equals(rawType) || "float".equals(rawType) || "Float".equals(rawType)) return "float64";
+        if ("String".equals(rawType) || "string".equals(rawType)) return "string";
+        // Already neutral
+        return rawType;
+    }
+
+    /**
+     * Infer value_type from the Java type of a value (for conditions).
+     */
+    private static String inferValueType(Object value) {
+        if (value instanceof Boolean) return "bool";
+        if (value instanceof Integer) return "int32";
+        if (value instanceof Long) return "int64";
+        if (value instanceof Double || value instanceof Float) return "float64";
+        return "string";
+    }
+
     String assembleSpecsYaml(String metadataContent, List<Map<String, Object>> rules) {
         StringBuilder sb = new StringBuilder();
 
-        // Metadata section (read verbatim from metadata.yaml)
-        String trimmed = metadataContent.stripTrailing();
-        sb.append(trimmed);
-        sb.append("\n\n\nrules:\n");
+        // schema_version at top
+        sb.append("schema_version: 1\n");
+
+        // Metadata section (re-emitted with neutral types)
+        emitNeutralMetadata(sb, metadataContent);
+        sb.append("\n\nrules:\n");
 
         // Rules section
         for (int i = 0; i < rules.size(); i++) {
@@ -366,6 +394,39 @@ public class FeatureToSpecsConverter {
         }
 
         return sb.toString();
+    }
+
+    /**
+     * Parse metadata.yaml content and re-emit with neutral types.
+     * Replaces legacy types (boolean, int, String, float) with neutral equivalents (bool, int32, string, float64).
+     */
+    @SuppressWarnings("unchecked")
+    private void emitNeutralMetadata(StringBuilder sb, String metadataContent) {
+        // Parse the metadata.yaml with SnakeYAML to get structured data
+        org.yaml.snakeyaml.Yaml yamlParser = new org.yaml.snakeyaml.Yaml();
+        Map<String, Object> parsed = yamlParser.load(metadataContent);
+        if (parsed == null) return;
+
+        Map<String, Object> metadata = (Map<String, Object>) parsed.get("metadata");
+        if (metadata == null) return;
+
+        sb.append("metadata:\n");
+        for (Map.Entry<String, Object> catEntry : metadata.entrySet()) {
+            String category = catEntry.getKey();
+            Map<String, Object> catData = (Map<String, Object>) catEntry.getValue();
+            sb.append("  ").append(category).append(":\n");
+            sb.append("    fields:\n");
+            List<Map<String, Object>> fields = (List<Map<String, Object>>) catData.get("fields");
+            if (fields != null) {
+                for (Map<String, Object> field : fields) {
+                    String fieldName = (String) field.get("name");
+                    String rawType = (String) field.get("type");
+                    String neutralType = toNeutralMetadataType(rawType);
+                    sb.append("      - name: ").append(fieldName).append("\n");
+                    sb.append("        type: ").append(neutralType).append("\n");
+                }
+            }
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -384,17 +445,18 @@ public class FeatureToSpecsConverter {
             sb.append("    blocking: true\n");
         }
 
-        // requires (metadata)
+        // requires (metadata) - evaluates BEFORE conditions
         Map<String, List<Map<String, Object>>> requires =
                 (Map<String, List<Map<String, Object>>>) rule.get("requires");
         if (requires != null && !requires.isEmpty()) {
             sb.append("    requires:\n");
-            for (var entry : requires.entrySet()) {
+            for (Map.Entry<String, List<Map<String, Object>>> entry : requires.entrySet()) {
                 sb.append("      ").append(entry.getKey()).append(":\n");
                 for (Map<String, Object> cond : entry.getValue()) {
                     sb.append("        - field: ").append(cond.get("field")).append("\n");
                     sb.append("          operator: ").append(formatYamlValue(cond.get("operator"))).append("\n");
                     sb.append("          value: ").append(formatYamlValue(cond.get("value"))).append("\n");
+                    sb.append("          value_type: ").append(inferValueType(cond.get("value"))).append("\n");
                 }
             }
         }
@@ -408,6 +470,7 @@ public class FeatureToSpecsConverter {
                 sb.append("      - field: ").append(cond.get("field")).append("\n");
                 sb.append("        operator: ").append(formatYamlValue(cond.get("operator"))).append("\n");
                 sb.append("        value: ").append(formatYamlValue(cond.get("value"))).append("\n");
+                sb.append("        value_type: ").append(inferValueType(cond.get("value"))).append("\n");
             }
         } else if (conditions instanceof Map) {
             Map<String, Object> compound = (Map<String, Object>) conditions;
@@ -418,6 +481,7 @@ public class FeatureToSpecsConverter {
                 sb.append("        - field: ").append(clause.get("field")).append("\n");
                 sb.append("          operator: ").append(formatYamlValue(clause.get("operator"))).append("\n");
                 sb.append("          value: ").append(formatYamlValue(clause.get("value"))).append("\n");
+                sb.append("          value_type: ").append(inferValueType(clause.get("value"))).append("\n");
             }
         }
 

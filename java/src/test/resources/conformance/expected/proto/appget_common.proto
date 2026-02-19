@@ -1,0 +1,12 @@
+// Generated - DO NOT EDIT MANUALLY
+syntax = "proto3";
+
+option java_package = "dev.appget.common";
+option java_multiple_files = true;
+
+package appget.common;
+
+message Decimal {
+  bytes unscaled = 1;
+  int32 scale    = 2;
+}

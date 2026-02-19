@@ -90,14 +90,14 @@ class ModelsToProtoConverterTest {
     }
 
     @Test
-    @DisplayName("Decimal SQL type maps to double proto type")
+    @DisplayName("Decimal SQL type maps to appget.common.Decimal proto type")
     void testDecimalTypeMapping(@TempDir Path tempDir) throws Exception {
         if (tempModelsYaml == null) return;
         converter.convert(tempModelsYaml.toString(), tempDir.toString());
 
         String content = Files.readString(tempDir.resolve("hr_models.proto"));
-        assertTrue(content.contains("double budget"), "DECIMAL should map to double");
-        assertTrue(content.contains("double amount"), "DECIMAL should map to double");
+        assertTrue(content.contains("appget.common.Decimal budget"), "DECIMAL should map to appget.common.Decimal");
+        assertTrue(content.contains("appget.common.Decimal amount"), "DECIMAL should map to appget.common.Decimal");
     }
 
     @Test
@@ -109,7 +109,7 @@ class ModelsToProtoConverterTest {
         String content = Files.readString(tempDir.resolve("finance_models.proto"));
         assertTrue(content.contains("java_package = \"dev.appget.finance.model\""), "Finance domain java_package");
         assertTrue(content.contains("message Invoice"), "Should contain Invoice message");
-        assertTrue(content.contains("string issue_date"), "DATE should map to string");
+        assertTrue(content.contains("google.protobuf.Timestamp issue_date"), "DATE should map to google.protobuf.Timestamp");
     }
 
     @Test
@@ -132,7 +132,8 @@ class ModelsToProtoConverterTest {
         assertTrue(content.contains("java_package = \"dev.appget.view\""), "View should have correct java_package");
         assertTrue(content.contains("message EmployeeSalaryView"), "Should contain EmployeeSalaryView message");
         assertTrue(content.contains("string employee_name"), "Should have employee_name field");
-        assertTrue(content.contains("double salary_amount"), "Should have salary_amount field (double from DECIMAL)");
+        assertTrue(content.contains("appget.common.Decimal salary_amount"),
+                "salary_amount should be appget.common.Decimal (from DECIMAL SQL type)");
     }
 
     @Test
@@ -155,6 +156,54 @@ class ModelsToProtoConverterTest {
         assertFalse(content.contains("import \"rules.proto\""), "Should not import rules.proto");
         assertFalse(content.contains("rule_set"), "Should not embed rule_set options");
         assertFalse(content.contains("(rules."), "Should not contain any rules custom options");
+    }
+
+    // ---- Phase C new feature tests ----
+
+    @Test
+    @DisplayName("Nullable fields use optional keyword in proto")
+    void testOptionalKeywordForNullableFields(@TempDir Path tempDir) throws Exception {
+        if (tempModelsYaml == null) return;
+        converter.convert(tempModelsYaml.toString(), tempDir.toString());
+
+        String content = Files.readString(tempDir.resolve("appget_models.proto"));
+        // country_of_origin is nullable: true → should have 'optional' prefix
+        assertTrue(content.contains("optional string country_of_origin"), "Nullable string should have optional prefix");
+    }
+
+    @Test
+    @DisplayName("Proto imports timestamp when date/datetime fields present")
+    void testTimestampImport(@TempDir Path tempDir) throws Exception {
+        if (tempModelsYaml == null) return;
+        converter.convert(tempModelsYaml.toString(), tempDir.toString());
+
+        String content = Files.readString(tempDir.resolve("finance_models.proto"));
+        assertTrue(content.contains("import \"google/protobuf/timestamp.proto\""),
+                "Finance proto should import timestamp for DATE field");
+    }
+
+    @Test
+    @DisplayName("Proto imports appget_common when decimal fields present")
+    void testDecimalImport(@TempDir Path tempDir) throws Exception {
+        if (tempModelsYaml == null) return;
+        converter.convert(tempModelsYaml.toString(), tempDir.toString());
+
+        String content = Files.readString(tempDir.resolve("hr_models.proto"));
+        assertTrue(content.contains("import \"appget_common.proto\""),
+                "HR proto should import appget_common for DECIMAL fields");
+    }
+
+    @Test
+    @DisplayName("appget_common.proto is generated with Decimal message")
+    void testCommonProtoGenerated(@TempDir Path tempDir) throws Exception {
+        if (tempModelsYaml == null) return;
+        converter.convert(tempModelsYaml.toString(), tempDir.toString());
+
+        assertTrue(Files.exists(tempDir.resolve("appget_common.proto")), "appget_common.proto should be generated");
+        String content = Files.readString(tempDir.resolve("appget_common.proto"));
+        assertTrue(content.contains("message Decimal"), "appget_common.proto should define Decimal message");
+        assertTrue(content.contains("bytes unscaled"), "Decimal should have bytes unscaled field");
+        assertTrue(content.contains("int32 scale"), "Decimal should have int32 scale field");
     }
 
     // ---- gRPC service generation tests ----

@@ -1,0 +1,30 @@
+// Generated from models.yaml - DO NOT EDIT MANUALLY
+syntax = "proto3";
+
+option java_package = "dev.appget.model";
+option java_multiple_files = true;
+
+package appget;
+
+message Role {
+  string name = 1;
+}
+
+message Employee {
+  string name = 1;
+  int32 age = 2;
+  string role_id = 3;
+  optional string country_of_origin = 4;
+}
+
+message Vendor {
+  string name = 1;
+  int32 location_id = 2;
+}
+
+message Location {
+  string locationid = 1;
+  string locationname = 2;
+  double longitude = 3;
+  double latitude = 4;
+}

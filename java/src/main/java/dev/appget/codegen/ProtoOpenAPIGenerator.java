@@ -23,16 +23,21 @@ public class ProtoOpenAPIGenerator {
 
     private static final Logger logger = LogManager.getLogger(ProtoOpenAPIGenerator.class);
 
-    private static final Map<String, String[]> PROTO_TO_OPENAPI_TYPE = new LinkedHashMap<>();
+    private static final Map<String, String[]> PROTO_TO_OPENAPI_TYPE = createProtoToOpenApiTypeMap();
 
-    static {
-        PROTO_TO_OPENAPI_TYPE.put("string", new String[]{"string", null});
-        PROTO_TO_OPENAPI_TYPE.put("int32", new String[]{"integer", "int32"});
-        PROTO_TO_OPENAPI_TYPE.put("int64", new String[]{"integer", "int64"});
-        PROTO_TO_OPENAPI_TYPE.put("double", new String[]{"number", "double"});
-        PROTO_TO_OPENAPI_TYPE.put("float", new String[]{"number", "float"});
-        PROTO_TO_OPENAPI_TYPE.put("bool", new String[]{"boolean", null});
-        PROTO_TO_OPENAPI_TYPE.put("bytes", new String[]{"string", "byte"});
+    private static Map<String, String[]> createProtoToOpenApiTypeMap() {
+        Map<String, String[]> map = new LinkedHashMap<>();
+        map.put("string", new String[]{"string", null});
+        map.put("int32", new String[]{"integer", "int32"});
+        map.put("int64", new String[]{"integer", "int64"});
+        map.put("double", new String[]{"number", "double"});
+        map.put("float", new String[]{"number", "float"});
+        map.put("bool", new String[]{"boolean", null});
+        map.put("bytes", new String[]{"string", "byte"});
+        // Qualified proto types from neutral type system
+        map.put("appget.common.Decimal", new String[]{"string", "decimal"});
+        map.put("google.protobuf.Timestamp", new String[]{"string", "date-time"});
+        return map;
     }
 
     record ProtoField(String name, String type, int number) {}
@@ -149,7 +154,13 @@ public class ProtoOpenAPIGenerator {
             if (line.isEmpty() || line.startsWith("option") || line.startsWith("//")
                     || line.startsWith("repeated") || line.startsWith("}")) continue;
 
-            Matcher fm = Pattern.compile("^(\\w+)\\s+(\\w+)\\s*=\\s*(\\d+)\\s*;")
+            // Strip optional prefix before matching
+            if (line.startsWith("optional ")) {
+                line = line.substring("optional ".length()).trim();
+            }
+
+            // Match field lines: type can include dots for qualified names (e.g. appget.common.Decimal)
+            Matcher fm = Pattern.compile("^([\\w.]+)\\s+(\\w+)\\s*=\\s*(\\d+)\\s*;")
                     .matcher(line);
             if (fm.find()) {
                 fields.add(new ProtoField(fm.group(2), fm.group(1), Integer.parseInt(fm.group(3))));
@@ -291,7 +302,7 @@ public class ProtoOpenAPIGenerator {
         Map<String, Object> paths = new LinkedHashMap<>();
         for (ProtoService svc : services) {
             String modelName = svc.name().replace("Service", "");
-            String resourcePath = "/" + camelToKebab(modelName) + "s";
+            String resourcePath = "/" + pluralize(camelToKebab(modelName));
 
             Map<String, Object> collectionOps = new LinkedHashMap<>();
             Map<String, Object> itemOps = new LinkedHashMap<>();
@@ -513,6 +524,18 @@ public class ProtoOpenAPIGenerator {
 
     private String camelToKebab(String camelCase) {
         return camelCase.replaceAll("([a-z])([A-Z])", "$1-$2").toLowerCase();
+    }
+
+    private String pluralize(String word) {
+        if (word == null || word.isEmpty()) return word;
+        if (word.endsWith("y") && word.length() > 1) {
+            char preceding = word.charAt(word.length() - 2);
+            String vowels = "aeiou";
+            if (vowels.indexOf(preceding) < 0) {
+                return word.substring(0, word.length() - 1) + "ies";
+            }
+        }
+        return word + "s";
     }
 
     String snakeToCamel(String snake) {
