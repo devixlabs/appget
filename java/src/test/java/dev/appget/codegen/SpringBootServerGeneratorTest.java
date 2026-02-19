@@ -61,51 +61,63 @@ class SpringBootServerGeneratorTest {
     @Test
     @DisplayName("RuleService imports spec classes")
     void testRuleServiceImportsSpecs(@TempDir Path tempDir) throws Exception {
-        String content = readRuleService(tempDir);
-        assertTrue(content.contains("import dev.appget.specification.generated.EmployeeAgeCheck"),
-            "Should import EmployeeAgeCheck");
-        assertTrue(content.contains("import dev.appget.specification.generated.EmployeeRoleCheck"),
-            "Should import EmployeeRoleCheck");
-        assertTrue(content.contains("import dev.appget.specification.generated.AuthenticatedApproval"),
-            "Should import AuthenticatedApproval");
-        assertTrue(content.contains("import dev.appget.specification.generated.SalaryAmountCheck"),
-            "Should import SalaryAmountCheck");
+        String ruleServiceContent = readRuleService(tempDir);
+        String registryContent = generateAndReadFile(tempDir,
+            "dev", "appget", "server", "service", "SpecificationRegistry.java");
+
+        // SpecificationRegistry should import the spec classes
+        assertTrue(registryContent.contains("import dev.appget.specification.generated.EmployeeAgeCheck"),
+            "Registry should import EmployeeAgeCheck");
+        assertTrue(registryContent.contains("import dev.appget.specification.generated.EmployeeRoleCheck"),
+            "Registry should import EmployeeRoleCheck");
+        assertTrue(registryContent.contains("import dev.appget.specification.generated.AuthenticatedApproval"),
+            "Registry should import AuthenticatedApproval");
+
+        // RuleService should inject SpecificationRegistry instead
+        assertTrue(ruleServiceContent.contains("SpecificationRegistry"),
+            "RuleService should use SpecificationRegistry");
     }
 
     @Test
     @DisplayName("RuleService instantiates spec classes")
     void testRuleServiceInstantiatesSpecs(@TempDir Path tempDir) throws Exception {
-        String content = readRuleService(tempDir);
-        assertTrue(content.contains("new EmployeeAgeCheck()"), "Should instantiate EmployeeAgeCheck");
-        assertTrue(content.contains("new EmployeeRoleCheck()"), "Should instantiate EmployeeRoleCheck");
-        assertTrue(content.contains("new SeniorManagerCheck()"), "Should instantiate SeniorManagerCheck");
-        assertTrue(content.contains("new AuthenticatedApproval()"), "Should instantiate AuthenticatedApproval");
-        assertTrue(content.contains("new SalaryAmountCheck()"), "Should instantiate SalaryAmountCheck");
+        String registryContent = generateAndReadFile(tempDir,
+            "dev", "appget", "server", "service", "SpecificationRegistry.java");
+
+        // SpecificationRegistry should instantiate the spec classes
+        assertTrue(registryContent.contains("new EmployeeAgeCheck()"), "Registry should instantiate EmployeeAgeCheck");
+        assertTrue(registryContent.contains("new EmployeeRoleCheck()"), "Registry should instantiate EmployeeRoleCheck");
+        assertTrue(registryContent.contains("new SeniorManagerCheck()"), "Registry should instantiate SeniorManagerCheck");
+        assertTrue(registryContent.contains("new AuthenticatedApproval()"), "Registry should instantiate AuthenticatedApproval");
+        assertTrue(registryContent.contains("new SalaryAmountCheck()"), "Registry should instantiate SalaryAmountCheck");
     }
 
     @Test
     @DisplayName("RuleService skips view-targeting rules")
     void testRuleServiceSkipsViewRules(@TempDir Path tempDir) throws Exception {
-        String content = readRuleService(tempDir);
-        assertFalse(content.contains("HighEarnerCheck"), "Should skip view-targeting HighEarnerCheck");
+        String registryContent = generateAndReadFile(tempDir,
+            "dev", "appget", "server", "service", "SpecificationRegistry.java");
+        assertFalse(registryContent.contains("HighEarnerCheck"), "Should skip view-targeting HighEarnerCheck");
     }
 
     @Test
     @DisplayName("RuleService groups by instanceof")
     void testRuleServiceGroupsByInstanceof(@TempDir Path tempDir) throws Exception {
         String content = readRuleService(tempDir);
-        assertTrue(content.contains("target instanceof Employee"), "Should check instanceof Employee");
-        assertTrue(content.contains("target instanceof Salary"), "Should check instanceof Salary");
+        // RuleService now uses registry.getByTarget() instead of instanceof
+        assertTrue(content.contains("registry.getByTarget(modelName)"),
+            "Should use registry.getByTarget to filter specs by target");
     }
 
     @Test
     @DisplayName("RuleService uses metadata-aware evaluate for AuthenticatedApproval")
     void testRuleServiceMetadataAwareEvaluate(@TempDir Path tempDir) throws Exception {
         String content = readRuleService(tempDir);
-        assertTrue(content.contains("authenticatedApproval.evaluate(typedTarget, metadata)"),
-            "Should use metadata-aware evaluate for AuthenticatedApproval");
-        assertTrue(content.contains("authenticatedApproval.getResult(typedTarget, metadata)"),
-            "Should use metadata-aware getResult for AuthenticatedApproval");
+        // RuleService should use reflection-based evaluate for dynamic invocation
+        assertTrue(content.contains("spec.getClass().getMethod(\"evaluate\""),
+            "Should use reflection to invoke evaluate method");
+        assertTrue(content.contains("BLOCKING_RULES"),
+            "Should have BLOCKING_RULES static map");
     }
 
     @Test
@@ -119,24 +131,18 @@ class SpringBootServerGeneratorTest {
     @DisplayName("RuleService only blocks for blocking rules")
     void testRuleServiceBlockingLogic(@TempDir Path tempDir) throws Exception {
         String content = readRuleService(tempDir);
-        // EmployeeAgeCheck is blocking - should set hasFailures
-        assertTrue(content.contains("employeeAgeCheckSatisfied") && content.contains("hasFailures = true"),
-            "Blocking rule EmployeeAgeCheck should set hasFailures");
+        // RuleService should check BLOCKING_RULES map
+        assertTrue(content.contains("BLOCKING_RULES"), "Should have BLOCKING_RULES static map");
+        assertTrue(content.contains("BLOCKING_RULES.put(\"EmployeeAgeCheck\", true)"),
+            "EmployeeAgeCheck should be marked as blocking");
+        assertTrue(content.contains("BLOCKING_RULES.put(\"AuthenticatedApproval\", true)"),
+            "AuthenticatedApproval should be marked as blocking");
+        assertTrue(content.contains("BLOCKING_RULES.put(\"EmployeeRoleCheck\", false)"),
+            "EmployeeRoleCheck should be marked as non-blocking");
 
-        // Split content to check blocking logic per rule
-        // EmployeeRoleCheck is NOT blocking - between its evaluate and the next rule, there should be no hasFailures
-        int roleCheckIdx = content.indexOf("employeeRoleCheckSatisfied");
-        int roleCheckOutcome = content.indexOf("\"EmployeeRoleCheck\"");
-        assertTrue(roleCheckIdx > 0 && roleCheckOutcome > 0, "EmployeeRoleCheck should be evaluated");
-
-        // Find the section between EmployeeRoleCheck outcome and the next rule
-        int afterRoleCheck = content.indexOf(".build());", roleCheckOutcome);
-        int nextSection = content.indexOf("Satisfied", afterRoleCheck);
-        if (nextSection > 0) {
-            String between = content.substring(afterRoleCheck, nextSection);
-            assertFalse(between.contains("hasFailures = true"),
-                "Non-blocking EmployeeRoleCheck should not set hasFailures");
-        }
+        // Verify blocking logic
+        assertTrue(content.contains("if (isBlocking && !outcome.isSatisfied()) {"),
+            "Should only set hasFailures for blocking rules that are unsatisfied");
     }
 
     @Test
@@ -173,5 +179,61 @@ class SpringBootServerGeneratorTest {
         assertTrue(content.contains("context.with(\"sso\""), "Should add sso to context");
         assertTrue(content.contains("context.with(\"roles\""), "Should add roles to context");
         assertTrue(content.contains("context.with(\"user\""), "Should add user to context");
+    }
+
+    @Test
+    @DisplayName("SpecificationRegistry exists and is annotated with @Component")
+    void testSpecificationRegistryExists(@TempDir Path tempDir) throws Exception {
+        String content = generateAndReadFile(tempDir,
+            "dev", "appget", "server", "service", "SpecificationRegistry.java");
+        assertTrue(content.contains("public class SpecificationRegistry"),
+            "SpecificationRegistry class should exist");
+        assertTrue(content.contains("@Component"),
+            "SpecificationRegistry should be annotated with @Component");
+    }
+
+    @Test
+    @DisplayName("SpecificationRegistry registers all spec classes")
+    void testSpecificationRegistryRegistersAllSpecs(@TempDir Path tempDir) throws Exception {
+        String content = generateAndReadFile(tempDir,
+            "dev", "appget", "server", "service", "SpecificationRegistry.java");
+        assertTrue(content.contains("register(\"EmployeeAgeCheck\""),
+            "Should register EmployeeAgeCheck");
+        assertTrue(content.contains("register(\"EmployeeRoleCheck\""),
+            "Should register EmployeeRoleCheck");
+        assertTrue(content.contains("register(\"AuthenticatedApproval\""),
+            "Should register AuthenticatedApproval");
+        assertTrue(content.contains("register(\"SalaryAmountCheck\""),
+            "Should register SalaryAmountCheck");
+    }
+
+    @Test
+    @DisplayName("SpecificationRegistry has getByTarget method")
+    void testSpecificationRegistryGetByTarget(@TempDir Path tempDir) throws Exception {
+        String content = generateAndReadFile(tempDir,
+            "dev", "appget", "server", "service", "SpecificationRegistry.java");
+        assertTrue(content.contains("public List<Object> getByTarget(String modelName)"),
+            "Should have getByTarget method");
+        assertTrue(content.contains("getTargetName(s)"),
+            "Should call getTargetName for filtering");
+    }
+
+    @Test
+    @DisplayName("SpecificationRegistry has get method for single spec lookup")
+    void testSpecificationRegistryGetMethod(@TempDir Path tempDir) throws Exception {
+        String content = generateAndReadFile(tempDir,
+            "dev", "appget", "server", "service", "SpecificationRegistry.java");
+        assertTrue(content.contains("public Object get(String name)"),
+            "Should have get method for single spec lookup");
+    }
+
+    @Test
+    @DisplayName("RuleService injects SpecificationRegistry")
+    void testRuleServiceInjectsRegistry(@TempDir Path tempDir) throws Exception {
+        String content = readRuleService(tempDir);
+        assertTrue(content.contains("private final SpecificationRegistry registry"),
+            "RuleService should inject SpecificationRegistry");
+        assertTrue(content.contains("public RuleService(SpecificationRegistry registry)"),
+            "RuleService constructor should accept SpecificationRegistry");
     }
 }

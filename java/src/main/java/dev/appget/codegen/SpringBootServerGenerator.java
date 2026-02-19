@@ -78,9 +78,13 @@ public class SpringBootServerGenerator {
         generateExceptionClasses(outputDir);
         generateGlobalExceptionHandler(outputDir);
 
+        // Generate specification registry
+        generateSpecificationRegistry(outputDir);
+
         // Generate per-model components
         for (ModelInfo model : modelIndex.values()) {
-            generateRepository(model, outputDir);
+            generateRepositoryInterface(model, outputDir);
+            generateInMemoryRepository(model, outputDir);
             generateService(model, outputDir);
             generateController(model, outputDir);
         }
@@ -89,7 +93,9 @@ public class SpringBootServerGenerator {
         System.out.println("  Generated: Application.java");
         System.out.println("  Generated: application.yaml");
         System.out.println("  Generated: log4j2.properties (src/main/resources/)");
-        System.out.println("  Generated: " + modelIndex.size() + " model endpoints (Controller/Service/Repository)");
+        System.out.println("  Generated: SpecificationRegistry");
+        System.out.println("  Generated: RuleService (with SpecificationRegistry injection)");
+        System.out.println("  Generated: " + modelIndex.size() + " model endpoints (Controller/Service/Interface/InMemoryRepository)");
     }
 
     @SuppressWarnings("unchecked")
@@ -528,19 +534,13 @@ public class SpringBootServerGenerator {
         writefile(outputDir, BASE_PACKAGE + ".config", "MetadataExtractor", code.toString());
     }
 
-    private void generateRuleService(String outputDir) throws IOException {
+    private void generateSpecificationRegistry(String outputDir) throws IOException {
         // Collect model-targeting rules (skip views)
         List<RuleInfo> modelRules = new ArrayList<>();
         for (RuleInfo rule : rules) {
             if (!"view".equals(rule.targetType)) {
                 modelRules.add(rule);
             }
-        }
-
-        // Group rules by target name
-        Map<String, List<RuleInfo>> rulesByTarget = new LinkedHashMap<>();
-        for (RuleInfo rule : modelRules) {
-            rulesByTarget.computeIfAbsent(rule.targetName, k -> new ArrayList<>()).add(rule);
         }
 
         StringBuilder code = new StringBuilder();
@@ -550,6 +550,77 @@ public class SpringBootServerGenerator {
         for (RuleInfo rule : modelRules) {
             code.append("import dev.appget.specification.generated.").append(rule.name).append(";\n");
         }
+
+        code.append("import org.springframework.stereotype.Component;\n");
+        code.append("import java.util.Collection;\n");
+        code.append("import java.util.LinkedHashMap;\n");
+        code.append("import java.util.List;\n");
+        code.append("import java.util.Map;\n");
+        code.append("import java.util.stream.Collectors;\n\n");
+
+        code.append("/**\n");
+        code.append(" * Registry of all compiled specification classes.\n");
+        code.append(" * DO NOT EDIT MANUALLY - Regenerated from specs.yaml when rules change.\n");
+        code.append(" */\n");
+        code.append("@Component\n");
+        code.append("public class SpecificationRegistry {\n");
+        code.append("    private final Map<String, Object> specs = new LinkedHashMap<>();\n\n");
+
+        code.append("    public SpecificationRegistry() {\n");
+        for (RuleInfo rule : modelRules) {
+            code.append("        register(\"").append(rule.name).append("\", new ").append(rule.name).append("());\n");
+        }
+        code.append("    }\n\n");
+
+        code.append("    private void register(String name, Object spec) {\n");
+        code.append("        specs.put(name, spec);\n");
+        code.append("    }\n\n");
+
+        code.append("    /** Retrieve a single spec by rule name. Returns null if not found. */\n");
+        code.append("    public Object get(String name) {\n");
+        code.append("        return specs.get(name);\n");
+        code.append("    }\n\n");
+
+        code.append("    /** All registered specs. */\n");
+        code.append("    public Collection<Object> getAll() {\n");
+        code.append("        return specs.values();\n");
+        code.append("    }\n\n");
+
+        code.append("    /**\n");
+        code.append("     * All specs whose target model name matches the given class simple name.\n");
+        code.append("     * Uses getTargetModel() — all generated spec classes expose this method.\n");
+        code.append("     */\n");
+        code.append("    public List<Object> getByTarget(String modelName) {\n");
+        code.append("        return specs.values().stream()\n");
+        code.append("            .filter(s -> modelName.equals(getTargetName(s)))\n");
+        code.append("            .collect(Collectors.toList());\n");
+        code.append("    }\n\n");
+
+        code.append("    private String getTargetName(Object spec) {\n");
+        code.append("        try {\n");
+        code.append("            return (String) spec.getClass().getMethod(\"getTargetModel\").invoke(spec);\n");
+        code.append("        } catch (Exception e) {\n");
+        code.append("            return null;\n");
+        code.append("        }\n");
+        code.append("    }\n");
+        code.append("}\n");
+
+        writefile(outputDir, BASE_PACKAGE + ".service", "SpecificationRegistry", code.toString());
+    }
+
+    private void generateRuleService(String outputDir) throws IOException {
+        // Collect model-targeting rules (skip views)
+        List<RuleInfo> modelRules = new ArrayList<>();
+        Map<String, Boolean> blockingMap = new HashMap<>();
+        for (RuleInfo rule : rules) {
+            if (!"view".equals(rule.targetType)) {
+                modelRules.add(rule);
+                blockingMap.put(rule.name, rule.blocking);
+            }
+        }
+
+        StringBuilder code = new StringBuilder();
+        code.append("package ").append(BASE_PACKAGE).append(".service;\n\n");
 
         // Import target model classes (deduplicate)
         Set<String> modelImports = new LinkedHashSet<>();
@@ -565,74 +636,101 @@ public class SpringBootServerGenerator {
         code.append("import ").append(BASE_PACKAGE).append(".dto.RuleEvaluationResult;\n");
         code.append("import org.springframework.stereotype.Service;\n");
         code.append("import java.util.ArrayList;\n");
-        code.append("import java.util.List;\n\n");
+        code.append("import java.util.HashMap;\n");
+        code.append("import java.util.List;\n");
+        code.append("import java.util.Map;\n\n");
 
         code.append("/**\n");
-        code.append(" * Evaluates business rules using pre-compiled specification classes\n");
+        code.append(" * Evaluates business rules using pre-compiled specification classes.\n");
+        code.append(" * Stable service that injects SpecificationRegistry for dynamic rule lookup.\n");
         code.append(" * DO NOT EDIT MANUALLY - Generated from specs.yaml\n");
         code.append(" */\n");
         code.append("@Service\n");
         code.append("public class RuleService {\n\n");
 
-        // Direct instantiation fields
-        for (RuleInfo rule : modelRules) {
-            String fieldName = lowerFirst(rule.name);
-            code.append("    private final ").append(rule.name).append(" ").append(fieldName)
-                .append(" = new ").append(rule.name).append("();\n");
+        code.append("    private final SpecificationRegistry registry;\n");
+        code.append("    private static final Map<String, Boolean> BLOCKING_RULES = new HashMap<>();\n\n");
+
+        code.append("    static {\n");
+        for (Map.Entry<String, Boolean> entry : blockingMap.entrySet()) {
+            code.append("        BLOCKING_RULES.put(\"").append(entry.getKey()).append("\", ").append(entry.getValue()).append(");\n");
         }
-        code.append("\n");
+        code.append("    }\n\n");
+
+        code.append("    public RuleService(SpecificationRegistry registry) {\n");
+        code.append("        this.registry = registry;\n");
+        code.append("    }\n\n");
 
         // evaluateAll method
         code.append("    public <T> RuleEvaluationResult evaluateAll(T target, MetadataContext metadata) {\n");
         code.append("        List<RuleOutcome> outcomes = new ArrayList<>();\n");
         code.append("        boolean hasFailures = false;\n\n");
 
-        for (Map.Entry<String, List<RuleInfo>> entry : rulesByTarget.entrySet()) {
-            String targetName = entry.getKey();
-            List<RuleInfo> targetRules = entry.getValue();
+        code.append("        String modelName = target.getClass().getSimpleName();\n");
+        code.append("        List<Object> applicableSpecs = registry.getByTarget(modelName);\n\n");
 
-            code.append("        if (target instanceof ").append(targetName).append(") {\n");
-            code.append("            ").append(targetName).append(" typedTarget = (").append(targetName).append(") target;\n\n");
+        code.append("        for (Object spec : applicableSpecs) {\n");
+        code.append("            String ruleName = getRuleName(spec);\n");
+        code.append("            RuleOutcome outcome = evaluate(spec, target, metadata, ruleName);\n");
+        code.append("            outcomes.add(outcome);\n\n");
 
-            for (RuleInfo rule : targetRules) {
-                String fieldName = lowerFirst(rule.name);
-                String satisfiedVar = fieldName + "Satisfied";
-                String statusVar = fieldName + "Status";
-
-                // Evaluate
-                if (rule.requiresMetadata) {
-                    code.append("            boolean ").append(satisfiedVar).append(" = ").append(fieldName)
-                        .append(".evaluate(typedTarget, metadata);\n");
-                    code.append("            String ").append(statusVar).append(" = ").append(fieldName)
-                        .append(".getResult(typedTarget, metadata);\n");
-                } else {
-                    code.append("            boolean ").append(satisfiedVar).append(" = ").append(fieldName)
-                        .append(".evaluate(typedTarget);\n");
-                    code.append("            String ").append(statusVar).append(" = ").append(fieldName)
-                        .append(".getResult(typedTarget);\n");
-                }
-
-                // Add outcome
-                code.append("            outcomes.add(RuleOutcome.builder()\n");
-                code.append("                .ruleName(\"").append(rule.name).append("\")\n");
-                code.append("                .status(").append(statusVar).append(")\n");
-                code.append("                .satisfied(").append(satisfiedVar).append(")\n");
-                code.append("                .build());\n");
-
-                // Only blocking rules set hasFailures
-                if (rule.blocking) {
-                    code.append("            if (!").append(satisfiedVar).append(") {\n");
-                    code.append("                hasFailures = true;\n");
-                    code.append("            }\n");
-                }
-
-                code.append("\n");
-            }
-
-            code.append("        }\n\n");
-        }
+        code.append("            boolean isBlocking = BLOCKING_RULES.getOrDefault(ruleName, false);\n");
+        code.append("            if (isBlocking && !outcome.isSatisfied()) {\n");
+        code.append("                hasFailures = true;\n");
+        code.append("            }\n");
+        code.append("        }\n\n");
 
         code.append("        return new RuleEvaluationResult(outcomes, hasFailures);\n");
+        code.append("    }\n\n");
+
+        code.append("    private String getRuleName(Object spec) {\n");
+        code.append("        return spec.getClass().getSimpleName();\n");
+        code.append("    }\n\n");
+
+        code.append("    private RuleOutcome evaluate(Object spec, Object target, MetadataContext metadata, String ruleName) {\n");
+        code.append("        boolean satisfied = evaluateSpec(spec, target, metadata);\n");
+        code.append("        String status = getSpecStatus(spec, target, metadata);\n");
+        code.append("        return RuleOutcome.builder()\n");
+        code.append("            .ruleName(ruleName)\n");
+        code.append("            .status(status)\n");
+        code.append("            .satisfied(satisfied)\n");
+        code.append("            .build();\n");
+        code.append("    }\n\n");
+
+        code.append("    private boolean evaluateSpec(Object spec, Object target, MetadataContext metadata) {\n");
+        code.append("        try {\n");
+        code.append("            // Try metadata-aware evaluate first\n");
+        code.append("            return (boolean) spec.getClass().getMethod(\"evaluate\", Object.class, MetadataContext.class)\n");
+        code.append("                .invoke(spec, target, metadata);\n");
+        code.append("        } catch (NoSuchMethodException e) {\n");
+        code.append("            try {\n");
+        code.append("                // Fall back to simple evaluate\n");
+        code.append("                return (boolean) spec.getClass().getMethod(\"evaluate\", Object.class)\n");
+        code.append("                    .invoke(spec, target);\n");
+        code.append("            } catch (Exception ex) {\n");
+        code.append("                return false;\n");
+        code.append("            }\n");
+        code.append("        } catch (Exception e) {\n");
+        code.append("            return false;\n");
+        code.append("        }\n");
+        code.append("    }\n\n");
+
+        code.append("    private String getSpecStatus(Object spec, Object target, MetadataContext metadata) {\n");
+        code.append("        try {\n");
+        code.append("            // Try metadata-aware getResult first\n");
+        code.append("            return (String) spec.getClass().getMethod(\"getResult\", Object.class, MetadataContext.class)\n");
+        code.append("                .invoke(spec, target, metadata);\n");
+        code.append("        } catch (NoSuchMethodException e) {\n");
+        code.append("            try {\n");
+        code.append("                // Fall back to simple getResult\n");
+        code.append("                return (String) spec.getClass().getMethod(\"getResult\", Object.class)\n");
+        code.append("                    .invoke(spec, target);\n");
+        code.append("            } catch (Exception ex) {\n");
+        code.append("                return \"UNKNOWN\";\n");
+        code.append("            }\n");
+        code.append("        } catch (Exception e) {\n");
+        code.append("            return \"UNKNOWN\";\n");
+        code.append("        }\n");
         code.append("    }\n");
         code.append("}\n");
 
@@ -840,15 +938,44 @@ public class SpringBootServerGenerator {
         writefile(outputDir, BASE_PACKAGE + ".exception", "GlobalExceptionHandler", code.toString());
     }
 
-    private void generateRepository(ModelInfo model, String outputDir) throws IOException {
-        String className = model.name + "Repository";
+    private void generateRepositoryInterface(ModelInfo model, String outputDir) throws IOException {
+        String interfaceName = model.name + "Repository";
         String packageName = BASE_PACKAGE + ".repository";
 
         StringBuilder code = new StringBuilder();
         code.append("package ").append(packageName).append(";\n\n");
 
         code.append("import ").append(model.namespace).append(".model.").append(model.name).append(";\n");
-        code.append("import org.springframework.stereotype.Repository;\n");
+        code.append("import java.util.List;\n");
+        code.append("import java.util.Optional;\n\n");
+
+        code.append("/**\n");
+        code.append(" * Repository interface for ").append(model.name).append(" entities\n");
+        code.append(" * Implement this interface to provide custom data access (database, cache, etc.)\n");
+        code.append(" * DO NOT EDIT MANUALLY - Generated from models.yaml\n");
+        code.append(" */\n");
+        code.append("public interface ").append(interfaceName).append(" {\n\n");
+
+        code.append("    ").append(model.name).append(" save(").append(model.name).append(" entity);\n\n");
+        code.append("    Optional<").append(model.name).append("> findById(String id);\n\n");
+        code.append("    List<").append(model.name).append("> findAll();\n\n");
+        code.append("    void deleteById(String id);\n\n");
+        code.append("    boolean existsById(String id);\n");
+        code.append("}\n");
+
+        writefile(outputDir, packageName, interfaceName, code.toString());
+    }
+
+    private void generateInMemoryRepository(ModelInfo model, String outputDir) throws IOException {
+        String className = "InMemory" + model.name + "Repository";
+        String interfaceName = model.name + "Repository";
+        String packageName = BASE_PACKAGE + ".repository";
+
+        StringBuilder code = new StringBuilder();
+        code.append("package ").append(packageName).append(";\n\n");
+
+        code.append("import ").append(model.namespace).append(".model.").append(model.name).append(";\n");
+        code.append("import org.springframework.stereotype.Component;\n");
         code.append("import lombok.extern.log4j.Log4j2;\n");
         code.append("import java.util.Map;\n");
         code.append("import java.util.Optional;\n");
@@ -858,12 +985,13 @@ public class SpringBootServerGenerator {
         code.append("import java.util.stream.Collectors;\n\n");
 
         code.append("/**\n");
-        code.append(" * In-memory repository for ").append(model.name).append(" entities\n");
+        code.append(" * Default in-memory repository for ").append(model.name).append(" entities\n");
+        code.append(" * Replace by providing a @Primary bean of type ").append(interfaceName).append("\n");
         code.append(" * DO NOT EDIT MANUALLY - Generated from models.yaml\n");
         code.append(" */\n");
         code.append("@Log4j2\n");
-        code.append("@Repository\n");
-        code.append("public class ").append(className).append(" {\n\n");
+        code.append("@Component\n");
+        code.append("public class ").append(className).append(" implements ").append(interfaceName).append(" {\n\n");
 
         // Check if model has an 'id' field
         boolean hasIdField = model.fields.stream()
@@ -875,6 +1003,7 @@ public class SpringBootServerGenerator {
         }
         code.append("\n");
 
+        code.append("    @Override\n");
         code.append("    public ").append(model.name).append(" save(").append(model.name).append(" entity) {\n");
         if (hasIdField) {
             code.append("        String id = entity.getId();\n");
@@ -887,6 +1016,7 @@ public class SpringBootServerGenerator {
         code.append("        return entity;\n");
         code.append("    }\n\n");
 
+        code.append("    @Override\n");
         code.append("    public Optional<").append(model.name).append("> findById(String id) {\n");
         code.append("        log.debug(\"Looking up ").append(model.name).append(" with id: {}\", id);\n");
         code.append("        Optional<").append(model.name).append("> result = Optional.ofNullable(store.get(id));\n");
@@ -898,6 +1028,7 @@ public class SpringBootServerGenerator {
         code.append("        return result;\n");
         code.append("    }\n\n");
 
+        code.append("    @Override\n");
         code.append("    public List<").append(model.name).append("> findAll() {\n");
         code.append("        log.debug(\"Retrieving all ").append(model.name).append(" entities\");\n");
         code.append("        List<").append(model.name).append("> results = new java.util.ArrayList<>(store.values());\n");
@@ -905,12 +1036,14 @@ public class SpringBootServerGenerator {
         code.append("        return results;\n");
         code.append("    }\n\n");
 
+        code.append("    @Override\n");
         code.append("    public void deleteById(String id) {\n");
         code.append("        log.debug(\"Deleting ").append(model.name).append(" with id: {}\", id);\n");
         code.append("        store.remove(id);\n");
         code.append("        log.info(\"Successfully deleted ").append(model.name).append(" with id: {}\", id);\n");
         code.append("    }\n\n");
 
+        code.append("    @Override\n");
         code.append("    public boolean existsById(String id) {\n");
         code.append("        boolean exists = store.containsKey(id);\n");
         code.append("        log.debug(\"Checking existence of ").append(model.name).append(" with id: {}, exists: {}\", id, exists);\n");

@@ -329,7 +329,7 @@ Each improvement is labeled **[IMPROVEMENT-N]** for reference in discussion and 
 
 ### [IMPROVEMENT-5] Generated Server Uses In-Memory Storage Only
 
-**Status**: Open
+**Status**: ✅ Completed (2026-02-18)
 
 **Current state**:
 
@@ -449,7 +449,7 @@ Add assertions (new test method or extend an existing repository test):
 
 ### [IMPROVEMENT-6B] Specification Registry Auto-Discovery
 
-**Status**: Open
+**Status**: ✅ Completed (2026-02-18)
 
 **Current state**:
 
@@ -703,11 +703,11 @@ This invariant is what makes the platform multi-language. If a generator bypasse
 
 | Item | Type | Effort | Status |
 |------|------|--------|--------|
-| [IMPROVEMENT-5] Storage interface abstraction in generated server | Feature | Low | Open |
-| [IMPROVEMENT-6B] Specification registry auto-discovery | Feature | Low | Open |
+| [IMPROVEMENT-5] Storage interface abstraction in generated server | Feature | Low | ✅ Completed |
+| [IMPROVEMENT-6B] Specification registry auto-discovery | Feature | Low | ✅ Completed |
 | First non-Java language (Phase 1–4) | New implementation | High | Future |
 
 ---
 
 **Last Updated**: 2026-02-18
-**Status**: Active — IMPROVEMENT-5 and IMPROVEMENT-6B are open; improvements 1–4 completed
+**Status**: Complete — All improvements implemented (IMPROVEMENT-5 and IMPROVEMENT-6B completed 2026-02-18)
