@@ -8,6 +8,7 @@ import java.nio.file.Paths;
 import java.util.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import dev.appget.codegen.CodeGenUtils;
 
 /**
  * Generates Specification implementation classes from YAML rule definitions.
@@ -338,7 +339,7 @@ public class SpecificationGenerator {
         if (value instanceof Integer) {
             return value.toString();
         } else if (value instanceof String) {
-            return "\"" + escapeString((String) value) + "\"";
+            return "\"" + CodeGenUtils.escapeString((String) value) + "\"";
         } else if (value instanceof Double) {
             return value.toString();
         } else if (value instanceof Boolean) {
@@ -346,15 +347,6 @@ public class SpecificationGenerator {
         } else {
             return "\"" + value.toString() + "\"";
         }
-    }
-
-    private String escapeString(String str) {
-        return str
-            .replace("\\", "\\\\")
-            .replace("\"", "\\\"")
-            .replace("\n", "\\n")
-            .replace("\r", "\\r")
-            .replace("\t", "\\t");
     }
 
     private static class MetadataReqInfo {

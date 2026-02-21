@@ -8,6 +8,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import dev.appget.codegen.CodeGenUtils;
 
 /**
  * Parses schema.sql and views.sql using regex-based parsing to generate models.yaml.
@@ -245,7 +246,7 @@ public class SQLSchemaParser {
             String[] headerParts = tableHeader.split("\\s+");
             String tableName = headerParts[headerParts.length - 1];
 
-            int closeParen = findMatchingParen(sql, openParen);
+            int closeParen = CodeGenUtils.findMatchingParen(sql, openParen);
             if (closeParen < 0) break;
 
             String columnDefs = sql.substring(openParen + 1, closeParen);
@@ -391,7 +392,7 @@ public class SQLSchemaParser {
         List<Map<String, Object>> fields = new ArrayList<>();
 
         // Split columns by comma (respecting parentheses for functions)
-        List<String> columns = smartSplit(selectPart, ',');
+        List<String> columns = CodeGenUtils.smartSplit(selectPart, ',');
 
         for (String col : columns) {
             col = col.trim();
@@ -544,7 +545,7 @@ public class SQLSchemaParser {
                                                     Set<String> tableLevelPrimaryKeys) {
         List<Map<String, Object>> fields = new ArrayList<>();
 
-        List<String> columnLines = smartSplit(columnDefs, ',');
+        List<String> columnLines = CodeGenUtils.smartSplit(columnDefs, ',');
 
         // First pass: detect inline PRIMARY KEY columns
         Set<String> inlinePrimaryKeys = new LinkedHashSet<>();
@@ -591,7 +592,7 @@ public class SQLSchemaParser {
     private List<ColumnInfo> parseColumnsForLookup(String columnDefs) {
         List<ColumnInfo> columns = new ArrayList<>();
 
-        List<String> columnLines = smartSplit(columnDefs, ',');
+        List<String> columnLines = CodeGenUtils.smartSplit(columnDefs, ',');
 
         for (String columnLine : columnLines) {
             columnLine = columnLine.trim();
@@ -649,33 +650,6 @@ public class SQLSchemaParser {
         }
 
         return columns;
-    }
-
-    private List<String> smartSplit(String text, char delimiter) {
-        List<String> result = new ArrayList<>();
-        StringBuilder current = new StringBuilder();
-        int parenDepth = 0;
-
-        for (char c : text.toCharArray()) {
-            if (c == '(' || c == '[') {
-                parenDepth++;
-                current.append(c);
-            } else if (c == ')' || c == ']') {
-                parenDepth--;
-                current.append(c);
-            } else if (c == delimiter && parenDepth == 0) {
-                result.add(current.toString());
-                current = new StringBuilder();
-            } else {
-                current.append(c);
-            }
-        }
-
-        if (current.length() > 0) {
-            result.add(current.toString());
-        }
-
-        return result;
     }
 
     private boolean isConstraintLine(String line) {
@@ -759,18 +733,6 @@ public class SQLSchemaParser {
         }
 
         return field;
-    }
-
-    private int findMatchingParen(String sql, int openParen) {
-        int depth = 0;
-        for (int i = openParen; i < sql.length(); i++) {
-            if (sql.charAt(i) == '(') depth++;
-            else if (sql.charAt(i) == ')') {
-                depth--;
-                if (depth == 0) return i;
-            }
-        }
-        return -1;
     }
 
     private String extractBaseType(String typePart) {

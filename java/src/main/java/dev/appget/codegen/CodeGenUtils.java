@@ -22,40 +22,6 @@ public class CodeGenUtils {
         return Character.toUpperCase(str.charAt(0)) + str.substring(1);
     }
 
-    public static String camelToKebab(String str) {
-        if (str == null) {
-            return null;
-        }
-        return str.replaceAll("([a-z])([A-Z])", "$1-$2").toLowerCase();
-    }
-
-    public static String camelToSnake(String str) {
-        if (str == null) {
-            return null;
-        }
-        return str.replaceAll("([a-z])([A-Z])", "$1_$2").toLowerCase();
-    }
-
-    public static String snakeToCamel(String str) {
-        if (str == null || str.isEmpty()) {
-            return str;
-        }
-        StringBuilder camelCase = new StringBuilder();
-        boolean capitalizeNext = false;
-        for (int i = 0; i < str.length(); i++) {
-            char c = str.charAt(i);
-            if (c == '_') {
-                capitalizeNext = true;
-            } else if (capitalizeNext) {
-                camelCase.append(Character.toUpperCase(c));
-                capitalizeNext = false;
-            } else {
-                camelCase.append(c);
-            }
-        }
-        return camelCase.toString();
-    }
-
     public static int findMatchingParen(String sql, int openParen) {
         int depth = 0;
         for (int i = openParen; i < sql.length(); i++) {

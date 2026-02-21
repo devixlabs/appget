@@ -103,4 +103,45 @@ class JavaUtilsTest {
     void testUnknownTypeAbsent() {
         assertNull(JavaUtils.JAVA_TO_PROTO_TYPE.get("UnknownType"));
     }
+
+    // ---- snakeToCamel ----
+
+    @Test
+    @DisplayName("snakeToCamel: converts snake_case to camelCase")
+    void testSnakeToCamel() {
+        assertEquals("snakeCase", JavaUtils.snakeToCamel("snake_case"));
+    }
+
+    @Test
+    @DisplayName("snakeToCamel: multi-word snake_case")
+    void testSnakeToCamelMultiWord() {
+        assertEquals("snakeCaseString", JavaUtils.snakeToCamel("snake_case_string"));
+    }
+
+    @Test
+    @DisplayName("snakeToCamel: no underscores is unchanged")
+    void testSnakeToCamelNoUnderscore() {
+        assertEquals("simple", JavaUtils.snakeToCamel("simple"));
+    }
+
+    @Test
+    @DisplayName("snakeToCamel: null returns null")
+    void testSnakeToCamelNull() {
+        assertNull(JavaUtils.snakeToCamel(null));
+    }
+
+    @Test
+    @DisplayName("snakeToCamel: empty string returns empty string")
+    void testSnakeToCamelEmpty() {
+        assertEquals("", JavaUtils.snakeToCamel(""));
+    }
+
+    @Test
+    @DisplayName("snakeToCamel: domain field names")
+    void testSnakeToCamelDomainFields() {
+        assertEquals("roleId", JavaUtils.snakeToCamel("role_id"));
+        assertEquals("invoiceNumber", JavaUtils.snakeToCamel("invoice_number"));
+        assertEquals("yearsOfService", JavaUtils.snakeToCamel("years_of_service"));
+        assertEquals("name", JavaUtils.snakeToCamel("name"));
+    }
 }

@@ -6,6 +6,7 @@ import com.github.jknack.handlebars.io.FileTemplateLoader;
 import com.github.jknack.handlebars.io.TemplateLoader;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import dev.appget.codegen.CodeGenUtils;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -40,25 +41,11 @@ public class TemplateEngine {
     private void registerHelpers() {
         log.debug("Registering Handlebars helper functions");
 
-        handlebars.registerHelper("lowerFirst", (context, options) -> {
-            String str = context.toString();
-            return str.isEmpty() ? str : Character.toLowerCase(str.charAt(0)) + str.substring(1);
-        });
+        handlebars.registerHelper("lowerFirst", (context, options) ->
+            CodeGenUtils.lowerFirst(context.toString()));
 
-        handlebars.registerHelper("capitalize", (context, options) -> {
-            String str = context.toString();
-            return str.isEmpty() ? str : Character.toUpperCase(str.charAt(0)) + str.substring(1);
-        });
-
-        handlebars.registerHelper("camelToKebab", (context, options) -> {
-            String str = context.toString();
-            return str.replaceAll("([a-z])([A-Z])", "$1-$2").toLowerCase();
-        });
-
-        handlebars.registerHelper("camelToSnake", (context, options) -> {
-            String str = context.toString();
-            return str.replaceAll("([a-z])([A-Z])", "$1_$2").toLowerCase();
-        });
+        handlebars.registerHelper("capitalize", (context, options) ->
+            CodeGenUtils.capitalize(context.toString()));
 
         log.debug("Helper functions registered");
     }

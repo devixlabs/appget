@@ -8,6 +8,7 @@ import java.nio.file.Paths;
 import java.util.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import dev.appget.codegen.CodeGenUtils;
 
 /**
  * Generates a production-ready Spring Boot REST API server from models and specifications.
@@ -469,7 +470,7 @@ public class SpringBootServerGenerator {
         code.append("import dev.appget.specification.MetadataContext;\n");
         // Import each context POJO
         for (String category : metadataCategories) {
-            code.append("import dev.appget.specification.context.").append(capitalize(category)).append("Context;\n");
+            code.append("import dev.appget.specification.context.").append(CodeGenUtils.capitalize(category)).append("Context;\n");
         }
         code.append("import org.springframework.stereotype.Component;\n");
         code.append("import jakarta.servlet.http.HttpServletRequest;\n\n");
@@ -489,13 +490,13 @@ public class SpringBootServerGenerator {
             List<Map<String, Object>> fields = metadataFieldDefinitions.get(category);
             if (fields == null || fields.isEmpty()) continue;
 
-            String contextClass = capitalize(category) + "Context";
-            String headerPrefix = "X-" + capitalize(category) + "-";
+            String contextClass = CodeGenUtils.capitalize(category) + "Context";
+            String headerPrefix = "X-" + CodeGenUtils.capitalize(category) + "-";
 
             // Read headers
             for (Map<String, Object> field : fields) {
                 String fieldName = (String) field.get("name");
-                String varName = category + capitalize(fieldName);
+                String varName = category + CodeGenUtils.capitalize(fieldName);
                 String headerName = headerPrefix + camelToHeaderCase(fieldName);
                 code.append("        String ").append(varName).append(" = request.getHeader(\"")
                     .append(headerName).append("\");\n");
@@ -505,7 +506,7 @@ public class SpringBootServerGenerator {
             StringBuilder condition = new StringBuilder();
             for (int i = 0; i < fields.size(); i++) {
                 String fieldName = (String) fields.get(i).get("name");
-                String varName = category + capitalize(fieldName);
+                String varName = category + CodeGenUtils.capitalize(fieldName);
                 if (i > 0) condition.append(" || ");
                 condition.append(varName).append(" != null");
             }
@@ -517,7 +518,7 @@ public class SpringBootServerGenerator {
             for (Map<String, Object> field : fields) {
                 String fieldName = (String) field.get("name");
                 String fieldType = (String) field.get("type");
-                String varName = category + capitalize(fieldName);
+                String varName = category + CodeGenUtils.capitalize(fieldName);
                 code.append("                .").append(fieldName).append("(")
                     .append(parseHeaderValue(varName, fieldType)).append(")\n");
             }
@@ -1159,7 +1160,7 @@ public class SpringBootServerGenerator {
         String className = model.name + "Controller";
         String packageName = BASE_PACKAGE + ".controller";
         String serviceClass = model.name + "Service";
-        String resourcePath = "/" + (model.resource != null ? model.resource : camelToKebab(model.name) + "s");
+        String resourcePath = "/" + model.resource;
 
         StringBuilder code = new StringBuilder();
         code.append("package ").append(packageName).append(";\n\n");
@@ -1252,16 +1253,6 @@ public class SpringBootServerGenerator {
         writefile(outputDir, packageName, className, code.toString());
     }
 
-    private String lowerFirst(String s) {
-        if (s == null || s.isEmpty()) return s;
-        return Character.toLowerCase(s.charAt(0)) + s.substring(1);
-    }
-
-    private String capitalize(String s) {
-        if (s == null || s.isEmpty()) return s;
-        return Character.toUpperCase(s.charAt(0)) + s.substring(1);
-    }
-
     private String camelToHeaderCase(String camelCase) {
         // roleLevel -> Role-Level, sessionId -> Session-Id
         StringBuilder result = new StringBuilder();
@@ -1307,10 +1298,6 @@ public class SpringBootServerGenerator {
         Files.createDirectories(packagePath);
         Path outputFile = packagePath.resolve(className + ".java");
         Files.writeString(outputFile, javaCode);
-    }
-
-    private String camelToKebab(String camelCase) {
-        return camelCase.replaceAll("([a-z])([A-Z])", "$1-$2").toLowerCase();
     }
 
     // Helper classes

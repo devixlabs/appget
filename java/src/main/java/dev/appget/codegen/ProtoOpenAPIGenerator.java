@@ -7,6 +7,7 @@ import java.util.regex.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.yaml.snakeyaml.Yaml;
+import dev.appget.codegen.JavaUtils;
 
 /**
  * Generates OpenAPI 3.0 specification from .proto files.
@@ -362,7 +363,7 @@ public class ProtoOpenAPIGenerator {
                 fieldSchema.put("format", openAPIType[1]);
             }
 
-            String jsonName = snakeToCamel(field.name());
+            String jsonName = JavaUtils.snakeToCamel(field.name());
             properties.put(jsonName, fieldSchema);
             required.add(jsonName);
         }
@@ -538,19 +539,4 @@ public class ProtoOpenAPIGenerator {
         return word + "s";
     }
 
-    String snakeToCamel(String snake) {
-        StringBuilder result = new StringBuilder();
-        boolean capitalizeNext = false;
-        for (char c : snake.toCharArray()) {
-            if (c == '_') {
-                capitalizeNext = true;
-            } else if (capitalizeNext) {
-                result.append(Character.toUpperCase(c));
-                capitalizeNext = false;
-            } else {
-                result.append(c);
-            }
-        }
-        return result.toString();
-    }
 }
