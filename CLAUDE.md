@@ -115,7 +115,7 @@ make all              # clean → generate → test → build
 make features-to-specs   # .feature files + metadata → specs.yaml
 make parse-schema        # schema.sql → models.yaml
 make generate            # protobuf + specifications + OpenAPI
-make test                # 213 comprehensive tests
+make test                # 250+ tests
 make run                 # Execute rule engine demo
 make generate-server     # Generate Spring Boot REST API
 ```
@@ -135,10 +135,24 @@ make generate-server     # Generate Spring Boot REST API
 
 | Document | Purpose |
 |----------|---------|
+| **docs/README.md** | Index of all platform docs with status indicators |
+| **docs/ROADMAP.md** | Phase-by-phase plan for multi-language rollout |
 | **java/README.md** | User guide, quickstart, examples |
 | **java/CLAUDE.md** | Technical implementation, build system, generators |
 | **java/PIPELINE.md** | Detailed pipeline architecture, type mappings |
 | **This file** | Strategic guidance, subproject navigation |
+
+---
+
+## docs/ Status Convention
+
+Every `.md` file in `docs/` that describes **not-yet-implemented** behavior must begin with this exact banner on **line 1**, before the title heading:
+
+```
+> **Status: Not Yet Implemented** — Phase N+. See [ROADMAP.md](ROADMAP.md).
+```
+
+Adjust "Phase N" to match the relevant phase from `ROADMAP.md`. No banner = currently implemented. Do not create TODO.md or similar tracking files — use this banner instead.
 
 ---
 

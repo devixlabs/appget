@@ -8,21 +8,6 @@ This roadmap reflects the current decisions and the latest pipeline constraints.
 - Protobuf-aligned types in contracts, with a custom Decimal for precision.
 - REST and gRPC enforce the same blocking rule semantics.
 
-## Phase 0 - Contract Drafts
-Goal: lock down the contracts and naming rules so all language implementations target the same outputs.
-
-Deliverables
-1. `MODELS_YAML_SCHEMA.md`
-2. `SPECS_YAML_SCHEMA.md`
-3. `DECIMAL.md`
-4. `REST_CONTRACT.md`
-5. `GRPC_CONTRACT.md`
-6. `PROTO_CONVENTIONS.md`
-
-Acceptance criteria
-1. Schemas define all required fields and ordering rules.
-2. Decimal format is defined for proto, JSON, and codegen.
-
 ## Phase 1 - Parser Parity
 Goal: every language parser produces identical `models.yaml` and `specs.yaml` outputs.
 

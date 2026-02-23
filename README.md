@@ -54,7 +54,7 @@ appget.dev/
 │       ├── main/java/     # Generators and rule engine
 │       ├── main/java-generated/  # Generated models & specs
 │       ├── main/resources/templates/  # Handlebars .hbs templates (selective use)
-│       └── test/java/     # 171 unit tests (13 suites)
+│       └── test/java/     # 250+ unit tests (over a dozen suites)
 ├── CLAUDE.md              # Strategic guidance (language-agnostic)
 └── [Future subprojects]   # Python, Go, Rust, etc.
 ```
@@ -131,6 +131,8 @@ Each subproject's README includes:
 
 | Document | Purpose |
 |----------|---------|
+| **docs/README.md** | Index of all platform docs with status indicators |
+| **docs/ROADMAP.md** | Phase-by-phase plan for multi-language rollout |
 | **java/README.md** | User guide, quickstart, examples, workflows |
 | **java/CLAUDE.md** | Technical implementation, build system, generators |
 | **java/PIPELINE.md** | Detailed pipeline architecture, data flows, type mappings |
@@ -153,7 +155,7 @@ Each subproject's README includes:
 |--------|------|
 | Schema parsing | 0.9s |
 | Code generation | ~1s |
-| Full test suite (171 tests) | ~2s |
+| Full test suite (250+ tests) | ~2s |
 | Complete build pipeline | 5-6s |
 
 ---

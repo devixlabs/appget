@@ -1,3 +1,5 @@
+> **Status: Not Yet Implemented** — Phase 1+. See [ROADMAP.md](ROADMAP.md).
+
 # Conformance Tests (Draft)
 
 Conformance tests validate parser parity and generator consistency across languages.

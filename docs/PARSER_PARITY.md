@@ -1,3 +1,5 @@
+> **Status: Not Yet Implemented** — Phase 1+. See [ROADMAP.md](ROADMAP.md).
+
 # Parser Parity (Draft)
 
 All language implementations must produce byte-for-byte identical outputs for the same inputs.

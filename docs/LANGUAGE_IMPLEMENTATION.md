@@ -1,3 +1,5 @@
+> **Status: Not Yet Implemented** — Phase 5+. See [ROADMAP.md](ROADMAP.md).
+
 # Language Implementation Guide (Draft)
 
 ## Shared requirements
