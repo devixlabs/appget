@@ -3,7 +3,8 @@ package dev.appget.util;
 import com.google.protobuf.Descriptors;
 import com.google.protobuf.MessageOrBuilder;
 import dev.appget.auth.model.Users;
-import dev.appget.admin.model.ModerationFlags;
+import dev.appget.admin.model.ModerationActions;
+import dev.appget.admin.model.Roles;
 import dev.appget.social.view.PostDetailView;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -34,15 +35,15 @@ class TestDataBuilderTest {
     }
 
     @Test
-    @DisplayName("Should build ModerationFlags with correct types")
-    void testBuildSalary() {
-        MessageOrBuilder flag = builder.buildSampleMessage(ModerationFlags.getDescriptor());
-        assertNotNull(flag);
+    @DisplayName("Should build ModerationActions with correct types")
+    void testBuildModerationActions() {
+        MessageOrBuilder action = builder.buildSampleMessage(ModerationActions.getDescriptor());
+        assertNotNull(action);
 
-        Descriptors.Descriptor desc = ModerationFlags.getDescriptor();
-        assertEquals("Sample_reason", flag.getField(desc.findFieldByName("reason")));
-        // severity_level is int32
-        assertEquals(42, flag.getField(desc.findFieldByName("severity_level")));
+        Descriptors.Descriptor desc = ModerationActions.getDescriptor();
+        assertEquals("Sample_action_type", action.getField(desc.findFieldByName("action_type")));
+        // is_active is bool
+        assertEquals(true, action.getField(desc.findFieldByName("is_active")));
     }
 
     @Test
@@ -75,11 +76,11 @@ class TestDataBuilderTest {
     }
 
     @Test
-    @DisplayName("ModerationFlags severity_level field should default to 42")
-    void testDecimalFieldDefault() {
-        MessageOrBuilder flag = builder.buildSampleMessage(ModerationFlags.getDescriptor());
-        Object severity = flag.getField(ModerationFlags.getDescriptor().findFieldByName("severity_level"));
-        assertNotNull(severity, "severity_level field should not be null");
-        assertEquals(42, severity, "severity_level int field should default to 42");
+    @DisplayName("Roles permission_level field should default to 42")
+    void testIntFieldDefaultOnRoles() {
+        MessageOrBuilder role = builder.buildSampleMessage(Roles.getDescriptor());
+        Object permLevel = role.getField(Roles.getDescriptor().findFieldByName("permission_level"));
+        assertNotNull(permLevel, "permission_level field should not be null");
+        assertEquals(42, permLevel, "permission_level int field should default to 42");
     }
 }

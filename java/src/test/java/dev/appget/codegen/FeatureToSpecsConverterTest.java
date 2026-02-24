@@ -157,120 +157,120 @@ class FeatureToSpecsConverterTest {
     // ---- Feature file parsing ----
 
     @Test
-    @DisplayName("Parse auth.feature produces 10 rules")
-    void testParseAppgetFeature() throws Exception {
+    @DisplayName("Parse auth.feature produces 9 rules")
+    void testParseAuthFeature() throws Exception {
         Path featurePath = Path.of("../features", "auth.feature");
         if (Files.exists(featurePath)) {
             List<Map<String, Object>> rules = converter.parseFeatureFile(featurePath);
-            assertEquals(10, rules.size(), "auth.feature should produce 10 rules");
+            assertEquals(9, rules.size(), "auth.feature should produce 9 rules");
         }
     }
 
     @Test
-    @DisplayName("Parse admin.feature produces 7 rules")
-    void testParseHrFeature() throws Exception {
+    @DisplayName("Parse admin.feature produces 10 rules")
+    void testParseAdminFeature() throws Exception {
         Path featurePath = Path.of("../features", "admin.feature");
         if (Files.exists(featurePath)) {
             List<Map<String, Object>> rules = converter.parseFeatureFile(featurePath);
-            assertEquals(7, rules.size(), "admin.feature should produce 7 rules");
+            assertEquals(10, rules.size(), "admin.feature should produce 10 rules");
         }
     }
 
     @SuppressWarnings("unchecked")
     @Test
-    @DisplayName("UserEmailValidation rule has correct structure")
-    void testCountryOfOriginRule() throws Exception {
+    @DisplayName("UserActivationCheck rule has correct structure")
+    void testFirstAuthRule() throws Exception {
         Path featurePath = Path.of("../features", "auth.feature");
         if (Files.exists(featurePath)) {
             List<Map<String, Object>> rules = converter.parseFeatureFile(featurePath);
             Map<String, Object> rule = rules.get(0);
 
-            assertEquals("UserEmailValidation", rule.get("name"));
+            assertEquals("UserActivationCheck", rule.get("name"));
             Map<String, Object> target = (Map<String, Object>) rule.get("target");
             assertEquals("model", target.get("type"));
-            assertEquals("users", target.get("name"));
+            assertEquals("Users", target.get("name"));
             assertEquals("auth", target.get("domain"));
             assertEquals(true, rule.get("blocking"));
 
             List<Map<String, Object>> conditions = (List<Map<String, Object>>) rule.get("conditions");
             assertEquals(1, conditions.size());
-            assertEquals("email", conditions.get(0).get("field"));
-            assertEquals("!=", conditions.get(0).get("operator"));
-            assertEquals("", conditions.get(0).get("value"));
+            assertEquals("is_active", conditions.get(0).get("field"));
+            assertEquals("==", conditions.get(0).get("operator"));
+            assertEquals(true, conditions.get(0).get("value"));
 
             Map<String, String> thenMap = (Map<String, String>) rule.get("then");
-            assertEquals("VALID_EMAIL", thenMap.get("status"));
+            assertEquals("ACCOUNT_ACTIVE", thenMap.get("status"));
             Map<String, String> elseMap = (Map<String, String>) rule.get("else");
-            assertEquals("INVALID_EMAIL", elseMap.get("status"));
+            assertEquals("ACCOUNT_INACTIVE", elseMap.get("status"));
         }
     }
 
     @Test
-    @DisplayName("UserSuspensionCheck rule has blocking flag")
+    @DisplayName("OAuthTokenValidity rule has blocking flag")
     void testBlockingFlag() throws Exception {
         Path featurePath = Path.of("../features", "auth.feature");
         if (Files.exists(featurePath)) {
             List<Map<String, Object>> rules = converter.parseFeatureFile(featurePath);
-            Map<String, Object> rule = rules.get(1); // UserSuspensionCheck
-            assertEquals("UserSuspensionCheck", rule.get("name"));
+            Map<String, Object> rule = rules.get(2); // OAuthTokenValidity
+            assertEquals("OAuthTokenValidity", rule.get("name"));
             assertEquals(true, rule.get("blocking"));
         }
     }
 
     @SuppressWarnings("unchecked")
     @Test
-    @DisplayName("UserAccountStatus has compound AND conditions")
+    @DisplayName("ViralPostDetection has compound AND conditions")
     void testCompoundConditions() throws Exception {
-        Path featurePath = Path.of("../features", "auth.feature");
+        Path featurePath = Path.of("../features", "social.feature");
         if (Files.exists(featurePath)) {
             List<Map<String, Object>> rules = converter.parseFeatureFile(featurePath);
-            Map<String, Object> rule = rules.get(8); // UserAccountStatus
-            assertEquals("UserAccountStatus", rule.get("name"));
+            Map<String, Object> rule = rules.get(2); // ViralPostDetection
+            assertEquals("ViralPostDetection", rule.get("name"));
 
             Map<String, Object> conditions = (Map<String, Object>) rule.get("conditions");
             assertEquals("AND", conditions.get("operator"));
             List<Map<String, Object>> clauses = (List<Map<String, Object>>) conditions.get("clauses");
             assertEquals(2, clauses.size());
-            assertEquals("is_suspended", clauses.get(0).get("field"));
-            assertEquals("==", clauses.get(0).get("operator"));
-            assertEquals(false, clauses.get(0).get("value"));
-            assertEquals("is_verified", clauses.get(1).get("field"));
+            assertEquals("like_count", clauses.get(0).get("field"));
+            assertEquals(">=", clauses.get(0).get("operator"));
+            assertEquals(1000, clauses.get(0).get("value"));
+            assertEquals("is_deleted", clauses.get(1).get("field"));
             assertEquals("==", clauses.get(1).get("operator"));
-            assertEquals(true, clauses.get(1).get("value"));
+            assertEquals(false, clauses.get(1).get("value"));
         }
     }
 
     @SuppressWarnings("unchecked")
     @Test
-    @DisplayName("HighEngagementPost targets a view")
+    @DisplayName("PublicPostViewable targets a view")
     void testViewTarget() throws Exception {
         Path featurePath = Path.of("../features", "social.feature");
         if (Files.exists(featurePath)) {
             List<Map<String, Object>> rules = converter.parseFeatureFile(featurePath);
-            Map<String, Object> rule = rules.get(5); // HighEngagementPost
-            assertEquals("HighEngagementPost", rule.get("name"));
+            Map<String, Object> rule = rules.get(8); // PublicPostViewable
+            assertEquals("PublicPostViewable", rule.get("name"));
 
             Map<String, Object> target = (Map<String, Object>) rule.get("target");
             assertEquals("view", target.get("type"));
-            assertEquals("post_detail_view", target.get("name"));
+            assertEquals("PostDetailView", target.get("name"));
         }
     }
 
     @SuppressWarnings("unchecked")
     @Test
-    @DisplayName("AdminAuthorizationRequired has metadata requirements")
+    @DisplayName("ModerationAuthorizationCheck has metadata requirements")
     void testMetadataRequirements() throws Exception {
         Path featurePath = Path.of("../features", "admin.feature");
         if (Files.exists(featurePath)) {
             List<Map<String, Object>> rules = converter.parseFeatureFile(featurePath);
-            Map<String, Object> rule = rules.get(3); // AdminAuthorizationRequired
-            assertEquals("AdminAuthorizationRequired", rule.get("name"));
+            Map<String, Object> rule = rules.get(3); // ModerationAuthorizationCheck
+            assertEquals("ModerationAuthorizationCheck", rule.get("name"));
             assertEquals(true, rule.get("blocking"));
 
             Map<String, List<Map<String, Object>>> requires =
                     (Map<String, List<Map<String, Object>>>) rule.get("requires");
             assertNotNull(requires);
-            assertEquals(1, requires.size());
+            assertEquals(2, requires.size());
 
             // Roles requirement
             List<Map<String, Object>> rolesReqs = requires.get("roles");
@@ -278,22 +278,29 @@ class FeatureToSpecsConverterTest {
             assertEquals("isAdmin", rolesReqs.get(0).get("field"));
             assertEquals("==", rolesReqs.get(0).get("operator"));
             assertEquals(true, rolesReqs.get(0).get("value"));
+
+            // Sso requirement
+            List<Map<String, Object>> ssoReqs = requires.get("sso");
+            assertEquals(1, ssoReqs.size());
+            assertEquals("authenticated", ssoReqs.get(0).get("field"));
+            assertEquals("==", ssoReqs.get(0).get("operator"));
+            assertEquals(true, ssoReqs.get(0).get("value"));
         }
     }
 
     @SuppressWarnings("unchecked")
     @Test
-    @DisplayName("SeverityLevelValidation from admin.feature has correct domain")
-    void testHrDomainRule() throws Exception {
+    @DisplayName("AdminRoleClassification from admin.feature has correct domain")
+    void testAdminDomainRule() throws Exception {
         Path featurePath = Path.of("../features", "admin.feature");
         if (Files.exists(featurePath)) {
             List<Map<String, Object>> rules = converter.parseFeatureFile(featurePath);
             Map<String, Object> rule = rules.get(0);
-            assertEquals("SeverityLevelValidation", rule.get("name"));
+            assertEquals("AdminRoleClassification", rule.get("name"));
 
             Map<String, Object> target = (Map<String, Object>) rule.get("target");
             assertEquals("model", target.get("type"));
-            assertEquals("moderation_flags", target.get("name"));
+            assertEquals("Roles", target.get("name"));
             assertEquals("admin", target.get("domain"));
         }
     }
@@ -322,13 +329,13 @@ class FeatureToSpecsConverterTest {
             assertNotNull(data.get("metadata"), "Output should have metadata section");
             List<Map<String, Object>> rules = (List<Map<String, Object>>) data.get("rules");
             assertNotNull(rules, "Output should have rules section");
-            assertEquals(27, rules.size(), "Should have 27 rules total (7 admin + 10 auth + 10 social)");
+            assertEquals(33, rules.size(), "Should have 33 rules total (10 admin + 9 auth + 14 social)");
 
             // Files processed in alphabetical order: admin, auth, social
             // Verify first rule from admin.feature
-            assertEquals("SeverityLevelValidation", rules.get(0).get("name"));
-            // Verify first rule from auth.feature (after admin's 7 rules)
-            assertEquals("UserEmailValidation", rules.get(7).get("name"));
+            assertEquals("AdminRoleClassification", rules.get(0).get("name"));
+            // Verify first rule from auth.feature (after admin's 10 rules)
+            assertEquals("UserActivationCheck", rules.get(10).get("name"));
         }
     }
 

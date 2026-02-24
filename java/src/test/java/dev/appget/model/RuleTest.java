@@ -1,7 +1,7 @@
 package dev.appget.model;
 
 import dev.appget.auth.model.Users;
-import dev.appget.admin.model.ModerationFlags;
+import dev.appget.admin.model.Roles;
 import dev.appget.social.view.PostDetailView;
 import dev.appget.specification.CompoundSpecification;
 import dev.appget.specification.MetadataContext;
@@ -30,7 +30,7 @@ class RuleTest {
                 .setUsername("alice")
                 .setEmail("alice@example.com")
                 .setIsVerified(true)
-                .setIsSuspended(false)
+                .setIsActive(true)
                 .setFollowerCount(200)
                 .build();
     }
@@ -180,7 +180,7 @@ class RuleTest {
                 .setUsername("bob")
                 .setEmail("bob@example.com")
                 .setIsVerified(false)
-                .setIsSuspended(false)
+                .setIsActive(true)
                 .setFollowerCount(10)
                 .build();
 
@@ -188,7 +188,7 @@ class RuleTest {
                 .setUsername("charlie")
                 .setEmail("charlie@example.com")
                 .setIsVerified(true)
-                .setIsSuspended(false)
+                .setIsActive(true)
                 .setFollowerCount(5000)
                 .build();
 
@@ -199,23 +199,22 @@ class RuleTest {
     // Generic + compound + metadata tests
 
     @Test
-    @DisplayName("Rule evaluates ModerationFlags model generically")
-    void testRuleWithSalaryModel() {
-        ModerationFlags flag = ModerationFlags.newBuilder()
-                .setReason("Spam")
-                .setSeverityLevel(8)
-                .setIsResolved(false)
+    @DisplayName("Rule evaluates Roles model generically")
+    void testRuleWithRolesModel() {
+        Roles role = Roles.newBuilder()
+                .setRoleName("Admin")
+                .setPermissionLevel(8)
                 .build();
 
-        Specification severitySpec = new Specification("severity_level", ">", 5);
-        Rule flagRule = Rule.builder()
-                .name("SeverityCheck")
-                .spec(severitySpec)
-                .successStatus("HIGH_SEVERITY")
-                .failureStatus("LOW_SEVERITY")
+        Specification permissionSpec = new Specification("permission_level", ">", 5);
+        Rule roleRule = Rule.builder()
+                .name("PermissionCheck")
+                .spec(permissionSpec)
+                .successStatus("HIGH_PERMISSION")
+                .failureStatus("LOW_PERMISSION")
                 .build();
 
-        assertEquals("HIGH_SEVERITY", flagRule.evaluate(flag));
+        assertEquals("HIGH_PERMISSION", roleRule.evaluate(role));
     }
 
     @Test
@@ -225,7 +224,7 @@ class RuleTest {
                 .setUsername("bob")
                 .setEmail("bob@example.com")
                 .setIsVerified(true)
-                .setIsSuspended(false)
+                .setIsActive(true)
                 .setFollowerCount(500)
                 .build();
 

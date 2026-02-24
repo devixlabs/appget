@@ -78,11 +78,11 @@ class DescriptorRegistryTest {
     }
 
     @Test
-    @DisplayName("Registry should find ModerationFlags descriptor")
-    void testFindSalary() {
-        Descriptors.Descriptor desc = registry.getDescriptorByName("moderation_flags");
-        assertNotNull(desc, "ModerationFlags descriptor should be registered");
-        assertEquals("ModerationFlags", desc.getName());
+    @DisplayName("Registry should find ModerationActions descriptor")
+    void testFindModerationActions() {
+        Descriptors.Descriptor desc = registry.getDescriptorByName("moderation_actions");
+        assertNotNull(desc, "ModerationActions descriptor should be registered");
+        assertEquals("ModerationActions", desc.getName());
     }
 
     @Test

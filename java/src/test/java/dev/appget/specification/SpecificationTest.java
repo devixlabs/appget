@@ -1,7 +1,7 @@
 package dev.appget.specification;
 
 import dev.appget.auth.model.Users;
-import dev.appget.admin.model.ModerationFlags;
+import dev.appget.admin.model.Roles;
 import dev.appget.social.view.PostDetailView;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -20,7 +20,7 @@ class SpecificationTest {
                 .setUsername("alice")
                 .setEmail("alice@example.com")
                 .setIsVerified(true)
-                .setIsSuspended(false)
+                .setIsActive(true)
                 .setFollowerCount(100)
                 .build();
     }
@@ -136,7 +136,7 @@ class SpecificationTest {
                 .setUsername("bob")
                 .setEmail("bob@example.com")
                 .setIsVerified(false)
-                .setIsSuspended(false)
+                .setIsActive(true)
                 .setFollowerCount(0)
                 .build();
 
@@ -151,7 +151,7 @@ class SpecificationTest {
                 .setUsername("charlie")
                 .setEmail("charlie@example.com")
                 .setIsVerified(true)
-                .setIsSuspended(false)
+                .setIsActive(true)
                 .setFollowerCount(1000000)
                 .build();
 
@@ -162,29 +162,27 @@ class SpecificationTest {
     // Tests for non-Users models
 
     @Test
-    @DisplayName("ModerationFlags severity_level integer comparison")
-    void testSalaryAmountComparison() {
-        ModerationFlags flag = ModerationFlags.newBuilder()
-                .setReason("Spam content")
-                .setSeverityLevel(8)
-                .setIsResolved(false)
+    @DisplayName("Roles permission_level integer comparison")
+    void testPermissionLevelComparison() {
+        Roles role = Roles.newBuilder()
+                .setRoleName("Admin")
+                .setPermissionLevel(8)
                 .build();
 
-        Specification spec = new Specification("severity_level", ">", 5);
-        assertTrue(spec.isSatisfiedBy(flag), "severity_level 8 > 5 should be true");
+        Specification spec = new Specification("permission_level", ">", 5);
+        assertTrue(spec.isSatisfiedBy(role), "permission_level 8 > 5 should be true");
     }
 
     @Test
-    @DisplayName("ModerationFlags severity_level boundary comparison")
-    void testDepartmentBudgetComparison() {
-        ModerationFlags flag = ModerationFlags.newBuilder()
-                .setReason("Hate speech")
-                .setSeverityLevel(10)
-                .setIsResolved(false)
+    @DisplayName("Roles permission_level boundary comparison")
+    void testPermissionLevelBoundary() {
+        Roles role = Roles.newBuilder()
+                .setRoleName("SuperAdmin")
+                .setPermissionLevel(10)
                 .build();
 
-        Specification spec = new Specification("severity_level", ">=", 10);
-        assertTrue(spec.isSatisfiedBy(flag), "severity_level 10 >= 10 should be true");
+        Specification spec = new Specification("permission_level", ">=", 10);
+        assertTrue(spec.isSatisfiedBy(role), "permission_level 10 >= 10 should be true");
     }
 
     @Test
@@ -202,16 +200,15 @@ class SpecificationTest {
     }
 
     @Test
-    @DisplayName("ModerationFlags integer field comparison (severity_level)")
-    void testSalaryIntegerField() {
-        ModerationFlags flag = ModerationFlags.newBuilder()
-                .setReason("Repeated violation")
-                .setSeverityLevel(10)
-                .setIsResolved(false)
+    @DisplayName("Roles integer field comparison (permission_level)")
+    void testRolesIntegerField() {
+        Roles role = Roles.newBuilder()
+                .setRoleName("Moderator")
+                .setPermissionLevel(10)
                 .build();
 
-        Specification spec = new Specification("severity_level", ">", 7);
-        assertTrue(spec.isSatisfiedBy(flag), "severity_level 10 > 7 should be true");
+        Specification spec = new Specification("permission_level", ">", 7);
+        assertTrue(spec.isSatisfiedBy(role), "permission_level 10 > 7 should be true");
     }
 
     @Test

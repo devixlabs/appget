@@ -58,10 +58,10 @@ class GrpcServiceTest {
     }
 
     @Test
-    @DisplayName("admin ModerationFlagsServiceGrpc stub exists")
-    void testInvoiceServiceGrpcExists() {
-        assertNotNull(dev.appget.admin.service.ModerationFlagsServiceGrpc.getServiceDescriptor(),
-                "ModerationFlagsServiceGrpc should have a service descriptor");
+    @DisplayName("admin ModerationActionsServiceGrpc stub exists")
+    void testModerationActionsServiceGrpcExists() {
+        assertNotNull(dev.appget.admin.service.ModerationActionsServiceGrpc.getServiceDescriptor(),
+                "ModerationActionsServiceGrpc should have a service descriptor");
     }
 
     @Test

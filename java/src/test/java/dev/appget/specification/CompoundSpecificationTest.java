@@ -20,7 +20,7 @@ class CompoundSpecificationTest {
                 .setUsername("alice")
                 .setEmail("alice@example.com")
                 .setIsVerified(true)
-                .setIsSuspended(false)
+                .setIsActive(true)
                 .setFollowerCount(200)
                 .build();
     }

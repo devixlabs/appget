@@ -90,26 +90,26 @@ class ModelsToProtoConverterTest {
     }
 
     @Test
-    @DisplayName("admin domain proto has Timestamp for datetime fields")
-    void testDecimalTypeMapping(@TempDir Path tempDir) throws Exception {
+    @DisplayName("admin domain proto has correct field types")
+    void testAdminFieldTypeMapping(@TempDir Path tempDir) throws Exception {
         if (tempModelsYaml == null) return;
         converter.convert(tempModelsYaml.toString(), tempDir.toString());
 
         String content = Files.readString(tempDir.resolve("admin_models.proto"));
-        assertTrue(content.contains("google.protobuf.Timestamp created_at"), "TIMESTAMP should map to google.protobuf.Timestamp");
-        assertTrue(content.contains("int32 severity_level"), "INT should map to int32");
+        assertTrue(content.contains("int32 permission_level"), "INT should map to int32");
+        assertTrue(content.contains("bool is_active"), "BOOLEAN should map to bool");
     }
 
     @Test
     @DisplayName("admin domain proto has correct content")
-    void testFinanceProtoContent(@TempDir Path tempDir) throws Exception {
+    void testAdminProtoContent(@TempDir Path tempDir) throws Exception {
         if (tempModelsYaml == null) return;
         converter.convert(tempModelsYaml.toString(), tempDir.toString());
 
         String content = Files.readString(tempDir.resolve("admin_models.proto"));
         assertTrue(content.contains("java_package = \"dev.appget.admin.model\""), "admin domain java_package");
-        assertTrue(content.contains("message ModerationFlags"), "Should contain ModerationFlags message");
-        assertTrue(content.contains("google.protobuf.Timestamp created_at"), "TIMESTAMP should map to google.protobuf.Timestamp");
+        assertTrue(content.contains("message ModerationActions"), "Should contain ModerationActions message");
+        assertTrue(content.contains("message Roles"), "Should contain Roles message");
     }
 
     @Test
@@ -164,32 +164,32 @@ class ModelsToProtoConverterTest {
         if (tempModelsYaml == null) return;
         converter.convert(tempModelsYaml.toString(), tempDir.toString());
 
-        String content = Files.readString(tempDir.resolve("admin_models.proto"));
-        // post_id and comment_id are nullable in moderation_flags → should have 'optional' prefix
-        assertTrue(content.contains("optional string post_id") || content.contains("optional string comment_id"),
+        String content = Files.readString(tempDir.resolve("auth_models.proto"));
+        // display_name and bio are nullable in users → should have 'optional' prefix
+        assertTrue(content.contains("optional string display_name") || content.contains("optional string bio"),
                 "Nullable string should have optional prefix");
     }
 
     @Test
-    @DisplayName("Proto imports timestamp when date/datetime fields present")
-    void testTimestampImport(@TempDir Path tempDir) throws Exception {
+    @DisplayName("Proto does not import timestamp when no date/datetime fields present")
+    void testNoTimestampImport(@TempDir Path tempDir) throws Exception {
         if (tempModelsYaml == null) return;
         converter.convert(tempModelsYaml.toString(), tempDir.toString());
 
         String content = Files.readString(tempDir.resolve("auth_models.proto"));
-        assertTrue(content.contains("import \"google/protobuf/timestamp.proto\""),
-                "auth proto should import timestamp for TIMESTAMP field");
+        assertFalse(content.contains("import \"google/protobuf/timestamp.proto\""),
+                "auth proto should not import timestamp when no TIMESTAMP fields exist");
     }
 
     @Test
-    @DisplayName("appget_common.proto is NOT generated when no decimal fields present")
+    @DisplayName("appget_common.proto is generated when decimal fields present")
     void testCommonProtoGenerated(@TempDir Path tempDir) throws Exception {
         if (tempModelsYaml == null) return;
         converter.convert(tempModelsYaml.toString(), tempDir.toString());
 
-        // New schema has no DECIMAL fields, so appget_common.proto should not be generated
-        assertFalse(Files.exists(tempDir.resolve("appget_common.proto")),
-                "appget_common.proto should NOT be generated when no decimal fields exist");
+        // Schema has DECIMAL fields (e.g. total_likes in user_stats_view), so appget_common.proto should be generated
+        assertTrue(Files.exists(tempDir.resolve("appget_common.proto")),
+                "appget_common.proto should be generated when decimal fields exist");
     }
 
     // ---- gRPC service generation tests ----
