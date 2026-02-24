@@ -31,9 +31,6 @@ check:
 		gradle wrapper --gradle-version=$(GRADLE_VERSION); \
 		chmod +x gradlew; \
 	fi
-	@if [ -f "test-api.sh" ]; then \
-		shellcheck test-api.sh; \
-	fi
 
 # Default target - build everything
 all: check clean generate test build
@@ -98,11 +95,12 @@ run-server: test generate-server
 generate-test-script: test
 	@echo "✓ Generating API test script from OpenAPI spec..."
 	@./gradlew generateTestScript
+	@shellcheck generated-server/test-api.sh
 
 # Run API test script (requires server to be running)
 test-api: generate-test-script
 	@echo "✓ Running API tests..."
-	@./test-api.sh
+	@./generated-server/test-api.sh
 
 # Clean build artifacts and generated code
 clean: check

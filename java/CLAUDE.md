@@ -1012,6 +1012,16 @@ make all
 # Runs: clean → parse-schema → generate → test → build
 ```
 
+### End-to-End Verification Checklist
+
+After any source change (generators, schema, features, metadata), run these steps in order to confirm the full pipeline works:
+
+1. **`make all`** — MUST pass cleanly (all unit tests green, build successful)
+2. **Inspect `generated-server/test-api.sh`** — all generated API endpoints should have 200-level happy-path test scenarios (POST → 201, GET → 200, PUT → 200, DELETE → 204)
+3. **`make run-server`** (starts Spring Boot on port 8080), then in a separate terminal **`make test-api`** — all API tests should pass with exit 0
+
+If step 3 fails, check server logs for `NoSuchMethodException` (reflection bugs) or `422 Unprocessable Entity` (rule violations from bad test data or missing metadata headers).
+
 ### Build Artifact Generation
 
 After running tests, generated code in:
