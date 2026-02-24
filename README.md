@@ -166,8 +166,7 @@ The **domain-architect** agent ([.claude/agents/domain-architect.md](.claude/age
 
 **Example prompt**:
 ```
-Create all features, specs, and SQL schema needed for a company that is VERY
-similar to Twitter and Instagram -- a social media MVP.
+Create a social media application with MVP functionality for regular users, company admins, GitHub OAuth2, and API keys for 3rd party developers. Define SQL views for cross-table reads (JOINs), aggregated analytics (GROUP BY), and transactional writes spanning multiple tables. The REST API must be fully featured — not just basic CRUD, but complete endpoints for every complex operation.
 ```
 
 ---

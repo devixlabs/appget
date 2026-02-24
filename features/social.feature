@@ -1,65 +1,95 @@
 @domain:social
 Feature: Social Domain Business Rules
 
-  @target:Post @blocking @rule:PublicPostVerification
-  Scenario: Public posts require verified author
+  @target:Posts @rule:PostPublicityStatus
+  Scenario: Post visibility depends on public flag
     When is_public equals true
-    Then status is "ALLOWED"
-    But otherwise status is "AUTHOR_NOT_VERIFIED"
+    Then status is "PUBLIC_POST"
+    But otherwise status is "PRIVATE_POST"
 
-  @target:Post @blocking @rule:PostContentValidation
-  Scenario: Post content must not be empty
-    When content does not equal ""
-    Then status is "VALID"
-    But otherwise status is "EMPTY_CONTENT"
-
-  @target:Comment @blocking @rule:CommentCreationValidation
-  Scenario: Comments can only be posted on active, non-deleted posts
+  @target:Posts @blocking @rule:PostNotDeletedCheck
+  Scenario: Post must not be deleted to be viewable
     When is_deleted equals false
-    Then status is "ALLOWED"
-    But otherwise status is "POST_NOT_AVAILABLE"
+    Then status is "POST_VIEWABLE"
+    But otherwise status is "POST_DELETED"
 
-  @target:Follow @blocking @rule:ActiveFollowValidation
-  Scenario: Follow relationship must be active
-    When is_active equals true
-    Then status is "VALID"
-    But otherwise status is "FOLLOW_INACTIVE"
-
-  @target:Follow @rule:ActiveFollowCheck
-  Scenario: Follow relationship is active
-    When is_active equals true
-    Then status is "ACTIVE"
-    But otherwise status is "INACTIVE"
-
-  @view @target:PostDetailView @rule:HighEngagementPost
-  Scenario: Post has significant engagement
+  @target:Posts @rule:ViralPostDetection
+  Scenario: Post is viral with high engagement
     When all conditions are met:
       | field      | operator | value |
       | like_count | >=       | 1000  |
-      | is_public  | ==       | true  |
-    Then status is "HIGH_ENGAGEMENT"
-    But otherwise status is "LOW_ENGAGEMENT"
-
-  @view @target:PostDetailView @rule:VerifiedAuthorPriority
-  Scenario: Post by verified author
-    When author_verified equals true
-    Then status is "PRIORITY"
+      | is_deleted | ==       | false |
+    Then status is "VIRAL"
     But otherwise status is "STANDARD"
 
-  @view @target:FeedPostView @rule:FeedPostEligibility
-  Scenario: Post is eligible for user feed
-    When is_public equals true
-    Then status is "ELIGIBLE"
-    But otherwise status is "FILTERED"
+  @target:Comments @blocking @rule:CommentNotDeletedCheck
+  Scenario: Comment must not be deleted to exist
+    When is_deleted equals false
+    Then status is "COMMENT_ACTIVE"
+    But otherwise status is "COMMENT_DELETED"
 
-  @target:Post @rule:PostDeletionCheck
-  Scenario: Deleted posts are marked for archival
-    When is_deleted equals true
-    Then status is "ARCHIVED"
-    But otherwise status is "ACTIVE"
+  @target:Comments @rule:PopularCommentDetection
+  Scenario: Comment is popular with engagement
+    When like_count is at least 100
+    Then status is "POPULAR_COMMENT"
+    But otherwise status is "NORMAL_COMMENT"
 
-  @view @target:CommentDetailView @rule:AuthorVerificationInComments
-  Scenario: Comment from verified author gets priority
+  @target:Likes @blocking @rule:LikeActiveStatus
+  Scenario: Like must be active to count
+    When is_active equals true
+    Then status is "LIKE_ACTIVE"
+    But otherwise status is "LIKE_REMOVED"
+
+  @target:Follows @blocking @rule:FollowActiveStatus
+  Scenario: Follow relationship must be active
+    When is_active equals true
+    Then status is "FOLLOWING"
+    But otherwise status is "NOT_FOLLOWING"
+
+  @target:Feeds @rule:FeedFollowingStatus
+  Scenario: User feed follows at least one account
+    When is_following_feed equals true
+    Then status is "FEED_ACTIVE"
+    But otherwise status is "FEED_EMPTY"
+
+  @view @target:PostDetailView @blocking @rule:PublicPostViewable
+  Scenario: Post detail is viewable if public and not deleted
+    When all conditions are met:
+      | field      | operator | value |
+      | is_public  | ==       | true  |
+      | is_deleted | ==       | false |
+    Then status is "POST_ACCESSIBLE"
+    But otherwise status is "POST_HIDDEN"
+
+  @view @target:PostDetailView @rule:VerifiedAuthorPriority
+  Scenario: Post by verified author gets priority display
     When author_verified equals true
-    Then status is "VERIFIED_AUTHOR"
-    But otherwise status is "UNVERIFIED_AUTHOR"
+    Then status is "PRIORITY_DISPLAY"
+    But otherwise status is "NORMAL_DISPLAY"
+
+  @view @target:CommentDetailView @rule:HighEngagementComment
+  Scenario: Comment with high engagement is featured
+    When like_count is greater than 500
+    Then status is "FEATURED_COMMENT"
+    But otherwise status is "REGULAR_COMMENT"
+
+  @view @target:UserStatsView @rule:ActiveContentCreator
+  Scenario: User is active content creator
+    When post_count is at least 10
+    Then status is "ACTIVE_CREATOR"
+    But otherwise status is "CASUAL_USER"
+
+  @view @target:TrendingPostsView @rule:TrendingPostScoring
+  Scenario: Post achieves trending status with viral score
+    When viral_score is greater than 5000
+    Then status is "TRENDING"
+    But otherwise status is "NOT_TRENDING"
+
+  @view @target:UserFeedView @blocking @rule:FeedPostAccessible
+  Scenario: Feed post must be from active follow and not deleted
+    When all conditions are met:
+      | field             | operator | value |
+      | follow_is_active  | ==       | true  |
+      | post_is_deleted   | ==       | false |
+    Then status is "FEED_POST_ELIGIBLE"
+    But otherwise status is "FEED_POST_FILTERED"

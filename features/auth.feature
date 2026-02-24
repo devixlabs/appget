@@ -1,65 +1,62 @@
 @domain:auth
 Feature: Auth Domain Business Rules
 
-  @target:User @blocking @rule:UserEmailValidation
-  Scenario: User email must be valid format
-    When email does not equal ""
-    Then status is "VALID_EMAIL"
-    But otherwise status is "INVALID_EMAIL"
+  @target:Users @blocking @rule:UserActivationCheck
+  Scenario: User account must be active
+    When is_active equals true
+    Then status is "ACCOUNT_ACTIVE"
+    But otherwise status is "ACCOUNT_INACTIVE"
 
-  @target:User @blocking @rule:UserSuspensionCheck
-  Scenario: Suspended users cannot perform actions
-    When is_suspended equals false
-    Then status is "ACTIVE"
-    But otherwise status is "ACCOUNT_SUSPENDED"
+  @target:Users @rule:UserVerificationStatus
+  Scenario: User can be verified badge holder
+    When is_verified equals true
+    Then status is "VERIFIED_USER"
+    But otherwise status is "UNVERIFIED_USER"
 
-  @target:Session @blocking @rule:SessionActiveValidation
+  @target:OauthTokens @blocking @rule:OAuthTokenValidity
+  Scenario: OAuth token must be valid
+    When is_valid equals true
+    Then status is "TOKEN_VALID"
+    But otherwise status is "TOKEN_INVALID"
+
+  @target:ApiKeys @blocking @rule:ApiKeyActiveStatus
+  Scenario: API key must be active for use
+    When is_active equals true
+    Then status is "KEY_ACTIVE"
+    But otherwise status is "KEY_INACTIVE"
+
+  @target:ApiKeys @rule:ApiKeyTierClassification
+  Scenario: API key tier determines rate limit
+    When tier equals "PREMIUM"
+    Then status is "PREMIUM_TIER"
+    But otherwise status is "STANDARD_TIER"
+
+  @target:Sessions @blocking @rule:SessionActivityCheck
   Scenario: Session must be active
     When is_active equals true
-    Then status is "VALID_SESSION"
-    But otherwise status is "INVALID_SESSION"
+    Then status is "SESSION_ACTIVE"
+    But otherwise status is "SESSION_EXPIRED"
 
-  @target:Session @blocking @rule:SessionTokenPresence
-  Scenario: Session token must not be empty
-    When token does not equal ""
-    Then status is "TOKEN_PRESENT"
-    But otherwise status is "NO_TOKEN"
+  @target:Users @blocking @rule:AdminAuthenticationRequired
+  Scenario: User with admin role can manage system
+    Given roles context requires:
+      | field     | operator | value |
+      | roleLevel | >=       | 3     |
+    And sso context requires:
+      | field         | operator | value |
+      | authenticated | ==       | true  |
+    When is_active equals true
+    Then status is "ADMIN_AUTHENTICATED"
+    But otherwise status is "ADMIN_DENIED"
 
-  @target:User @blocking @rule:VerifiedUserRequirement
-  Scenario: Account verification status check
-    When is_verified equals true
-    Then status is "VERIFIED"
-    But otherwise status is "UNVERIFIED"
+  @view @target:UserOauthView @rule:OAuthIntegrationCheck
+  Scenario: User has valid OAuth provider integration
+    When is_valid equals true
+    Then status is "OAUTH_CONNECTED"
+    But otherwise status is "OAUTH_DISCONNECTED"
 
-  @target:User @rule:UserFollowingStats
-  Scenario: User following count is reasonable
-    When following_count is at least 0
-    Then status is "VALID_COUNT"
-    But otherwise status is "INVALID_COUNT"
-
-  @target:User @rule:UserFollowerStats
-  Scenario: User follower count is reasonable
-    When follower_count is at least 0
-    Then status is "VALID_COUNT"
-    But otherwise status is "INVALID_COUNT"
-
-  @target:User @blocking @rule:UsernamePresence
-  Scenario: Username must exist
-    When username does not equal ""
-    Then status is "USERNAME_PRESENT"
-    But otherwise status is "NO_USERNAME"
-
-  @target:User @rule:UserAccountStatus
-  Scenario: Overall user account is in good standing
-    When all conditions are met:
-      | field           | operator | value |
-      | is_suspended    | ==       | false |
-      | is_verified     | ==       | true  |
-    Then status is "GOOD_STANDING"
-    But otherwise status is "ACCOUNT_RESTRICTED"
-
-  @target:User @rule:ProfileCompleteness
-  Scenario: User has completed their profile with a bio
-    When bio does not equal ""
-    Then status is "PROFILE_COMPLETE"
-    But otherwise status is "PROFILE_INCOMPLETE"
+  @view @target:ApiKeyStatsView @rule:ApiKeyActiveAndConfigured
+  Scenario: API key is active with configured rate limit
+    When is_active equals true
+    Then status is "API_KEY_READY"
+    But otherwise status is "API_KEY_NOT_READY"

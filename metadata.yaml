@@ -21,13 +21,19 @@ metadata:
         type: String
       - name: email
         type: String
-      - name: clearanceLevel
-        type: int
-  tenant:
+  oauth:
     fields:
-      - name: tenantId
+      - name: accessToken
         type: String
-      - name: tenantPlan
+      - name: scope
         type: String
-      - name: isEnterprise
+      - name: expiresIn
+        type: int
+  api:
+    fields:
+      - name: apiKey
+        type: String
+      - name: rateLimitTier
+        type: int
+      - name: isActive
         type: boolean
