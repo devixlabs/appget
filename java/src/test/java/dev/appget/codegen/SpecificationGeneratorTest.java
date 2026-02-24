@@ -42,11 +42,11 @@ class SpecificationGeneratorTest {
             }
             generator.generateSpecifications(yamlFile, outputDir);
 
-            Path agePath = Paths.get(outputDir, "dev", "appget", "specification", "generated", "EmployeeAgeCheck.java");
-            assertTrue(Files.exists(agePath), "EmployeeAgeCheck.java should be generated");
+            Path specPath = Paths.get(outputDir, "dev", "appget", "specification", "generated", "UserEmailValidation.java");
+            assertTrue(Files.exists(specPath), "UserEmailValidation.java should be generated");
 
-            String content = Files.readString(agePath);
-            assertTrue(content.contains("public class EmployeeAgeCheck"), "Generated file should contain class");
+            String content = Files.readString(specPath);
+            assertTrue(content.contains("public class UserEmailValidation"), "Generated file should contain class");
         }
     }
 
@@ -63,11 +63,11 @@ class SpecificationGeneratorTest {
             }
             generator.generateSpecifications(yamlFile, outputDir);
 
-            Path agePath = Paths.get(outputDir, "dev", "appget", "specification", "generated", "EmployeeAgeCheck.java");
-            String content = Files.readString(agePath);
+            Path specPath = Paths.get(outputDir, "dev", "appget", "specification", "generated", "UserEmailValidation.java");
+            String content = Files.readString(specPath);
 
-            assertTrue(content.contains("public boolean evaluate(Employees target)"), "Should have evaluate method");
-            assertTrue(content.contains("public String getResult(Employees target)"), "Should have getResult method");
+            assertTrue(content.contains("public boolean evaluate(Users target)"), "Should have evaluate method");
+            assertTrue(content.contains("public String getResult(Users target)"), "Should have getResult method");
             assertTrue(content.contains("getSpec()"), "Should have getSpec method");
         }
     }
@@ -85,8 +85,8 @@ class SpecificationGeneratorTest {
             }
             generator.generateSpecifications(yamlFile, outputDir);
 
-            Path agePath = Paths.get(outputDir, "dev", "appget", "specification", "generated", "EmployeeAgeCheck.java");
-            String content = Files.readString(agePath);
+            Path specPath = Paths.get(outputDir, "dev", "appget", "specification", "generated", "UserEmailValidation.java");
+            String content = Files.readString(specPath);
 
             assertTrue(content.contains("package dev.appget.specification.generated"), "Should use correct package");
         }
@@ -105,10 +105,10 @@ class SpecificationGeneratorTest {
             }
             generator.generateSpecifications(yamlFile, outputDir);
 
-            Path agePath = Paths.get(outputDir, "dev", "appget", "specification", "generated", "EmployeeAgeCheck.java");
-            String content = Files.readString(agePath);
+            Path specPath = Paths.get(outputDir, "dev", "appget", "specification", "generated", "UserEmailValidation.java");
+            String content = Files.readString(specPath);
 
-            assertTrue(content.contains("import dev.appget.model.Employees"), "Should import Employees model");
+            assertTrue(content.contains("import dev.appget.auth.model.Users"), "Should import Users model");
             assertTrue(content.contains("import dev.appget.specification.Specification"), "Should import Specification");
         }
     }
@@ -148,8 +148,8 @@ class SpecificationGeneratorTest {
             }
             generator.generateSpecifications(yamlFile, outputDir);
 
-            Path agePath = Paths.get(outputDir, "dev", "appget", "specification", "generated", "EmployeeAgeCheck.java");
-            String content = Files.readString(agePath);
+            Path specPath = Paths.get(outputDir, "dev", "appget", "specification", "generated", "UserEmailValidation.java");
+            String content = Files.readString(specPath);
 
             assertTrue(content.contains("Generated from specs.yaml"), "Generated file should indicate source YAML");
             assertTrue(content.contains("DO NOT EDIT MANUALLY"), "Generated file should have warning");
@@ -193,10 +193,11 @@ class SpecificationGeneratorTest {
             }
             generator.generateSpecifications(yamlFile, outputDir);
 
-            Path rolePath = Paths.get(outputDir, "dev", "appget", "specification", "generated", "EmployeeRoleCheck.java");
-            String content = Files.readString(rolePath);
+            // UsernamePresence checks that username does not equal ""
+            Path specPath = Paths.get(outputDir, "dev", "appget", "specification", "generated", "UsernamePresence.java");
+            String content = Files.readString(specPath);
 
-            assertTrue(content.contains("\"Manager\"") || content.contains("Manager"),
+            assertTrue(content.contains("\"\"") || content.contains("username"),
                     "Should handle string values correctly");
         }
     }
@@ -214,10 +215,10 @@ class SpecificationGeneratorTest {
             }
             generator.generateSpecifications(yamlFile, outputDir);
 
-            Path seniorPath = Paths.get(outputDir, "dev", "appget", "specification", "generated", "SeniorManagerCheck.java");
-            assertTrue(Files.exists(seniorPath), "SeniorManagerCheck.java should be generated");
+            Path specPath = Paths.get(outputDir, "dev", "appget", "specification", "generated", "UserAccountStatus.java");
+            assertTrue(Files.exists(specPath), "UserAccountStatus.java should be generated");
 
-            String content = Files.readString(seniorPath);
+            String content = Files.readString(specPath);
             assertTrue(content.contains("CompoundSpecification"), "Should use CompoundSpecification for AND rule");
             assertTrue(content.contains("CompoundSpecification.Logic.AND"), "Should use AND logic");
         }
@@ -236,12 +237,11 @@ class SpecificationGeneratorTest {
             }
             generator.generateSpecifications(yamlFile, outputDir);
 
-            Path authPath = Paths.get(outputDir, "dev", "appget", "specification", "generated", "AuthenticatedApproval.java");
-            assertTrue(Files.exists(authPath), "AuthenticatedApproval.java should be generated");
+            Path authPath = Paths.get(outputDir, "dev", "appget", "specification", "generated", "AdminAuthorizationRequired.java");
+            assertTrue(Files.exists(authPath), "AdminAuthorizationRequired.java should be generated");
 
             String content = Files.readString(authPath);
             assertTrue(content.contains("MetadataContext"), "Should import MetadataContext");
-            assertTrue(content.contains("metadata.get(\"sso\")"), "Should check sso metadata");
             assertTrue(content.contains("metadata.get(\"roles\")"), "Should check roles metadata");
         }
     }
@@ -282,12 +282,12 @@ class SpecificationGeneratorTest {
             }
             generator.generateSpecifications(yamlFile, outputDir);
 
-            Path earnerPath = Paths.get(outputDir, "dev", "appget", "specification", "generated", "HighEarnerCheck.java");
-            assertTrue(Files.exists(earnerPath), "HighEarnerCheck.java should be generated");
+            Path specPath = Paths.get(outputDir, "dev", "appget", "specification", "generated", "HighEngagementPost.java");
+            assertTrue(Files.exists(specPath), "HighEngagementPost.java should be generated");
 
-            String content = Files.readString(earnerPath);
-            assertTrue(content.contains("import dev.appget.view.EmployeeSalaryView"), "Should import view class");
-            assertTrue(content.contains("EmployeeSalaryView target"), "Should use view type as parameter");
+            String content = Files.readString(specPath);
+            assertTrue(content.contains("import dev.appget.social.view.PostDetailView"), "Should import PostDetailView class");
+            assertTrue(content.contains("PostDetailView target"), "Should use view type as parameter");
         }
     }
 }

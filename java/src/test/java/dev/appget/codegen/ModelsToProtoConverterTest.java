@@ -46,70 +46,70 @@ class ModelsToProtoConverterTest {
         if (tempModelsYaml == null) return;
         converter.convert(tempModelsYaml.toString(), tempDir.toString());
 
-        assertTrue(Files.exists(tempDir.resolve("appget_models.proto")), "appget_models.proto should be generated");
-        assertTrue(Files.exists(tempDir.resolve("hr_models.proto")), "hr_models.proto should be generated");
-        assertTrue(Files.exists(tempDir.resolve("finance_models.proto")), "finance_models.proto should be generated");
+        assertTrue(Files.exists(tempDir.resolve("auth_models.proto")), "auth_models.proto should be generated");
+        assertTrue(Files.exists(tempDir.resolve("social_models.proto")), "social_models.proto should be generated");
+        assertTrue(Files.exists(tempDir.resolve("admin_models.proto")), "admin_models.proto should be generated");
     }
 
     @Test
-    @DisplayName("Generated proto has correct syntax and java_package for appget domain")
+    @DisplayName("Generated proto has correct syntax and java_package for auth domain")
     void testAppgetProtoContent(@TempDir Path tempDir) throws Exception {
         if (tempModelsYaml == null) return;
         converter.convert(tempModelsYaml.toString(), tempDir.toString());
 
-        String content = Files.readString(tempDir.resolve("appget_models.proto"));
+        String content = Files.readString(tempDir.resolve("auth_models.proto"));
         assertTrue(content.contains("syntax = \"proto3\""), "Should use proto3 syntax");
-        assertTrue(content.contains("java_package = \"dev.appget.model\""), "Should have correct java_package");
+        assertTrue(content.contains("java_package = \"dev.appget.auth.model\""), "Should have correct java_package");
         assertTrue(content.contains("java_multiple_files = true"), "Should enable multiple files");
-        assertTrue(content.contains("message Employees"), "Should contain Employees message");
-        assertTrue(content.contains("message Roles"), "Should contain Roles message");
+        assertTrue(content.contains("message Users"), "Should contain Users message");
+        assertTrue(content.contains("message Sessions"), "Should contain Sessions message");
     }
 
     @Test
-    @DisplayName("Employee message has correct field types")
+    @DisplayName("Users message has correct field types")
     void testEmployeeFieldTypes(@TempDir Path tempDir) throws Exception {
         if (tempModelsYaml == null) return;
         converter.convert(tempModelsYaml.toString(), tempDir.toString());
 
-        String content = Files.readString(tempDir.resolve("appget_models.proto"));
-        assertTrue(content.contains("string name = 1"), "Employee should have string name field");
-        assertTrue(content.contains("int32 age = 2"), "Employee should have int32 age field");
-        assertTrue(content.contains("string role_id = 3"), "Employee should have string role_id field");
+        String content = Files.readString(tempDir.resolve("auth_models.proto"));
+        assertTrue(content.contains("string username"), "Users should have string username field");
+        assertTrue(content.contains("string email"), "Users should have string email field");
+        assertTrue(content.contains("bool is_verified"), "Users should have bool is_verified field");
     }
 
     @Test
-    @DisplayName("HR domain proto has correct java_package")
+    @DisplayName("social domain proto has correct java_package")
     void testHrProtoPackage(@TempDir Path tempDir) throws Exception {
         if (tempModelsYaml == null) return;
         converter.convert(tempModelsYaml.toString(), tempDir.toString());
 
-        String content = Files.readString(tempDir.resolve("hr_models.proto"));
-        assertTrue(content.contains("java_package = \"dev.appget.hr.model\""), "HR domain should have correct java_package");
-        assertTrue(content.contains("message Departments"), "Should contain Departments message");
-        assertTrue(content.contains("message Salaries"), "Should contain Salaries message");
+        String content = Files.readString(tempDir.resolve("social_models.proto"));
+        assertTrue(content.contains("java_package = \"dev.appget.social.model\""), "social domain should have correct java_package");
+        assertTrue(content.contains("message Posts"), "Should contain Posts message");
+        assertTrue(content.contains("message Comments"), "Should contain Comments message");
     }
 
     @Test
-    @DisplayName("Decimal SQL type maps to appget.common.Decimal proto type")
+    @DisplayName("admin domain proto has Timestamp for datetime fields")
     void testDecimalTypeMapping(@TempDir Path tempDir) throws Exception {
         if (tempModelsYaml == null) return;
         converter.convert(tempModelsYaml.toString(), tempDir.toString());
 
-        String content = Files.readString(tempDir.resolve("hr_models.proto"));
-        assertTrue(content.contains("appget.common.Decimal budget"), "DECIMAL should map to appget.common.Decimal");
-        assertTrue(content.contains("appget.common.Decimal amount"), "DECIMAL should map to appget.common.Decimal");
+        String content = Files.readString(tempDir.resolve("admin_models.proto"));
+        assertTrue(content.contains("google.protobuf.Timestamp created_at"), "TIMESTAMP should map to google.protobuf.Timestamp");
+        assertTrue(content.contains("int32 severity_level"), "INT should map to int32");
     }
 
     @Test
-    @DisplayName("Finance domain proto has correct content")
+    @DisplayName("admin domain proto has correct content")
     void testFinanceProtoContent(@TempDir Path tempDir) throws Exception {
         if (tempModelsYaml == null) return;
         converter.convert(tempModelsYaml.toString(), tempDir.toString());
 
-        String content = Files.readString(tempDir.resolve("finance_models.proto"));
-        assertTrue(content.contains("java_package = \"dev.appget.finance.model\""), "Finance domain java_package");
-        assertTrue(content.contains("message Invoices"), "Should contain Invoices message");
-        assertTrue(content.contains("google.protobuf.Timestamp issue_date"), "DATE should map to google.protobuf.Timestamp");
+        String content = Files.readString(tempDir.resolve("admin_models.proto"));
+        assertTrue(content.contains("java_package = \"dev.appget.admin.model\""), "admin domain java_package");
+        assertTrue(content.contains("message ModerationFlags"), "Should contain ModerationFlags message");
+        assertTrue(content.contains("google.protobuf.Timestamp created_at"), "TIMESTAMP should map to google.protobuf.Timestamp");
     }
 
     @Test
@@ -118,8 +118,7 @@ class ModelsToProtoConverterTest {
         if (tempModelsYaml == null) return;
         converter.convert(tempModelsYaml.toString(), tempDir.toString());
 
-        assertTrue(Files.exists(tempDir.resolve("appget_views.proto")), "appget_views.proto should be generated");
-        assertTrue(Files.exists(tempDir.resolve("hr_views.proto")), "hr_views.proto should be generated");
+        assertTrue(Files.exists(tempDir.resolve("social_views.proto")), "social_views.proto should be generated");
     }
 
     @Test
@@ -128,12 +127,11 @@ class ModelsToProtoConverterTest {
         if (tempModelsYaml == null) return;
         converter.convert(tempModelsYaml.toString(), tempDir.toString());
 
-        String content = Files.readString(tempDir.resolve("appget_views.proto"));
-        assertTrue(content.contains("java_package = \"dev.appget.view\""), "View should have correct java_package");
-        assertTrue(content.contains("message EmployeeSalaryView"), "Should contain EmployeeSalaryView message");
-        assertTrue(content.contains("string employee_name"), "Should have employee_name field");
-        assertTrue(content.contains("appget.common.Decimal salary_amount"),
-                "salary_amount should be appget.common.Decimal (from DECIMAL SQL type)");
+        String content = Files.readString(tempDir.resolve("social_views.proto"));
+        assertTrue(content.contains("java_package = \"dev.appget.social.view\""), "View should have correct java_package");
+        assertTrue(content.contains("message PostDetailView"), "Should contain PostDetailView message");
+        assertTrue(content.contains("string post_content"), "Should have post_content field");
+        assertTrue(content.contains("string author_username"), "Should have author_username field");
     }
 
     @Test
@@ -142,7 +140,7 @@ class ModelsToProtoConverterTest {
         if (tempModelsYaml == null) return;
         converter.convert(tempModelsYaml.toString(), tempDir.toString());
 
-        String content = Files.readString(tempDir.resolve("appget_models.proto"));
+        String content = Files.readString(tempDir.resolve("auth_models.proto"));
         assertTrue(content.contains("DO NOT EDIT MANUALLY"), "Should have do-not-edit warning");
     }
 
@@ -152,7 +150,7 @@ class ModelsToProtoConverterTest {
         if (tempModelsYaml == null) return;
         converter.convert(tempModelsYaml.toString(), tempDir.toString());
 
-        String content = Files.readString(tempDir.resolve("appget_models.proto"));
+        String content = Files.readString(tempDir.resolve("auth_models.proto"));
         assertFalse(content.contains("import \"rules.proto\""), "Should not import rules.proto");
         assertFalse(content.contains("rule_set"), "Should not embed rule_set options");
         assertFalse(content.contains("(rules."), "Should not contain any rules custom options");
@@ -166,9 +164,10 @@ class ModelsToProtoConverterTest {
         if (tempModelsYaml == null) return;
         converter.convert(tempModelsYaml.toString(), tempDir.toString());
 
-        String content = Files.readString(tempDir.resolve("appget_models.proto"));
-        // country_of_origin is nullable: true → should have 'optional' prefix
-        assertTrue(content.contains("optional string country_of_origin"), "Nullable string should have optional prefix");
+        String content = Files.readString(tempDir.resolve("admin_models.proto"));
+        // post_id and comment_id are nullable in moderation_flags → should have 'optional' prefix
+        assertTrue(content.contains("optional string post_id") || content.contains("optional string comment_id"),
+                "Nullable string should have optional prefix");
     }
 
     @Test
@@ -177,33 +176,20 @@ class ModelsToProtoConverterTest {
         if (tempModelsYaml == null) return;
         converter.convert(tempModelsYaml.toString(), tempDir.toString());
 
-        String content = Files.readString(tempDir.resolve("finance_models.proto"));
+        String content = Files.readString(tempDir.resolve("auth_models.proto"));
         assertTrue(content.contains("import \"google/protobuf/timestamp.proto\""),
-                "Finance proto should import timestamp for DATE field");
+                "auth proto should import timestamp for TIMESTAMP field");
     }
 
     @Test
-    @DisplayName("Proto imports appget_common when decimal fields present")
-    void testDecimalImport(@TempDir Path tempDir) throws Exception {
-        if (tempModelsYaml == null) return;
-        converter.convert(tempModelsYaml.toString(), tempDir.toString());
-
-        String content = Files.readString(tempDir.resolve("hr_models.proto"));
-        assertTrue(content.contains("import \"appget_common.proto\""),
-                "HR proto should import appget_common for DECIMAL fields");
-    }
-
-    @Test
-    @DisplayName("appget_common.proto is generated with Decimal message")
+    @DisplayName("appget_common.proto is NOT generated when no decimal fields present")
     void testCommonProtoGenerated(@TempDir Path tempDir) throws Exception {
         if (tempModelsYaml == null) return;
         converter.convert(tempModelsYaml.toString(), tempDir.toString());
 
-        assertTrue(Files.exists(tempDir.resolve("appget_common.proto")), "appget_common.proto should be generated");
-        String content = Files.readString(tempDir.resolve("appget_common.proto"));
-        assertTrue(content.contains("message Decimal"), "appget_common.proto should define Decimal message");
-        assertTrue(content.contains("bytes unscaled"), "Decimal should have bytes unscaled field");
-        assertTrue(content.contains("int32 scale"), "Decimal should have int32 scale field");
+        // New schema has no DECIMAL fields, so appget_common.proto should not be generated
+        assertFalse(Files.exists(tempDir.resolve("appget_common.proto")),
+                "appget_common.proto should NOT be generated when no decimal fields exist");
     }
 
     // ---- gRPC service generation tests ----
@@ -214,24 +200,24 @@ class ModelsToProtoConverterTest {
         if (tempModelsYaml == null) return;
         converter.convert(tempModelsYaml.toString(), tempDir.toString());
 
-        assertTrue(Files.exists(tempDir.resolve("appget_services.proto")), "appget_services.proto should be generated");
-        assertTrue(Files.exists(tempDir.resolve("hr_services.proto")), "hr_services.proto should be generated");
-        assertTrue(Files.exists(tempDir.resolve("finance_services.proto")), "finance_services.proto should be generated");
+        assertTrue(Files.exists(tempDir.resolve("auth_services.proto")), "auth_services.proto should be generated");
+        assertTrue(Files.exists(tempDir.resolve("social_services.proto")), "social_services.proto should be generated");
+        assertTrue(Files.exists(tempDir.resolve("admin_services.proto")), "admin_services.proto should be generated");
     }
 
     @Test
-    @DisplayName("Service proto has CRUD operations for Employee")
+    @DisplayName("Service proto has CRUD operations for Users")
     void testServiceCrudOperations(@TempDir Path tempDir) throws Exception {
         if (tempModelsYaml == null) return;
         converter.convert(tempModelsYaml.toString(), tempDir.toString());
 
-        String content = Files.readString(tempDir.resolve("appget_services.proto"));
-        assertTrue(content.contains("service EmployeesService"), "Should have EmployeesService");
-        assertTrue(content.contains("rpc CreateEmployees"), "Should have CreateEmployees RPC");
-        assertTrue(content.contains("rpc GetEmployees"), "Should have GetEmployees RPC");
-        assertTrue(content.contains("rpc UpdateEmployees"), "Should have UpdateEmployees RPC");
-        assertTrue(content.contains("rpc DeleteEmployees"), "Should have DeleteEmployees RPC");
-        assertTrue(content.contains("rpc ListEmployees"), "Should have ListEmployees RPC");
+        String content = Files.readString(tempDir.resolve("auth_services.proto"));
+        assertTrue(content.contains("service UsersService"), "Should have UsersService");
+        assertTrue(content.contains("rpc CreateUsers"), "Should have CreateUsers RPC");
+        assertTrue(content.contains("rpc GetUsers"), "Should have GetUsers RPC");
+        assertTrue(content.contains("rpc UpdateUsers"), "Should have UpdateUsers RPC");
+        assertTrue(content.contains("rpc DeleteUsers"), "Should have DeleteUsers RPC");
+        assertTrue(content.contains("rpc ListUsers"), "Should have ListUsers RPC");
     }
 
     @Test
@@ -240,10 +226,10 @@ class ModelsToProtoConverterTest {
         if (tempModelsYaml == null) return;
         converter.convert(tempModelsYaml.toString(), tempDir.toString());
 
-        String appgetContent = Files.readString(tempDir.resolve("appget_services.proto"));
-        assertTrue(appgetContent.contains("java_package = \"dev.appget.service\""), "Appget service package");
+        String authContent = Files.readString(tempDir.resolve("auth_services.proto"));
+        assertTrue(authContent.contains("java_package = \"dev.appget.auth.service\""), "auth service package");
 
-        String hrContent = Files.readString(tempDir.resolve("hr_services.proto"));
-        assertTrue(hrContent.contains("java_package = \"dev.appget.hr.service\""), "HR service package");
+        String socialContent = Files.readString(tempDir.resolve("social_services.proto"));
+        assertTrue(socialContent.contains("java_package = \"dev.appget.social.service\""), "social service package");
     }
 }

@@ -1,20 +1,17 @@
 package dev.appget.model;
 
-import dev.appget.hr.model.Salaries;
-import dev.appget.view.EmployeeSalaryView;
-import dev.appget.common.Decimal;
+import dev.appget.auth.model.Users;
+import dev.appget.admin.model.ModerationFlags;
+import dev.appget.social.view.PostDetailView;
 import dev.appget.specification.CompoundSpecification;
 import dev.appget.specification.MetadataContext;
 import dev.appget.specification.Specification;
 import dev.appget.specification.context.SsoContext;
 import dev.appget.specification.context.RolesContext;
-import com.google.protobuf.ByteString;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.math.BigDecimal;
-import java.math.BigInteger;
 import java.util.List;
 import java.util.Map;
 
@@ -23,233 +20,230 @@ import static org.junit.jupiter.api.Assertions.*;
 @DisplayName("Rule Engine Tests")
 class RuleTest {
 
-    private Employees employee;
-    private Specification ageSpecification;
+    private Users user;
+    private Specification usernameSpecification;
     private Rule rule;
 
     @BeforeEach
     void setUp() {
-        employee = Employees.newBuilder()
-                .setName("Alice")
-                .setAge(28)
-                .setRoleId("Engineer")
-                .build();
-    }
-
-    /** Build an appget.common.Decimal proto message from a double value. */
-    private static Decimal decimalOf(double value) {
-        BigDecimal bd = new BigDecimal(String.valueOf(value));
-        BigInteger unscaled = bd.unscaledValue();
-        int scale = bd.scale();
-        return Decimal.newBuilder()
-                .setUnscaled(ByteString.copyFrom(unscaled.toByteArray()))
-                .setScale(scale)
+        user = Users.newBuilder()
+                .setUsername("alice")
+                .setEmail("alice@example.com")
+                .setIsVerified(true)
+                .setIsSuspended(false)
+                .setFollowerCount(200)
                 .build();
     }
 
     @Test
     @DisplayName("Rule should evaluate to success status when specification is satisfied")
     void testRuleEvaluatesToSuccessStatus() {
-        ageSpecification = new Specification("age", ">", 25);
+        usernameSpecification = new Specification("follower_count", ">", 100);
         rule = Rule.builder()
-                .name("AgeCheck")
-                .spec(ageSpecification)
+                .name("FollowerCheck")
+                .spec(usernameSpecification)
                 .successStatus("APPROVED")
                 .failureStatus("REJECTED")
                 .build();
 
-        String result = rule.evaluate(employee);
-        assertEquals("APPROVED", result, "Employees age 28 > 25 should result in APPROVED");
+        String result = rule.evaluate(user);
+        assertEquals("APPROVED", result, "Users follower_count 200 > 100 should result in APPROVED");
     }
 
     @Test
     @DisplayName("Rule should evaluate to failure status when specification is not satisfied")
     void testRuleEvaluatesToFailureStatus() {
-        ageSpecification = new Specification("age", ">", 30);
+        usernameSpecification = new Specification("follower_count", ">", 500);
         rule = Rule.builder()
-                .name("AgeCheck")
-                .spec(ageSpecification)
+                .name("FollowerCheck")
+                .spec(usernameSpecification)
                 .successStatus("APPROVED")
                 .failureStatus("REJECTED")
                 .build();
 
-        String result = rule.evaluate(employee);
-        assertEquals("REJECTED", result, "Employees age 28 > 30 should result in REJECTED");
+        String result = rule.evaluate(user);
+        assertEquals("REJECTED", result, "Users follower_count 200 > 500 should result in REJECTED");
     }
 
     @Test
-    @DisplayName("Rule with role specification")
+    @DisplayName("Rule with username specification")
     void testRuleWithRoleSpecification() {
-        Specification roleSpecification = new Specification("role_id", "==", "Engineer");
+        Specification usernameSpec = new Specification("username", "==", "alice");
         rule = Rule.builder()
-                .name("RoleCheck")
-                .spec(roleSpecification)
+                .name("UsernameCheck")
+                .spec(usernameSpec)
                 .successStatus("APPROVED")
                 .failureStatus("REJECTED")
                 .build();
 
-        String result = rule.evaluate(employee);
-        assertEquals("APPROVED", result, "Employees role 'Engineer' == 'Engineer' should result in APPROVED");
+        String result = rule.evaluate(user);
+        assertEquals("APPROVED", result, "Users username 'alice' == 'alice' should result in APPROVED");
     }
 
     @Test
     @DisplayName("Rule should return correct name")
     void testRuleGetName() {
-        ageSpecification = new Specification("age", ">", 25);
+        usernameSpecification = new Specification("follower_count", ">", 100);
         rule = Rule.builder()
-                .name("AgeCheck")
-                .spec(ageSpecification)
+                .name("FollowerCheck")
+                .spec(usernameSpecification)
                 .successStatus("APPROVED")
                 .failureStatus("REJECTED")
                 .build();
 
-        assertEquals("AgeCheck", rule.getName(), "Rule name should match constructor argument");
+        assertEquals("FollowerCheck", rule.getName(), "Rule name should match constructor argument");
     }
 
     @Test
     @DisplayName("Rule with custom success status")
     void testRuleWithCustomSuccessStatus() {
-        ageSpecification = new Specification("age", ">", 25);
+        usernameSpecification = new Specification("follower_count", ">", 100);
         rule = Rule.builder()
                 .name("CustomRule")
-                .spec(ageSpecification)
+                .spec(usernameSpecification)
                 .successStatus("PASSED")
                 .failureStatus("FAILED")
                 .build();
 
-        String result = rule.evaluate(employee);
+        String result = rule.evaluate(user);
         assertEquals("PASSED", result, "Rule should use custom success status");
     }
 
     @Test
     @DisplayName("Rule with custom failure status")
     void testRuleWithCustomFailureStatus() {
-        ageSpecification = new Specification("age", ">", 30);
+        usernameSpecification = new Specification("follower_count", ">", 500);
         rule = Rule.builder()
                 .name("CustomRule")
-                .spec(ageSpecification)
+                .spec(usernameSpecification)
                 .successStatus("PASSED")
                 .failureStatus("FAILED")
                 .build();
 
-        String result = rule.evaluate(employee);
+        String result = rule.evaluate(user);
         assertEquals("FAILED", result, "Rule should use custom failure status");
     }
 
     @Test
-    @DisplayName("Multiple rules against same employee")
+    @DisplayName("Multiple rules against same user")
     void testMultipleRulesAgainstSameEmployee() {
-        Rule ageRule = Rule.builder()
-                .name("AgeCheck")
-                .spec(new Specification("age", ">", 25))
+        Rule followerRule = Rule.builder()
+                .name("FollowerCheck")
+                .spec(new Specification("follower_count", ">", 100))
                 .successStatus("APPROVED")
                 .failureStatus("REJECTED")
                 .build();
 
-        Rule roleRule = Rule.builder()
-                .name("RoleCheck")
-                .spec(new Specification("role_id", "==", "Engineer"))
+        Rule usernameRule = Rule.builder()
+                .name("UsernameCheck")
+                .spec(new Specification("username", "==", "alice"))
                 .successStatus("APPROVED")
                 .failureStatus("REJECTED")
                 .build();
 
-        String ageResult = ageRule.evaluate(employee);
-        String roleResult = roleRule.evaluate(employee);
+        String followerResult = followerRule.evaluate(user);
+        String usernameResult = usernameRule.evaluate(user);
 
-        assertEquals("APPROVED", ageResult, "Age check should pass");
-        assertEquals("APPROVED", roleResult, "Role check should pass");
+        assertEquals("APPROVED", followerResult, "Follower check should pass");
+        assertEquals("APPROVED", usernameResult, "Username check should pass");
     }
 
     @Test
     @DisplayName("Rule evaluation consistency")
     void testRuleEvaluationConsistency() {
-        ageSpecification = new Specification("age", ">", 25);
+        usernameSpecification = new Specification("follower_count", ">", 100);
         rule = Rule.builder()
                 .name("ConsistencyCheck")
-                .spec(ageSpecification)
+                .spec(usernameSpecification)
                 .successStatus("APPROVED")
                 .failureStatus("REJECTED")
                 .build();
 
-        String result1 = rule.evaluate(employee);
-        String result2 = rule.evaluate(employee);
+        String result1 = rule.evaluate(user);
+        String result2 = rule.evaluate(user);
 
         assertEquals(result1, result2, "Multiple evaluations of same rule should give same result");
     }
 
     @Test
-    @DisplayName("Rule with different employees")
+    @DisplayName("Rule with different users")
     void testRuleWithDifferentEmployees() {
-        ageSpecification = new Specification("age", ">", 25);
+        usernameSpecification = new Specification("follower_count", ">", 100);
         rule = Rule.builder()
-                .name("AgeCheck")
-                .spec(ageSpecification)
+                .name("FollowerCheck")
+                .spec(usernameSpecification)
                 .successStatus("APPROVED")
                 .failureStatus("REJECTED")
                 .build();
 
-        Employees young = Employees.newBuilder()
-                .setName("Bob")
-                .setAge(22)
-                .setRoleId("Intern")
+        Users newUser = Users.newBuilder()
+                .setUsername("bob")
+                .setEmail("bob@example.com")
+                .setIsVerified(false)
+                .setIsSuspended(false)
+                .setFollowerCount(10)
                 .build();
 
-        Employees senior = Employees.newBuilder()
-                .setName("Charlie")
-                .setAge(45)
-                .setRoleId("Manager")
+        Users popularUser = Users.newBuilder()
+                .setUsername("charlie")
+                .setEmail("charlie@example.com")
+                .setIsVerified(true)
+                .setIsSuspended(false)
+                .setFollowerCount(5000)
                 .build();
 
-        assertEquals("REJECTED", rule.evaluate(young), "Young employee should be rejected");
-        assertEquals("APPROVED", rule.evaluate(senior), "Senior employee should be approved");
+        assertEquals("REJECTED", rule.evaluate(newUser), "New user should be rejected");
+        assertEquals("APPROVED", rule.evaluate(popularUser), "Popular user should be approved");
     }
 
     // Generic + compound + metadata tests
 
     @Test
-    @DisplayName("Rule evaluates Salaries model generically")
+    @DisplayName("Rule evaluates ModerationFlags model generically")
     void testRuleWithSalaryModel() {
-        Salaries salary = Salaries.newBuilder()
-                .setEmployeeId("Alice")
-                .setAmount(decimalOf(75000.0))
-                .setYearsOfService(5)
+        ModerationFlags flag = ModerationFlags.newBuilder()
+                .setReason("Spam")
+                .setSeverityLevel(8)
+                .setIsResolved(false)
                 .build();
 
-        Specification amountSpec = new Specification("amount", ">", 50000);
-        Rule salaryRule = Rule.builder()
-                .name("SalaryCheck")
-                .spec(amountSpec)
-                .successStatus("PREMIUM")
-                .failureStatus("STANDARD")
+        Specification severitySpec = new Specification("severity_level", ">", 5);
+        Rule flagRule = Rule.builder()
+                .name("SeverityCheck")
+                .spec(severitySpec)
+                .successStatus("HIGH_SEVERITY")
+                .failureStatus("LOW_SEVERITY")
                 .build();
 
-        assertEquals("PREMIUM", salaryRule.evaluate(salary));
+        assertEquals("HIGH_SEVERITY", flagRule.evaluate(flag));
     }
 
     @Test
     @DisplayName("Rule with compound specification")
     void testRuleWithCompoundSpecification() {
-        Employees manager = Employees.newBuilder()
-                .setName("Bob")
-                .setAge(40)
-                .setRoleId("Manager")
+        Users verifiedUser = Users.newBuilder()
+                .setUsername("bob")
+                .setEmail("bob@example.com")
+                .setIsVerified(true)
+                .setIsSuspended(false)
+                .setFollowerCount(500)
                 .build();
 
         CompoundSpecification compound = new CompoundSpecification(
                 CompoundSpecification.Logic.AND,
                 List.of(
-                        new Specification("age", ">=", 30),
-                        new Specification("role_id", "==", "Manager")
+                        new Specification("follower_count", ">=", 100),
+                        new Specification("is_verified", "==", true)
                 )
         );
 
         Rule compoundRule = Rule.builder()
-                .name("SeniorManager")
+                .name("VerifiedInfluencer")
                 .spec(compound)
-                .successStatus("SENIOR")
-                .failureStatus("JUNIOR")
+                .successStatus("INFLUENCER")
+                .failureStatus("REGULAR")
                 .build();
-        assertEquals("SENIOR", compoundRule.evaluate(manager));
+        assertEquals("INFLUENCER", compoundRule.evaluate(verifiedUser));
     }
 
     @Test
@@ -261,17 +255,17 @@ class RuleTest {
 
         Rule authRule = Rule.builder()
                 .name("AuthRule")
-                .spec(new Specification("age", ">=", 25))
+                .spec(new Specification("follower_count", ">=", 0))
                 .successStatus("ALLOWED")
                 .failureStatus("DENIED")
-                .targetType("Employee")
+                .targetType("User")
                 .metadataRequirements(metaReqs)
                 .build();
 
         SsoContext sso = SsoContext.builder().authenticated(true).sessionId("s1").build();
         MetadataContext metadata = new MetadataContext().with("sso", sso);
 
-        assertEquals("ALLOWED", authRule.evaluate(employee, metadata));
+        assertEquals("ALLOWED", authRule.evaluate(user, metadata));
     }
 
     @Test
@@ -283,53 +277,55 @@ class RuleTest {
 
         Rule authRule = Rule.builder()
                 .name("AuthRule")
-                .spec(new Specification("age", ">=", 25))
+                .spec(new Specification("follower_count", ">=", 0))
                 .successStatus("ALLOWED")
                 .failureStatus("DENIED")
-                .targetType("Employee")
+                .targetType("User")
                 .metadataRequirements(metaReqs)
                 .build();
 
-        assertEquals("DENIED", authRule.evaluate(employee));
+        assertEquals("DENIED", authRule.evaluate(user));
     }
 
     @Test
     @DisplayName("Rule targeting view field must not pass when evaluated against wrong model type")
     void testRuleWithViewFieldFailsOnWrongModelType() {
-        // salaryAmount exists on EmployeeSalaryView but NOT on Employees
-        Specification viewFieldSpec = new Specification("salary_amount", ">", 100000);
+        // like_count exists on PostDetailView but NOT on Users
+        Specification viewFieldSpec = new Specification("post_content", "!=", "");
         Rule viewRule = Rule.builder()
-                .name("HighEarnerCheck")
+                .name("PostContentCheck")
                 .spec(viewFieldSpec)
-                .successStatus("HIGH_EARNER")
-                .failureStatus("STANDARD_EARNER")
+                .successStatus("HAS_CONTENT")
+                .failureStatus("NO_CONTENT")
                 .build();
 
-        // Evaluating against Employees (which lacks salaryAmount) must return failure status
-        String result = viewRule.evaluate(employee);
-        assertEquals("STANDARD_EARNER", result,
+        // Evaluating against Users (which lacks post_content) must return failure status
+        String result = viewRule.evaluate(user);
+        assertEquals("NO_CONTENT", result,
                 "Rule with field not present on target model should return failure status, not throw or pass");
     }
 
     @Test
     @DisplayName("Rule targeting view field succeeds when evaluated against correct view type")
     void testRuleWithViewFieldSucceedsOnCorrectViewType() {
-        EmployeeSalaryView view = EmployeeSalaryView.newBuilder()
-                .setEmployeeName("Alice")
-                .setEmployeeAge(35)
-                .setSalaryAmount(decimalOf(150000.0))
+        PostDetailView view = PostDetailView.newBuilder()
+                .setPostContent("Hello world")
+                .setAuthorUsername("alice")
+                .setAuthorVerified(true)
+                .setIsPublic(true)
+                .setLikeCount(2000)
                 .build();
 
-        Specification viewFieldSpec = new Specification("salary_amount", ">", 100000);
+        Specification viewFieldSpec = new Specification("like_count", ">", 1000);
         Rule viewRule = Rule.builder()
-                .name("HighEarnerCheck")
+                .name("HighEngagementCheck")
                 .spec(viewFieldSpec)
-                .successStatus("HIGH_EARNER")
-                .failureStatus("STANDARD_EARNER")
+                .successStatus("HIGH_ENGAGEMENT")
+                .failureStatus("LOW_ENGAGEMENT")
                 .build();
 
         String result = viewRule.evaluate(view);
-        assertEquals("HIGH_EARNER", result,
+        assertEquals("HIGH_ENGAGEMENT", result,
                 "Rule should pass when evaluated against the correct view type with matching field");
     }
 }

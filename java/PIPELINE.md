@@ -78,16 +78,16 @@ LAYER 2: INTERMEDIATE REPRESENTATION                    │
 LAYER 3: SPECIFICATIONS + METADATA
 ┌─────────────────────────────────────────────────────────┐
 │  Generated specification classes                        │
-│  ├── EmployeeAgeCheck.java (simple condition)           │
-│  ├── SeniorManagerCheck.java (compound AND)             │
-│  ├── HighEarnerCheck.java (view-targeting)              │
-│  ├── AuthenticatedApproval.java (metadata-required)     │
-│  └── SalaryAmountCheck.java (cross-domain)              │
+│  ├── UserEmailValidation.java (simple condition)        │
+│  ├── UserAccountStatus.java (compound AND)              │
+│  ├── HighEngagementPost.java (view-targeting)           │
+│  ├── AdminAuthorizationRequired.java (metadata-required)│
+│  └── ContentTargetValidation.java (compound OR)         │
 │                                                         │
 │  Generated metadata POJOs (Lombok)                      │
 │  ├── SsoContext.java                                    │
 │  ├── RolesContext.java                                  │
-│  └── UserContext.java                                   │
+│  └── TenantContext.java                                 │
 └────────┬────────────────────────────────────────────────┘
          │
          ↓ DescriptorRegistry + RuleInterceptor + TestDataBuilder
@@ -175,9 +175,9 @@ compileGenerators (independent)
 ### Input Files (Source of Truth - Committed)
 
 - **features/*.feature** - Gherkin business rule definitions (human-friendly BDD format)
-  - One `.feature` file per domain (`appget.feature`, `hr.feature`)
-  - Feature-level tags: `@domain:appget` assigns domain to all scenarios
-  - Scenario-level tags: `@target:employees`, `@rule:RuleName`, `@blocking`, `@view`
+  - One `.feature` file per domain (`admin.feature`, `auth.feature`, `social.feature`)
+  - Feature-level tags: `@domain:auth` assigns domain to all scenarios
+  - Scenario-level tags: `@target:users`, `@rule:RuleName`, `@blocking`, `@view`
   - Step patterns: `When <field> <operator_phrase> <value>`, `Then status is "<value>"`, `But otherwise status is "<value>"`
   - Compound conditions: `When all conditions are met:` (AND) / `When any condition is met:` (OR) + data table
   - Metadata requirements: `Given <category> context requires:` + data table
@@ -194,7 +194,7 @@ compileGenerators (independent)
 
 - **views.sql** - SQL CREATE VIEW statements
   - Column types resolved from source table definitions
-  - Aliases mapped to source tables (e.g., `e` -> `employees`)
+  - Aliases mapped to source tables (e.g., `p` -> `posts`)
   - Aggregate functions supported (COUNT -> long, SUM -> BigDecimal, AVG -> double)
   - Views mapped to domains via `VIEW_DOMAIN_MAPPING`
 
@@ -241,24 +241,18 @@ tree src/main/java-generated/
 Tables and views are grouped into domains:
 
 ```
-DOMAIN_MAPPING = {
-    "roles" -> "appget",
-    "employees" -> "appget",
-    "departments" -> "hr",
-    "salaries" -> "hr",
-    "invoices" -> "finance"
-}
+-- auth domain   → users, sessions
+-- social domain → posts, comments, likes, follows, reposts
+-- admin domain  → moderation_flags
 
-VIEW_DOMAIN_MAPPING = {
-    "employee_salary_view" -> "appget",
-    "department_budget_view" -> "hr"
-}
+Views (-- social domain):
+  user_profile_view, post_detail_view, comment_detail_view, feed_post_view
 ```
 
 **Namespace Convention**:
-- Domain `appget` -> `dev.appget.model` / `dev.appget.view`
-- Domain `hr` -> `dev.appget.hr.model` / `dev.appget.hr.view`
-- Domain `finance` -> `dev.appget.finance.model`
+- Domain `auth`   → `dev.appget.auth.model`
+- Domain `social` → `dev.appget.social.model` / `dev.appget.social.view`
+- Domain `admin`  → `dev.appget.admin.model`
 
 ## specs.yaml Format
 
@@ -305,8 +299,8 @@ requires:
 ```yaml
 target:
   type: model    # or "view"
-  name: employees # model/view name (snake_case plural, matches models.yaml)
-  domain: appget # domain for import resolution
+  name: users  # model/view name (snake_case plural, matches models.yaml)
+  domain: auth # domain for import resolution
 ```
 
 ## Dependencies

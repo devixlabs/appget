@@ -3,18 +3,18 @@
 gRPC services are generated for models, not views.
 
 ## Service pattern
-For each model `Employee`:
-- `message EmployeeKey` contains primary key fields.
-- `rpc CreateEmployee(Employee) returns (Employee)`
-- `rpc GetEmployee(EmployeeKey) returns (Employee)`
-- `rpc UpdateEmployee(Employee) returns (Employee)`
-- `rpc DeleteEmployee(EmployeeKey) returns (google.protobuf.Empty)`
-- `rpc ListEmployees(google.protobuf.Empty) returns (EmployeeList)`
+For each model `Users`:
+- `message UsersId` contains primary key fields.
+- `rpc CreateUsers(Users) returns (Users)`
+- `rpc GetUsers(UsersId) returns (Users)`
+- `rpc UpdateUsers(Users) returns (Users)`
+- `rpc DeleteUsers(UsersId) returns (google.protobuf.Empty)`
+- `rpc ListUsers(google.protobuf.Empty) returns (UsersList)`
 
-`EmployeeList` has `repeated Employee items`.
+`UsersList` has `repeated Users items`.
 
 ## Composite keys
-- `EmployeeKey` includes all primary key fields in order.
+- `UsersId` includes all primary key fields in order.
 
 ## Blocking rules
 - Rule evaluation mirrors REST behavior.

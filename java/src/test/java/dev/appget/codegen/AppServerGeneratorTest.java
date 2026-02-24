@@ -66,12 +66,12 @@ class AppServerGeneratorTest {
             "dev", "appget", "server", "service", "SpecificationRegistry.java");
 
         // SpecificationRegistry should import the spec classes
-        assertTrue(registryContent.contains("import dev.appget.specification.generated.EmployeeAgeCheck"),
-            "Registry should import EmployeeAgeCheck");
-        assertTrue(registryContent.contains("import dev.appget.specification.generated.EmployeeRoleCheck"),
-            "Registry should import EmployeeRoleCheck");
-        assertTrue(registryContent.contains("import dev.appget.specification.generated.AuthenticatedApproval"),
-            "Registry should import AuthenticatedApproval");
+        assertTrue(registryContent.contains("import dev.appget.specification.generated.UserEmailValidation"),
+            "Registry should import UserEmailValidation");
+        assertTrue(registryContent.contains("import dev.appget.specification.generated.UserSuspensionCheck"),
+            "Registry should import UserSuspensionCheck");
+        assertTrue(registryContent.contains("import dev.appget.specification.generated.SeverityLevelValidation"),
+            "Registry should import SeverityLevelValidation");
 
         // RuleService should inject SpecificationRegistry instead
         assertTrue(ruleServiceContent.contains("SpecificationRegistry"),
@@ -85,11 +85,11 @@ class AppServerGeneratorTest {
             "dev", "appget", "server", "service", "SpecificationRegistry.java");
 
         // SpecificationRegistry should instantiate the spec classes
-        assertTrue(registryContent.contains("new EmployeeAgeCheck()"), "Registry should instantiate EmployeeAgeCheck");
-        assertTrue(registryContent.contains("new EmployeeRoleCheck()"), "Registry should instantiate EmployeeRoleCheck");
-        assertTrue(registryContent.contains("new SeniorManagerCheck()"), "Registry should instantiate SeniorManagerCheck");
-        assertTrue(registryContent.contains("new AuthenticatedApproval()"), "Registry should instantiate AuthenticatedApproval");
-        assertTrue(registryContent.contains("new SalaryAmountCheck()"), "Registry should instantiate SalaryAmountCheck");
+        assertTrue(registryContent.contains("new UserEmailValidation()"), "Registry should instantiate UserEmailValidation");
+        assertTrue(registryContent.contains("new UserSuspensionCheck()"), "Registry should instantiate UserSuspensionCheck");
+        assertTrue(registryContent.contains("new SeverityLevelValidation()"), "Registry should instantiate SeverityLevelValidation");
+        assertTrue(registryContent.contains("new AdminAuthorizationRequired()"), "Registry should instantiate AdminAuthorizationRequired");
+        assertTrue(registryContent.contains("new UserAccountStatus()"), "Registry should instantiate UserAccountStatus");
     }
 
     @Test
@@ -97,7 +97,10 @@ class AppServerGeneratorTest {
     void testRuleServiceSkipsViewRules(@TempDir Path tempDir) throws Exception {
         String registryContent = generateAndReadFile(tempDir,
             "dev", "appget", "server", "service", "SpecificationRegistry.java");
-        assertFalse(registryContent.contains("HighEarnerCheck"), "Should skip view-targeting HighEarnerCheck");
+        assertFalse(registryContent.contains("HighEngagementPost"), "Should skip view-targeting HighEngagementPost");
+        assertFalse(registryContent.contains("VerifiedAuthorPriority"), "Should skip view-targeting VerifiedAuthorPriority");
+        assertFalse(registryContent.contains("FeedPostEligibility"), "Should skip view-targeting FeedPostEligibility");
+        assertFalse(registryContent.contains("AuthorVerificationInComments"), "Should skip view-targeting AuthorVerificationInComments");
     }
 
     @Test
@@ -110,7 +113,7 @@ class AppServerGeneratorTest {
     }
 
     @Test
-    @DisplayName("RuleService uses metadata-aware evaluate for AuthenticatedApproval")
+    @DisplayName("RuleService uses metadata-aware evaluate for AdminAuthorizationRequired")
     void testRuleServiceMetadataAwareEvaluate(@TempDir Path tempDir) throws Exception {
         String content = readRuleService(tempDir);
         // RuleService should use getMethods() iteration to handle typed spec params
@@ -133,12 +136,12 @@ class AppServerGeneratorTest {
         String content = readRuleService(tempDir);
         // RuleService should check BLOCKING_RULES map
         assertTrue(content.contains("BLOCKING_RULES"), "Should have BLOCKING_RULES static map");
-        assertTrue(content.contains("BLOCKING_RULES.put(\"EmployeeAgeCheck\", true)"),
-            "EmployeeAgeCheck should be marked as blocking");
-        assertTrue(content.contains("BLOCKING_RULES.put(\"AuthenticatedApproval\", true)"),
-            "AuthenticatedApproval should be marked as blocking");
-        assertTrue(content.contains("BLOCKING_RULES.put(\"EmployeeRoleCheck\", false)"),
-            "EmployeeRoleCheck should be marked as non-blocking");
+        assertTrue(content.contains("BLOCKING_RULES.put(\"UserEmailValidation\", true)"),
+            "UserEmailValidation should be marked as blocking");
+        assertTrue(content.contains("BLOCKING_RULES.put(\"AdminAuthorizationRequired\", true)"),
+            "AdminAuthorizationRequired should be marked as blocking");
+        assertTrue(content.contains("BLOCKING_RULES.put(\"UserFollowingStats\", false)"),
+            "UserFollowingStats should be marked as non-blocking");
 
         // Verify blocking logic
         assertTrue(content.contains("if (isBlocking && !outcome.isSatisfied()) {"),
@@ -197,14 +200,14 @@ class AppServerGeneratorTest {
     void testSpecificationRegistryRegistersAllSpecs(@TempDir Path tempDir) throws Exception {
         String content = generateAndReadFile(tempDir,
             "dev", "appget", "server", "service", "SpecificationRegistry.java");
-        assertTrue(content.contains("register(\"EmployeeAgeCheck\""),
-            "Should register EmployeeAgeCheck");
-        assertTrue(content.contains("register(\"EmployeeRoleCheck\""),
-            "Should register EmployeeRoleCheck");
-        assertTrue(content.contains("register(\"AuthenticatedApproval\""),
-            "Should register AuthenticatedApproval");
-        assertTrue(content.contains("register(\"SalaryAmountCheck\""),
-            "Should register SalaryAmountCheck");
+        assertTrue(content.contains("register(\"UserEmailValidation\""),
+            "Should register UserEmailValidation");
+        assertTrue(content.contains("register(\"UserSuspensionCheck\""),
+            "Should register UserSuspensionCheck");
+        assertTrue(content.contains("register(\"AdminAuthorizationRequired\""),
+            "Should register AdminAuthorizationRequired");
+        assertTrue(content.contains("register(\"SeverityLevelValidation\""),
+            "Should register SeverityLevelValidation");
     }
 
     @Test

@@ -126,6 +126,14 @@ class FeatureToSpecsConverterTest {
         assertEquals("Manager", result);
     }
 
+    @Test
+    @DisplayName("Value coercion: empty string in quotes returns empty string")
+    void testCoerceEmptyString() {
+        Object result = converter.coerceValue("\"\"");
+        assertInstanceOf(String.class, result);
+        assertEquals("", result, "Quoted empty string should coerce to empty string, not remain as \"\"");
+    }
+
     // ---- YAML value formatting ----
 
     @Test
@@ -149,151 +157,144 @@ class FeatureToSpecsConverterTest {
     // ---- Feature file parsing ----
 
     @Test
-    @DisplayName("Parse appget.feature produces 6 rules")
+    @DisplayName("Parse auth.feature produces 10 rules")
     void testParseAppgetFeature() throws Exception {
-        Path featurePath = Path.of("../features", "appget.feature");
+        Path featurePath = Path.of("../features", "auth.feature");
         if (Files.exists(featurePath)) {
             List<Map<String, Object>> rules = converter.parseFeatureFile(featurePath);
-            assertEquals(6, rules.size(), "appget.feature should produce 6 rules");
+            assertEquals(10, rules.size(), "auth.feature should produce 10 rules");
         }
     }
 
     @Test
-    @DisplayName("Parse hr.feature produces 1 rule")
+    @DisplayName("Parse admin.feature produces 7 rules")
     void testParseHrFeature() throws Exception {
-        Path featurePath = Path.of("../features", "hr.feature");
+        Path featurePath = Path.of("../features", "admin.feature");
         if (Files.exists(featurePath)) {
             List<Map<String, Object>> rules = converter.parseFeatureFile(featurePath);
-            assertEquals(1, rules.size(), "hr.feature should produce 1 rule");
+            assertEquals(7, rules.size(), "admin.feature should produce 7 rules");
         }
     }
 
     @SuppressWarnings("unchecked")
     @Test
-    @DisplayName("CountryOfOriginCheck rule has correct structure")
+    @DisplayName("UserEmailValidation rule has correct structure")
     void testCountryOfOriginRule() throws Exception {
-        Path featurePath = Path.of("../features", "appget.feature");
+        Path featurePath = Path.of("../features", "auth.feature");
         if (Files.exists(featurePath)) {
             List<Map<String, Object>> rules = converter.parseFeatureFile(featurePath);
             Map<String, Object> rule = rules.get(0);
 
-            assertEquals("CountryOfOriginCheck", rule.get("name"));
+            assertEquals("UserEmailValidation", rule.get("name"));
             Map<String, Object> target = (Map<String, Object>) rule.get("target");
             assertEquals("model", target.get("type"));
-            assertEquals("employees", target.get("name"));
-            assertEquals("appget", target.get("domain"));
-            assertNull(rule.get("blocking"));
+            assertEquals("users", target.get("name"));
+            assertEquals("auth", target.get("domain"));
+            assertEquals(true, rule.get("blocking"));
 
             List<Map<String, Object>> conditions = (List<Map<String, Object>>) rule.get("conditions");
             assertEquals(1, conditions.size());
-            assertEquals("country_of_origin", conditions.get(0).get("field"));
-            assertEquals("==", conditions.get(0).get("operator"));
-            assertEquals("USA", conditions.get(0).get("value"));
+            assertEquals("email", conditions.get(0).get("field"));
+            assertEquals("!=", conditions.get(0).get("operator"));
+            assertEquals("", conditions.get(0).get("value"));
 
             Map<String, String> thenMap = (Map<String, String>) rule.get("then");
-            assertEquals("APPROVED", thenMap.get("status"));
+            assertEquals("VALID_EMAIL", thenMap.get("status"));
             Map<String, String> elseMap = (Map<String, String>) rule.get("else");
-            assertEquals("REJECTED", elseMap.get("status"));
+            assertEquals("INVALID_EMAIL", elseMap.get("status"));
         }
     }
 
     @Test
-    @DisplayName("EmployeeAgeCheck rule has blocking flag")
+    @DisplayName("UserSuspensionCheck rule has blocking flag")
     void testBlockingFlag() throws Exception {
-        Path featurePath = Path.of("../features", "appget.feature");
+        Path featurePath = Path.of("../features", "auth.feature");
         if (Files.exists(featurePath)) {
             List<Map<String, Object>> rules = converter.parseFeatureFile(featurePath);
-            Map<String, Object> rule = rules.get(1); // EmployeeAgeCheck
-            assertEquals("EmployeeAgeCheck", rule.get("name"));
+            Map<String, Object> rule = rules.get(1); // UserSuspensionCheck
+            assertEquals("UserSuspensionCheck", rule.get("name"));
             assertEquals(true, rule.get("blocking"));
         }
     }
 
     @SuppressWarnings("unchecked")
     @Test
-    @DisplayName("SeniorManagerCheck has compound AND conditions")
+    @DisplayName("UserAccountStatus has compound AND conditions")
     void testCompoundConditions() throws Exception {
-        Path featurePath = Path.of("../features", "appget.feature");
+        Path featurePath = Path.of("../features", "auth.feature");
         if (Files.exists(featurePath)) {
             List<Map<String, Object>> rules = converter.parseFeatureFile(featurePath);
-            Map<String, Object> rule = rules.get(3); // SeniorManagerCheck
-            assertEquals("SeniorManagerCheck", rule.get("name"));
+            Map<String, Object> rule = rules.get(8); // UserAccountStatus
+            assertEquals("UserAccountStatus", rule.get("name"));
 
             Map<String, Object> conditions = (Map<String, Object>) rule.get("conditions");
             assertEquals("AND", conditions.get("operator"));
             List<Map<String, Object>> clauses = (List<Map<String, Object>>) conditions.get("clauses");
             assertEquals(2, clauses.size());
-            assertEquals("age", clauses.get(0).get("field"));
-            assertEquals(">=", clauses.get(0).get("operator"));
-            assertEquals(30, clauses.get(0).get("value"));
-            assertEquals("role_id", clauses.get(1).get("field"));
+            assertEquals("is_suspended", clauses.get(0).get("field"));
+            assertEquals("==", clauses.get(0).get("operator"));
+            assertEquals(false, clauses.get(0).get("value"));
+            assertEquals("is_verified", clauses.get(1).get("field"));
             assertEquals("==", clauses.get(1).get("operator"));
-            assertEquals("Manager", clauses.get(1).get("value"));
+            assertEquals(true, clauses.get(1).get("value"));
         }
     }
 
     @SuppressWarnings("unchecked")
     @Test
-    @DisplayName("HighEarnerCheck targets a view")
+    @DisplayName("HighEngagementPost targets a view")
     void testViewTarget() throws Exception {
-        Path featurePath = Path.of("../features", "appget.feature");
+        Path featurePath = Path.of("../features", "social.feature");
         if (Files.exists(featurePath)) {
             List<Map<String, Object>> rules = converter.parseFeatureFile(featurePath);
-            Map<String, Object> rule = rules.get(4); // HighEarnerCheck
-            assertEquals("HighEarnerCheck", rule.get("name"));
+            Map<String, Object> rule = rules.get(5); // HighEngagementPost
+            assertEquals("HighEngagementPost", rule.get("name"));
 
             Map<String, Object> target = (Map<String, Object>) rule.get("target");
             assertEquals("view", target.get("type"));
-            assertEquals("employee_salary_view", target.get("name"));
+            assertEquals("post_detail_view", target.get("name"));
         }
     }
 
     @SuppressWarnings("unchecked")
     @Test
-    @DisplayName("AuthenticatedApproval has metadata requirements")
+    @DisplayName("AdminAuthorizationRequired has metadata requirements")
     void testMetadataRequirements() throws Exception {
-        Path featurePath = Path.of("../features", "appget.feature");
+        Path featurePath = Path.of("../features", "admin.feature");
         if (Files.exists(featurePath)) {
             List<Map<String, Object>> rules = converter.parseFeatureFile(featurePath);
-            Map<String, Object> rule = rules.get(5); // AuthenticatedApproval
-            assertEquals("AuthenticatedApproval", rule.get("name"));
+            Map<String, Object> rule = rules.get(3); // AdminAuthorizationRequired
+            assertEquals("AdminAuthorizationRequired", rule.get("name"));
             assertEquals(true, rule.get("blocking"));
 
             Map<String, List<Map<String, Object>>> requires =
                     (Map<String, List<Map<String, Object>>>) rule.get("requires");
             assertNotNull(requires);
-            assertEquals(2, requires.size());
-
-            // SSO requirement
-            List<Map<String, Object>> ssoReqs = requires.get("sso");
-            assertEquals(1, ssoReqs.size());
-            assertEquals("authenticated", ssoReqs.get(0).get("field"));
-            assertEquals("==", ssoReqs.get(0).get("operator"));
-            assertEquals(true, ssoReqs.get(0).get("value"));
+            assertEquals(1, requires.size());
 
             // Roles requirement
             List<Map<String, Object>> rolesReqs = requires.get("roles");
             assertEquals(1, rolesReqs.size());
-            assertEquals("roleLevel", rolesReqs.get(0).get("field"));
-            assertEquals(">=", rolesReqs.get(0).get("operator"));
-            assertEquals(3, rolesReqs.get(0).get("value"));
+            assertEquals("isAdmin", rolesReqs.get(0).get("field"));
+            assertEquals("==", rolesReqs.get(0).get("operator"));
+            assertEquals(true, rolesReqs.get(0).get("value"));
         }
     }
 
     @SuppressWarnings("unchecked")
     @Test
-    @DisplayName("SalaryAmountCheck from hr.feature has correct domain")
+    @DisplayName("SeverityLevelValidation from admin.feature has correct domain")
     void testHrDomainRule() throws Exception {
-        Path featurePath = Path.of("../features", "hr.feature");
+        Path featurePath = Path.of("../features", "admin.feature");
         if (Files.exists(featurePath)) {
             List<Map<String, Object>> rules = converter.parseFeatureFile(featurePath);
             Map<String, Object> rule = rules.get(0);
-            assertEquals("SalaryAmountCheck", rule.get("name"));
+            assertEquals("SeverityLevelValidation", rule.get("name"));
 
             Map<String, Object> target = (Map<String, Object>) rule.get("target");
             assertEquals("model", target.get("type"));
-            assertEquals("salaries", target.get("name"));
-            assertEquals("hr", target.get("domain"));
+            assertEquals("moderation_flags", target.get("name"));
+            assertEquals("admin", target.get("domain"));
         }
     }
 
@@ -321,16 +322,13 @@ class FeatureToSpecsConverterTest {
             assertNotNull(data.get("metadata"), "Output should have metadata section");
             List<Map<String, Object>> rules = (List<Map<String, Object>>) data.get("rules");
             assertNotNull(rules, "Output should have rules section");
-            assertEquals(7, rules.size(), "Should have 7 rules total");
+            assertEquals(27, rules.size(), "Should have 27 rules total (7 admin + 10 auth + 10 social)");
 
-            // Verify rule names in order
-            assertEquals("CountryOfOriginCheck", rules.get(0).get("name"));
-            assertEquals("EmployeeAgeCheck", rules.get(1).get("name"));
-            assertEquals("EmployeeRoleCheck", rules.get(2).get("name"));
-            assertEquals("SeniorManagerCheck", rules.get(3).get("name"));
-            assertEquals("HighEarnerCheck", rules.get(4).get("name"));
-            assertEquals("AuthenticatedApproval", rules.get(5).get("name"));
-            assertEquals("SalaryAmountCheck", rules.get(6).get("name"));
+            // Files processed in alphabetical order: admin, auth, social
+            // Verify first rule from admin.feature
+            assertEquals("SeverityLevelValidation", rules.get(0).get("name"));
+            // Verify first rule from auth.feature (after admin's 7 rules)
+            assertEquals("UserEmailValidation", rules.get(7).get("name"));
         }
     }
 

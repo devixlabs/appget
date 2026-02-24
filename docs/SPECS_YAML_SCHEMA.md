@@ -11,11 +11,11 @@ metadata:
       - name: authenticated
         type: bool
 rules:
-  - name: EmployeeAgeCheck
+  - name: UserEmailValidation
     target:
       type: model
-      name: Employee
-      domain: appget
+      name: users
+      domain: auth
     blocking: true
     requires:
       sso:
@@ -24,14 +24,14 @@ rules:
           value: true
           value_type: bool
     conditions:
-      - field: age
-        operator: ">"
-        value: 18
-        value_type: int32
+      - field: email
+        operator: "!="
+        value: ""
+        value_type: string
     then:
-      status: "APPROVED"
+      status: "VALID_EMAIL"
     else:
-      status: "REJECTED"
+      status: "INVALID_EMAIL"
 ```
 
 ## Metadata section

@@ -312,9 +312,9 @@ Protobuf is the shared schema and code generation medium for ALL future appget.d
 - **Parenthesis matching**: Correctly handles `DECIMAL(15,2)` nested types
 - **Type mapping**: Comprehensive SQL → Java type conversion
 - **Constraint parsing**: Respects `NOT NULL`, wraps primitives appropriately
-- **Domain assignment**: comment-based detection (`-- appget domain` before tables assigns domain)
-- **Name preservation**: table and column names kept as snake_case (e.g., `employees`, `role_id`)
-- **View alias resolution**: `e.name` → resolves `e` → `employees` → lookup column type
+- **Domain assignment**: comment-based detection (`-- auth domain` before tables assigns domain)
+- **Name preservation**: table and column names kept as snake_case (e.g., `users`, `severity_level`)
+- **View alias resolution**: `p.content` → resolves `p` → `posts` → lookup column type
 - **Aggregate functions**: COUNT → long, SUM → BigDecimal, AVG → double
 
 ### Type Mapping Strategy
@@ -334,26 +334,23 @@ LocalDate + nullable=any → LocalDate (can hold null)
 
 ### Domain Organization
 
-**Table Mapping** (in SQLSchemaParser.java):
-```java
-DOMAIN_MAPPING = {
-    "employees" → "appget",
-    "roles" → "appget",
-    "departments" → "hr",
-    "salaries" → "hr",
-    "invoices" → "finance"
-}
+**Table Mapping** (comment-based in schema.sql — `-- <domain> domain` before each table group):
+```
+-- auth domain:   users, sessions  → dev.appget.auth.model
+-- social domain: posts, comments, likes, follows, reposts → dev.appget.social.model
+-- admin domain:  moderation_flags → dev.appget.admin.model
+```
 
-VIEW_DOMAIN_MAPPING = {
-    "employee_salary_view" → "appget",
-    "department_budget_view" → "hr"
-}
+**View Mapping** (comment-based in views.sql — same `-- <domain> domain` pattern):
+```
+-- social domain: user_profile_view, post_detail_view,
+                  comment_detail_view, feed_post_view → dev.appget.social.view
 ```
 
 **Package Generation**:
-- Domain `appget` → `dev.appget.model` / `dev.appget.view`
-- Domain `hr` → `dev.appget.hr.model` / `dev.appget.hr.view`
-- Domain `finance` → `dev.appget.finance.model`
+- Domain `auth`   → `dev.appget.auth.model`
+- Domain `social` → `dev.appget.social.model` / `dev.appget.social.view`
+- Domain `admin`  → `dev.appget.admin.model`
 
 ---
 
@@ -367,20 +364,20 @@ Business rules are defined in human-friendly Gherkin `.feature` files, one per d
 
 ### Feature File DSL
 
-**Feature-level tags**: `@domain:appget` assigns domain to all scenarios
+**Feature-level tags**: `@domain:auth` assigns domain to all scenarios
 
 **Scenario-level tags**:
-- `@target:employees` - target model/view name (snake_case plural)
-- `@rule:EmployeeAgeCheck` - explicit rule name
+- `@target:users` - target model/view name (snake_case plural, matches SQL table name)
+- `@rule:UserEmailValidation` - explicit rule name
 - `@blocking` - rule causes 422 rejection when unsatisfied
 - `@view` - target is a view (not a model)
 
 **Step patterns**:
 | Purpose | Pattern | Example |
 |---------|---------|---------|
-| Simple condition | `When <field> <operator_phrase> <value>` | `When age is greater than 18` |
-| String condition | `When <field> <operator_phrase> "<value>"` | `When role_id equals "Manager"` |
-| Compound AND | `When all conditions are met:` + data table | See features/appget.feature |
+| Simple condition | `When <field> <operator_phrase> <value>` | `When severity_level is greater than 8` |
+| String condition | `When <field> <operator_phrase> "<value>"` | `When username does not equal ""` |
+| Compound AND | `When all conditions are met:` + data table | See features/auth.feature |
 | Compound OR | `When any condition is met:` + data table | |
 | Metadata req | `Given <category> context requires:` + data table | `Given sso context requires:` |
 | Success outcome | `Then status is "<value>"` | `Then status is "APPROVED"` |
@@ -398,9 +395,10 @@ Business rules are defined in human-friendly Gherkin `.feature` files, one per d
 
 ### Feature Files
 
-- `features/appget.feature` - 6 rules (Employees model + EmployeeSalaryView view)
-- `features/hr.feature` - 1 rule (Salaries model)
-- `metadata.yaml` - context POJOs (sso, roles, user, location) committed separately
+- `features/admin.feature` - 7 rules (ModerationFlags model)
+- `features/auth.feature` - 10 rules (Users + Sessions models)
+- `features/social.feature` - 10 rules (Posts, Comments, Follows models + 4 views)
+- `metadata.yaml` - context POJOs (sso, roles, user, tenant) committed separately
 
 ### Important Gotchas
 
@@ -505,20 +503,20 @@ metadata:
         type: String
 
 rules:
-  - name: EmployeeAgeCheck
+  - name: UserEmailValidation
     target:
       type: model
-      name: employees
-      domain: appget
+      name: users
+      domain: auth
     blocking: true             # Causes 422 rejection if unsatisfied
     conditions:
-      - field: age
-        operator: ">"
-        value: 18
+      - field: email
+        operator: "!="
+        value: ""
     then:
-      status: "APPROVED"
+      status: "VALID_EMAIL"
     else:
-      status: "REJECTED"
+      status: "INVALID_EMAIL"
 ```
 
 **Condition shapes**:
@@ -618,11 +616,11 @@ All language implementations should:
 **RuleService Generated Pattern**:
 ```java
 // Direct instantiation (no runtime YAML loading)
-private final EmployeeAgeCheck employeeAgeCheck = new EmployeeAgeCheck();
-private final AuthenticatedApproval authenticatedApproval = new AuthenticatedApproval();
+private final UserEmailValidation userEmailValidation = new UserEmailValidation();
+private final AdminAuthorizationRequired adminAuthorizationRequired = new AdminAuthorizationRequired();
 
 // instanceof grouping per target model
-if (target instanceof Employees) {
+if (target instanceof Users) {
     // blocking rules set hasFailures = true when unsatisfied
     // informational rules just report outcome
     // metadata-aware rules use evaluate(target, metadata)
@@ -643,7 +641,7 @@ context.with("sso", ssoContext);
 **Blocking Rules** (`specs.yaml`):
 - `blocking: true` → unsatisfied rule causes 422 rejection (hasFailures = true)
 - `blocking: false` (default) → informational, reported in outcomes but never blocks
-- Currently blocking: EmployeeAgeCheck, AuthenticatedApproval
+- Currently blocking: UserEmailValidation, UserSuspensionCheck, SessionActiveValidation, SessionTokenPresence, VerifiedUserRequirement, UsernamePresence, SeverityLevelValidation, ReasonPresence, AdminAuthorizationRequired, HighSeverityEscalation, ContentTargetValidation, PublicPostVerification, PostContentValidation, CommentCreationValidation, ActiveFollowValidation
 
 **Usage**:
 ```bash
@@ -653,11 +651,11 @@ make generate-server
 make run-server
 # Builds + starts Spring Boot on http://localhost:8080
 
-curl -X POST http://localhost:8080/employees \
+curl -X POST http://localhost:8080/users \
   -H "Content-Type: application/json" \
   -H "X-Sso-Authenticated: true" \
-  -H "X-Roles-Role-Level: 5" \
-  -d '{"name":"Alice","age":30,"roleId":"Manager"}'
+  -H "X-Roles-Is-Admin: true" \
+  -d '{"username":"alice","email":"alice@example.com","isVerified":true,"isSuspended":false}'
 # Returns: 201 Created with ruleResults
 ```
 
