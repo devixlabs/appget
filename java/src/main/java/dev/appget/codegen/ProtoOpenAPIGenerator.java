@@ -399,7 +399,7 @@ public class ProtoOpenAPIGenerator {
     private Map<String, Object> buildListOp(String modelName) {
         Map<String, Object> op = new LinkedHashMap<>();
         op.put("summary", "List " + modelName + " records");
-        op.put("operationId", "list" + modelName + "s");
+        op.put("operationId", "list" + modelName);
         op.put("tags", List.of(modelName));
 
         Map<String, Object> arraySchema = new LinkedHashMap<>();
@@ -529,6 +529,7 @@ public class ProtoOpenAPIGenerator {
 
     private String pluralize(String word) {
         if (word == null || word.isEmpty()) return word;
+        if (word.endsWith("s")) return word;
         if (word.endsWith("y") && word.length() > 1) {
             char preceding = word.charAt(word.length() - 2);
             String vowels = "aeiou";

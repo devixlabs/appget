@@ -83,7 +83,7 @@ Generators use **plain string building** (StringBuilder) as the default approach
 - `DescriptorRegistryGenerator` → `templates/descriptor/DescriptorRegistry.java.hbs`
 - `SpecificationGenerator` → `templates/specification/*.java.hbs`
 
-The remaining generators (`SpringBootServerGenerator`, `ProtoOpenAPIGenerator`, `ModelsToProtoConverter`, etc.) intentionally stay with StringBuilder — their output involves complex conditional logic that would be harder to maintain in a template.
+The remaining generators (`AppServerGenerator`, `ProtoOpenAPIGenerator`, `ModelsToProtoConverter`, etc.) intentionally stay with StringBuilder — their output involves complex conditional logic that would be harder to maintain in a template.
 
 **Rule for future subprojects**: Use plain string building. Do not introduce templating libraries unless the generated output is simple and structural.
 
@@ -174,5 +174,5 @@ Adjust "Phase N" to match the relevant phase from `ROADMAP.md`. No banner = curr
 
 ---
 
-**Last Updated**: 2026-02-16
+**Last Updated**: 2026-02-24
 **Status**: Language-agnostic guidance (Java details in java/CLAUDE.md)

@@ -182,7 +182,7 @@ task generateOpenAPI(type: JavaExec) {
 task generateServer(type: JavaExec) {
     group = 'build'
     description = 'Generate Spring Boot server from models and specs'
-    mainClass = 'dev.appget.codegen.SpringBootServerGenerator'
+    mainClass = 'dev.appget.codegen.AppServerGenerator'
     classpath = files(compileGenerators.destinationDirectory.get().getAsFile(), configurations.compileClasspath)
     args = ['models.yaml', 'specs.yaml', 'generated-server']
     dependsOn 'compileGenerators'

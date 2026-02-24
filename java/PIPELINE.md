@@ -120,7 +120,7 @@ make generate-openapi  # .proto files -> generate openapi.yaml (ProtoOpenAPIGene
 make generate          # Generate all (features-to-specs + protoc + specs + registry + openapi)
 make generate-server   # Generate Spring Boot server from models and specs
 make build             # Full pipeline: parse schema, generate, compile
-make test              # Run all 171 tests
+make test              # Run all 280 tests
 make run               # Build and execute the application
 make run-server        # Build and run the Spring Boot server
 make clean             # Clean all build artifacts
@@ -147,7 +147,7 @@ gradle build                       # Full build with packaging
 ```
 compileGenerators (independent)
     ↓
-    ├→ featuresToSpecs (features/*.feature + metadata.yaml -> specs.yaml) [NEW]
+    ├→ featuresToSpecs (features/*.feature + metadata.yaml -> specs.yaml)
     │       ↓
     ├→ parseSchema (schema.sql + views.sql -> models.yaml)
     │       ↓
@@ -177,7 +177,7 @@ compileGenerators (independent)
 - **features/*.feature** - Gherkin business rule definitions (human-friendly BDD format)
   - One `.feature` file per domain (`appget.feature`, `hr.feature`)
   - Feature-level tags: `@domain:appget` assigns domain to all scenarios
-  - Scenario-level tags: `@target:Employee`, `@rule:RuleName`, `@blocking`, `@view`
+  - Scenario-level tags: `@target:employees`, `@rule:RuleName`, `@blocking`, `@view`
   - Step patterns: `When <field> <operator_phrase> <value>`, `Then status is "<value>"`, `But otherwise status is "<value>"`
   - Compound conditions: `When all conditions are met:` (AND) / `When any condition is met:` (OR) + data table
   - Metadata requirements: `Given <category> context requires:` + data table
@@ -305,7 +305,7 @@ requires:
 ```yaml
 target:
   type: model    # or "view"
-  name: Employee # model/view class name
+  name: employees # model/view name (snake_case plural, matches models.yaml)
   domain: appget # domain for import resolution
 ```
 
@@ -319,7 +319,7 @@ target:
 - **SnakeYAML 2.2** - YAML processing
 - **Lombok 1.18.38** - Metadata POJO annotations (SsoContext, RolesContext, etc.)
 - **Log4j2 2.23.1** - Logging
-- **JUnit 5 5.11.3** - Testing framework (171 tests)
+- **JUnit 5 5.11.3** - Testing framework (280 tests)
 
 ## Code Generation Approach
 
@@ -336,7 +336,7 @@ Generators use two approaches, chosen based on output complexity:
 **StringBuilder** (complex conditional logic):
 | Generator | Output |
 |-----------|--------|
-| `SpringBootServerGenerator` | Spring Boot REST API (controllers, services, repos) |
+| `AppServerGenerator` | Spring Boot REST API (controllers, services, repos) |
 | `ProtoOpenAPIGenerator` | OpenAPI 3.0 YAML |
 | `ModelsToProtoConverter` | .proto files |
 | `OpenAPITestScriptGenerator` | Test scripts |
@@ -357,7 +357,7 @@ Template files live in `src/main/resources/templates/` with `.hbs` extension.
 - **Feature-to-Specs Conversion**: `FeatureToSpecsConverter` parses Gherkin → generates `specs.yaml` (intermediate representation)
 - **Multi-Dialect Support**: Regex-based parsing handles MySQL, SQLite, Oracle, MSSQL, PostgreSQL
 - **SQL View Parsing**: Resolves column types from source tables via alias mapping
-- **Automatic Singularization**: `employees` -> `Employee`, `departments` -> `Department`
+- **Name Preservation**: table/column names kept as snake_case (generators apply `snakeToPascal()` for language-specific output)
 - **Protobuf-First Models**: SQL → .proto → protoc → Java protobuf classes (MessageOrBuilder)
 - **Proto-First OpenAPI**: .proto files → OpenAPI 3.0 YAML (full CRUD, security)
 - **gRPC Service Stubs**: 5 services across 3 domains (protoc-gen-grpc-java)

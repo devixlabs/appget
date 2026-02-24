@@ -1,6 +1,7 @@
 package dev.appget.util;
 
 import com.google.protobuf.Descriptors;
+import dev.appget.codegen.JavaUtils;
 import org.yaml.snakeyaml.Yaml;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -69,19 +70,19 @@ class DescriptorRegistryTest {
     }
 
     @Test
-    @DisplayName("Registry should find Employee descriptor")
+    @DisplayName("Registry should find Employees descriptor")
     void testFindEmployee() {
-        Descriptors.Descriptor desc = registry.getDescriptorByName("Employee");
-        assertNotNull(desc, "Employee descriptor should be registered");
-        assertEquals("Employee", desc.getName());
+        Descriptors.Descriptor desc = registry.getDescriptorByName("employees");
+        assertNotNull(desc, "Employees descriptor should be registered");
+        assertEquals("Employees", desc.getName());
     }
 
     @Test
-    @DisplayName("Registry should find Salary descriptor")
+    @DisplayName("Registry should find Salaries descriptor")
     void testFindSalary() {
-        Descriptors.Descriptor desc = registry.getDescriptorByName("Salary");
-        assertNotNull(desc, "Salary descriptor should be registered");
-        assertEquals("Salary", desc.getName());
+        Descriptors.Descriptor desc = registry.getDescriptorByName("salaries");
+        assertNotNull(desc, "Salaries descriptor should be registered");
+        assertEquals("Salaries", desc.getName());
     }
 
     @Test
@@ -105,12 +106,13 @@ class DescriptorRegistryTest {
     }
 
     @Test
-    @DisplayName("Descriptor names should match registry keys")
+    @DisplayName("Descriptor names should match PascalCase of registry keys")
     void testDescriptorNamesMatchKeys() {
         for (String name : expectedModelViewNames) {
             Descriptors.Descriptor desc = registry.getDescriptorByName(name);
-            assertEquals(name, desc.getName(),
-                    "Descriptor name should match registry key: " + name);
+            assertNotNull(desc, "Descriptor should exist for key: " + name);
+            assertEquals(JavaUtils.snakeToPascal(name), desc.getName(),
+                    "Descriptor name should be PascalCase of registry key: " + name);
         }
     }
 
@@ -121,18 +123,20 @@ class DescriptorRegistryTest {
     }
 
     @Test
-    @DisplayName("Employee descriptor should have expected fields")
+    @DisplayName("Employees descriptor should have expected fields")
     void testEmployeeFields() {
-        Descriptors.Descriptor desc = registry.getDescriptorByName("Employee");
-        assertNotNull(desc.findFieldByName("name"), "Employee should have name field");
-        assertNotNull(desc.findFieldByName("age"), "Employee should have age field");
-        assertNotNull(desc.findFieldByName("role_id"), "Employee should have role_id field");
+        Descriptors.Descriptor desc = registry.getDescriptorByName("employees");
+        assertNotNull(desc, "Employees descriptor should exist");
+        assertNotNull(desc.findFieldByName("name"), "Employees should have name field");
+        assertNotNull(desc.findFieldByName("age"), "Employees should have age field");
+        assertNotNull(desc.findFieldByName("role_id"), "Employees should have role_id field");
     }
 
     @Test
     @DisplayName("EmployeeSalaryView descriptor should have expected fields")
     void testViewFields() {
-        Descriptors.Descriptor desc = registry.getDescriptorByName("EmployeeSalaryView");
+        Descriptors.Descriptor desc = registry.getDescriptorByName("employee_salary_view");
+        assertNotNull(desc, "EmployeeSalaryView descriptor should exist");
         assertNotNull(desc.findFieldByName("employee_name"));
         assertNotNull(desc.findFieldByName("salary_amount"));
     }

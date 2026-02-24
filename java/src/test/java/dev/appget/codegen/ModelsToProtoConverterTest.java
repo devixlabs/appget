@@ -61,8 +61,8 @@ class ModelsToProtoConverterTest {
         assertTrue(content.contains("syntax = \"proto3\""), "Should use proto3 syntax");
         assertTrue(content.contains("java_package = \"dev.appget.model\""), "Should have correct java_package");
         assertTrue(content.contains("java_multiple_files = true"), "Should enable multiple files");
-        assertTrue(content.contains("message Employee"), "Should contain Employee message");
-        assertTrue(content.contains("message Role"), "Should contain Role message");
+        assertTrue(content.contains("message Employees"), "Should contain Employees message");
+        assertTrue(content.contains("message Roles"), "Should contain Roles message");
     }
 
     @Test
@@ -85,8 +85,8 @@ class ModelsToProtoConverterTest {
 
         String content = Files.readString(tempDir.resolve("hr_models.proto"));
         assertTrue(content.contains("java_package = \"dev.appget.hr.model\""), "HR domain should have correct java_package");
-        assertTrue(content.contains("message Department"), "Should contain Department message");
-        assertTrue(content.contains("message Salary"), "Should contain Salary message");
+        assertTrue(content.contains("message Departments"), "Should contain Departments message");
+        assertTrue(content.contains("message Salaries"), "Should contain Salaries message");
     }
 
     @Test
@@ -108,7 +108,7 @@ class ModelsToProtoConverterTest {
 
         String content = Files.readString(tempDir.resolve("finance_models.proto"));
         assertTrue(content.contains("java_package = \"dev.appget.finance.model\""), "Finance domain java_package");
-        assertTrue(content.contains("message Invoice"), "Should contain Invoice message");
+        assertTrue(content.contains("message Invoices"), "Should contain Invoices message");
         assertTrue(content.contains("google.protobuf.Timestamp issue_date"), "DATE should map to google.protobuf.Timestamp");
     }
 
@@ -226,11 +226,11 @@ class ModelsToProtoConverterTest {
         converter.convert(tempModelsYaml.toString(), tempDir.toString());
 
         String content = Files.readString(tempDir.resolve("appget_services.proto"));
-        assertTrue(content.contains("service EmployeeService"), "Should have EmployeeService");
-        assertTrue(content.contains("rpc CreateEmployee"), "Should have CreateEmployee RPC");
-        assertTrue(content.contains("rpc GetEmployee"), "Should have GetEmployee RPC");
-        assertTrue(content.contains("rpc UpdateEmployee"), "Should have UpdateEmployee RPC");
-        assertTrue(content.contains("rpc DeleteEmployee"), "Should have DeleteEmployee RPC");
+        assertTrue(content.contains("service EmployeesService"), "Should have EmployeesService");
+        assertTrue(content.contains("rpc CreateEmployees"), "Should have CreateEmployees RPC");
+        assertTrue(content.contains("rpc GetEmployees"), "Should have GetEmployees RPC");
+        assertTrue(content.contains("rpc UpdateEmployees"), "Should have UpdateEmployees RPC");
+        assertTrue(content.contains("rpc DeleteEmployees"), "Should have DeleteEmployees RPC");
         assertTrue(content.contains("rpc ListEmployees"), "Should have ListEmployees RPC");
     }
 

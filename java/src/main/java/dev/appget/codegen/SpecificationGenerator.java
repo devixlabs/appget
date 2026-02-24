@@ -93,7 +93,7 @@ public class SpecificationGenerator {
                 for (Map<String, Object> model : models) {
                     String name = (String) model.get("name");
                     String key = domainName + ":model:" + name;
-                    targetImportMap.put(key, namespace + ".model." + name);
+                    targetImportMap.put(key, namespace + ".model." + JavaUtils.snakeToPascal(name));
                 }
             }
 
@@ -103,7 +103,7 @@ public class SpecificationGenerator {
                 for (Map<String, Object> view : views) {
                     String name = (String) view.get("name");
                     String key = domainName + ":view:" + name;
-                    targetImportMap.put(key, namespace + ".view." + name);
+                    targetImportMap.put(key, namespace + ".view." + JavaUtils.snakeToPascal(name));
                 }
             }
         }
@@ -213,10 +213,10 @@ public class SpecificationGenerator {
             String targetDomain = (String) target.get("domain");
             String key = targetDomain + ":" + targetKind + ":" + targetName;
             targetImport = targetImportMap.getOrDefault(key, guessImport(targetDomain, targetKind, targetName));
-            targetTypeName = targetName;
+            targetTypeName = JavaUtils.snakeToPascal(targetName);
         } else {
-            targetTypeName = "Employee";
-            targetImport = "dev.appget.model.Employee";
+            targetTypeName = "Employees";
+            targetImport = "dev.appget.model.Employees";
         }
 
         // Parse conditions
@@ -332,7 +332,7 @@ public class SpecificationGenerator {
             namespace += "." + domain;
         }
         String subpackage = "view".equals(kind) ? "view" : "model";
-        return namespace + "." + subpackage + "." + name;
+        return namespace + "." + subpackage + "." + JavaUtils.snakeToPascal(name);
     }
 
     private String formatValue(Object value) {

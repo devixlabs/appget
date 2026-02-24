@@ -20,7 +20,7 @@ public class DescriptorRegistry {
 {{#if hasEntries}}
         // Models and Views (from models.yaml)
 {{#each entries}}
-        register("{{name}}", {{name}}.getDescriptor());
+        register("{{name}}", {{pascalName}}.getDescriptor());
 {{/each}}
 {{/if}}
     }

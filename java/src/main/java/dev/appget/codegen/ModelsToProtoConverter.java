@@ -126,7 +126,7 @@ public class ModelsToProtoConverter {
                     String name = (String) model.get("name");
                     List<Map<String, Object>> fields = (List<Map<String, Object>>) model.get("fields");
                     List<ProtoField> protoFields = convertFields(fields);
-                    domainModels.computeIfAbsent(domain, k -> new ArrayList<>()).add(new ProtoMessage(name, protoFields));
+                    domainModels.computeIfAbsent(domain, k -> new ArrayList<>()).add(new ProtoMessage(JavaUtils.snakeToPascal(name), protoFields));
                     logger.debug("Parsed model: {} in domain: {}", name, domain);
                 }
             }
@@ -137,7 +137,7 @@ public class ModelsToProtoConverter {
                     String name = (String) view.get("name");
                     List<Map<String, Object>> fields = (List<Map<String, Object>>) view.get("fields");
                     List<ProtoField> protoFields = convertFields(fields);
-                    domainViews.computeIfAbsent(domain, k -> new ArrayList<>()).add(new ProtoMessage(name, protoFields));
+                    domainViews.computeIfAbsent(domain, k -> new ArrayList<>()).add(new ProtoMessage(JavaUtils.snakeToPascal(name), protoFields));
                     logger.debug("Parsed view: {} in domain: {}", name, domain);
                 }
             }
@@ -337,7 +337,7 @@ public class ModelsToProtoConverter {
               .append(") returns (").append(domain).append(".").append(name).append(") {}\n");
             sb.append("  rpc Delete").append(name).append("(").append(name).append("Id")
               .append(") returns (google.protobuf.Empty) {}\n");
-            sb.append("  rpc List").append(name).append("s(google.protobuf.Empty")
+            sb.append("  rpc List").append(name).append("(google.protobuf.Empty")
               .append(") returns (").append(name).append("List) {}\n");
             sb.append("}\n");
         }

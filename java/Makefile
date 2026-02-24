@@ -16,12 +16,12 @@ help:
 	@echo "  make generate-specs    - Generate specification classes from YAML"
 	@echo "  make generate-registry - Generate DescriptorRegistry from models.yaml"
 	@echo "  make generate-openapi  - Generate OpenAPI spec from .proto files"
-	@echo "  make generate-server   - Generate Spring Boot server from models and specs"
+	@echo "  make generate-server   - Generate application server from models and specs"
 	@echo "  make generate-test-script - Generate API test script from OpenAPI spec"
 	@echo "  make build             - Full build: parse schema, generate, then compile"
 	@echo "  make test              - Run unit tests"
 	@echo "  make run               - Build and run the Java Rule Engine POC"
-	@echo "  make run-server        - Build and run the Spring Boot server"
+	@echo "  make run-server        - Build and run the application server"
 	@echo "  make test-api          - Run the generated API test script (requires server running)"
 	@echo "  make clean             - Remove build artifacts and generated code"
 
@@ -71,9 +71,9 @@ generate-openapi: setup
 	@echo "Generating OpenAPI spec from YAML..."
 	@./gradlew generateOpenAPI
 
-# Generate Spring Boot server only
+# Generate application server only
 generate-server: setup
-	@echo "✓ Generating Spring Boot server from models and specs..."
+	@echo "✓ Generating application server from models and specs..."
 	@./gradlew generateServer
 
 # Generate models (protoc), specs, registry, and OpenAPI
@@ -87,9 +87,9 @@ run: build
 test: setup
 	@./gradlew test
 
-# Build and run the Spring Boot server
+# Build and run the application server
 run-server: build generate-server
-	@echo "✓ Starting Spring Boot server..."
+	@echo "✓ Starting application server..."
 	@cd generated-server && ../gradlew bootRun
 
 # Generate API test script from OpenAPI spec

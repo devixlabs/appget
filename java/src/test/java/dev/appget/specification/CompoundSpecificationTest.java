@@ -1,6 +1,6 @@
 package dev.appget.specification;
 
-import dev.appget.model.Employee;
+import dev.appget.model.Employees;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -12,11 +12,11 @@ import static org.junit.jupiter.api.Assertions.*;
 @DisplayName("Compound Specification Tests")
 class CompoundSpecificationTest {
 
-    private Employee employee;
+    private Employees employee;
 
     @BeforeEach
     void setUp() {
-        employee = Employee.newBuilder()
+        employee = Employees.newBuilder()
                 .setName("Alice")
                 .setAge(35)
                 .setRoleId("Manager")

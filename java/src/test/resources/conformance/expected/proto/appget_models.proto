@@ -6,25 +6,18 @@ option java_multiple_files = true;
 
 package appget;
 
-message Role {
+message Roles {
   string name = 1;
 }
 
-message Employee {
+message Employees {
   string name = 1;
   int32 age = 2;
   string role_id = 3;
   optional string country_of_origin = 4;
 }
 
-message Vendor {
+message Vendors {
   string name = 1;
   int32 location_id = 2;
-}
-
-message Location {
-  string locationid = 1;
-  string locationname = 2;
-  double longitude = 3;
-  double latitude = 4;
 }

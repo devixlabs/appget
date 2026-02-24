@@ -3,8 +3,8 @@ package dev.appget.util;
 import com.google.protobuf.Descriptors;
 import com.google.protobuf.Message;
 import com.google.protobuf.MessageOrBuilder;
-import dev.appget.model.Employee;
-import dev.appget.hr.model.Salary;
+import dev.appget.model.Employees;
+import dev.appget.hr.model.Salaries;
 import dev.appget.view.EmployeeSalaryView;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -25,10 +25,10 @@ class TestDataBuilderTest {
     @Test
     @DisplayName("Should build Employee with default values")
     void testBuildEmployee() {
-        MessageOrBuilder employee = builder.buildSampleMessage(Employee.getDescriptor());
+        MessageOrBuilder employee = builder.buildSampleMessage(Employees.getDescriptor());
         assertNotNull(employee);
 
-        Descriptors.Descriptor desc = Employee.getDescriptor();
+        Descriptors.Descriptor desc = Employees.getDescriptor();
         assertEquals("Sample_name", employee.getField(desc.findFieldByName("name")));
         assertEquals(42, employee.getField(desc.findFieldByName("age")));
         assertEquals("Sample_role_id", employee.getField(desc.findFieldByName("role_id")));
@@ -37,10 +37,10 @@ class TestDataBuilderTest {
     @Test
     @DisplayName("Should build Salary with correct types")
     void testBuildSalary() {
-        MessageOrBuilder salary = builder.buildSampleMessage(Salary.getDescriptor());
+        MessageOrBuilder salary = builder.buildSampleMessage(Salaries.getDescriptor());
         assertNotNull(salary);
 
-        Descriptors.Descriptor desc = Salary.getDescriptor();
+        Descriptors.Descriptor desc = Salaries.getDescriptor();
         assertEquals("Sample_employee_id", salary.getField(desc.findFieldByName("employee_id")));
         // amount is now appget.common.Decimal (a message type)
         Object amountField = salary.getField(desc.findFieldByName("amount"));
@@ -68,24 +68,24 @@ class TestDataBuilderTest {
     @Test
     @DisplayName("String fields should have Sample_ prefix")
     void testStringFieldFormat() {
-        MessageOrBuilder employee = builder.buildSampleMessage(Employee.getDescriptor());
-        Object name = employee.getField(Employee.getDescriptor().findFieldByName("name"));
+        MessageOrBuilder employee = builder.buildSampleMessage(Employees.getDescriptor());
+        Object name = employee.getField(Employees.getDescriptor().findFieldByName("name"));
         assertTrue(name.toString().startsWith("Sample_"), "String fields should start with 'Sample_'");
     }
 
     @Test
     @DisplayName("Integer fields should default to 42")
     void testIntFieldDefault() {
-        MessageOrBuilder employee = builder.buildSampleMessage(Employee.getDescriptor());
-        Object age = employee.getField(Employee.getDescriptor().findFieldByName("age"));
+        MessageOrBuilder employee = builder.buildSampleMessage(Employees.getDescriptor());
+        Object age = employee.getField(Employees.getDescriptor().findFieldByName("age"));
         assertEquals(42, age);
     }
 
     @Test
     @DisplayName("Decimal fields should default to a Decimal message with value 42.0")
     void testDecimalFieldDefault() {
-        MessageOrBuilder salary = builder.buildSampleMessage(Salary.getDescriptor());
-        Object amount = salary.getField(Salary.getDescriptor().findFieldByName("amount"));
+        MessageOrBuilder salary = builder.buildSampleMessage(Salaries.getDescriptor());
+        Object amount = salary.getField(Salaries.getDescriptor().findFieldByName("amount"));
         // amount is now appget.common.Decimal (a message), not a raw double
         assertNotNull(amount, "Decimal field should not be null");
         assertInstanceOf(Message.class, amount, "Decimal field should be a Message");

@@ -15,7 +15,7 @@ import dev.appget.codegen.CodeGenUtils;
  * Supports multiple database dialects (MySQL, SQLite, Oracle, MSSQL, PostgreSQL).
  *
  * Emits language-neutral types (string, int32, int64, float64, bool, date, datetime, decimal)
- * with field_number, source_table/source_view, resource, primary_key, and precision/scale.
+ * with field_number, source_table/source_view, primary_key, and precision/scale.
  */
 public class SQLSchemaParser {
 
@@ -23,8 +23,6 @@ public class SQLSchemaParser {
     private static final String ORGANIZATION = "appget";
     private static final int SCHEMA_VERSION = 1;
     private static final Map<String, String> SQL_TO_NEUTRAL_TYPE = createSqlToNeutralTypeMapping();
-    private static final Map<String, String> DOMAIN_MAPPING = createDomainMapping();
-    private static final Map<String, String> VIEW_DOMAIN_MAPPING = createViewDomainMapping();
 
     // Pattern to extract precision,scale from DECIMAL(p,s)
     private static final Pattern DECIMAL_PRECISION_PATTERN = Pattern.compile(
@@ -50,25 +48,6 @@ public class SQLSchemaParser {
         map.put("DATETIME", "datetime");
         map.put("BOOLEAN", "bool");
         map.put("BOOL", "bool");
-        return map;
-    }
-
-    private static Map<String, String> createDomainMapping() {
-        Map<String, String> map = new HashMap<>();
-        map.put("roles", "appget");
-        map.put("employees", "appget");
-        map.put("vendors", "appget");
-        map.put("locations", "appget");
-        map.put("departments", "hr");
-        map.put("salaries", "hr");
-        map.put("invoices", "finance");
-        return map;
-    }
-
-    private static Map<String, String> createViewDomainMapping() {
-        Map<String, String> map = new HashMap<>();
-        map.put("employee_salary_view", "appget");
-        map.put("department_budget_view", "hr");
         return map;
     }
 
@@ -256,13 +235,12 @@ public class SQLSchemaParser {
             List<ColumnInfo> columns = parseColumnsForLookup(columnDefs);
             tableColumns.put(tableName.toLowerCase(), columns);
 
-            // Determine domain
-            String domain = DOMAIN_MAPPING.getOrDefault(tableName.toLowerCase(), "appget");
+            // Determine domain from nearest preceding SQL comment
+            String domain = parseDomainFromComments(sql, tableStart);
             domains.putIfAbsent(domain, new LinkedHashMap<>());
 
-            String modelName = toModelName(tableName);
-            String sourceTable = tableName.toLowerCase();
-            String resource = toResourceName(tableName);
+            String modelName = tableName.toLowerCase();
+            String sourceTable = modelName;
 
             // Parse primary keys (table-level constraint)
             Set<String> primaryKeys = parsePrimaryKeys(columnDefs);
@@ -270,7 +248,6 @@ public class SQLSchemaParser {
             Map<String, Object> model = new LinkedHashMap<>();
             model.put("name", modelName);
             model.put("source_table", sourceTable);
-            model.put("resource", resource);
             model.put("fields", parseColumns(columnDefs, domain, modelName, primaryKeys));
 
             Map<String, Object> domainData = domains.get(domain);
@@ -331,9 +308,9 @@ public class SQLSchemaParser {
             // Build alias -> table name mapping from FROM/JOIN clause
             Map<String, String> aliases = parseAliases(fromPart);
 
-            // Determine domain for view
-            String domain = VIEW_DOMAIN_MAPPING.getOrDefault(viewName.toLowerCase(), "appget");
-            String viewModelName = toViewModelName(viewName);
+            // Determine domain from nearest preceding SQL comment
+            String domain = parseDomainFromComments(sql, viewMatcher.start());
+            String viewModelName = viewName.toLowerCase();
 
             // Parse SELECT columns and resolve types from table columns
             List<Map<String, Object>> viewFields = parseViewColumns(selectPart, aliases, domain, viewModelName);
@@ -348,7 +325,6 @@ public class SQLSchemaParser {
             Map<String, Object> viewModel = new LinkedHashMap<>();
             viewModel.put("name", viewModelName);
             viewModel.put("source_view", viewName.toLowerCase());
-            viewModel.put("resource", toResourceName(viewName));
             viewModel.put("fields", viewFields);
 
             Map<String, Object> domainData = domains.get(domain);
@@ -744,53 +720,20 @@ public class SQLSchemaParser {
         return SQL_TO_NEUTRAL_TYPE.getOrDefault(sqlType, "string");
     }
 
-    private String toModelName(String tableName) {
-        String singular = singularize(tableName);
-        return singular.substring(0, 1).toUpperCase() + singular.substring(1);
-    }
-
-    private String toViewModelName(String viewName) {
-        // employee_salary_view -> EmployeeSalaryView
-        StringBuilder result = new StringBuilder();
-        boolean capitalizeNext = true;
-        for (char c : viewName.toCharArray()) {
-            if (c == '_') {
-                capitalizeNext = true;
-            } else if (capitalizeNext) {
-                result.append(Character.toUpperCase(c));
-                capitalizeNext = false;
-            } else {
-                result.append(c);
-            }
-        }
-        return result.toString();
-    }
-
     /**
-     * Convert a table/view name to a REST resource name (kebab-case).
-     * Examples:
-     *   employees -> employees
-     *   salary -> salaries (if the singular logic applied) -- we use the raw name
-     *   employee_salary_view -> employee-salary-view
+     * Determine the domain for a table or view by scanning backwards for a
+     * "-- <word> domain" comment in the SQL preceding the given position.
+     * Falls back to "appget" if no such comment is found.
      */
-    public static String toResourceName(String tableName) {
-        // snake_case to kebab-case: replace underscores with hyphens, lowercase
-        return tableName.toLowerCase().replace('_', '-');
-    }
-
-    private String singularize(String tableName) {
-        String lower = tableName.toLowerCase();
-
-        if (lower.endsWith("ies")) {
-            return lower.substring(0, lower.length() - 3) + "y";
-        } else if (lower.endsWith("ses") || lower.endsWith("xes") || lower.endsWith("zes") || lower.endsWith("ches") || lower.endsWith("shes")) {
-            return lower.substring(0, lower.length() - 2);
-        } else if (lower.endsWith("oes")) {
-            return lower.substring(0, lower.length() - 2);
-        } else if (lower.endsWith("s")) {
-            return lower.substring(0, lower.length() - 1);
+    private String parseDomainFromComments(String sql, int pos) {
+        String preceding = sql.substring(0, pos);
+        Pattern p = Pattern.compile("--\\s+(\\w+)\\s+domain", Pattern.CASE_INSENSITIVE);
+        Matcher m = p.matcher(preceding);
+        String lastDomain = "appget";
+        while (m.find()) {
+            lastDomain = m.group(1).toLowerCase();
         }
-        return lower;
+        return lastDomain;
     }
 
     @SuppressWarnings("unchecked")
@@ -818,7 +761,6 @@ public class SQLSchemaParser {
                 for (Map<String, Object> model : models) {
                     yaml.append("      - name: ").append(model.get("name")).append("\n");
                     yaml.append("        source_table: ").append(model.get("source_table")).append("\n");
-                    yaml.append("        resource: ").append(model.get("resource")).append("\n");
                     yaml.append("        fields:\n");
 
                     List<Map<String, Object>> fields = (List<Map<String, Object>>) model.get("fields");
@@ -847,7 +789,6 @@ public class SQLSchemaParser {
                 for (Map<String, Object> view : views) {
                     yaml.append("      - name: ").append(view.get("name")).append("\n");
                     yaml.append("        source_view: ").append(view.get("source_view")).append("\n");
-                    yaml.append("        resource: ").append(view.get("resource")).append("\n");
                     yaml.append("        fields:\n");
 
                     List<Map<String, Object>> fields = (List<Map<String, Object>>) view.get("fields");

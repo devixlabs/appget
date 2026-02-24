@@ -64,7 +64,7 @@ class ProtoOpenAPIGeneratorTest {
         if (spec == null) return;
 
         Map<String, Object> schemas = getSchemas(spec);
-        String[] expectedModels = {"Role", "Employee", "Department", "Salary", "Invoice"};
+        String[] expectedModels = {"Roles", "Employees", "Departments", "Salaries", "Invoices"};
         for (String model : expectedModels) {
             assertNotNull(schemas.get(model), "Schema for " + model + " should exist");
         }
@@ -88,7 +88,7 @@ class ProtoOpenAPIGeneratorTest {
         if (spec == null) return;
 
         Map<String, Object> schemas = getSchemas(spec);
-        Map<String, Object> employee = (Map<String, Object>) schemas.get("Employee");
+        Map<String, Object> employee = (Map<String, Object>) schemas.get("Employees");
         Map<String, Object> props = (Map<String, Object>) employee.get("properties");
 
         assertTrue(props.containsKey("name"), "Should have name field");
@@ -103,7 +103,7 @@ class ProtoOpenAPIGeneratorTest {
         if (spec == null) return;
 
         Map<String, Object> schemas = getSchemas(spec);
-        Map<String, Object> employee = (Map<String, Object>) schemas.get("Employee");
+        Map<String, Object> employee = (Map<String, Object>) schemas.get("Employees");
         Map<String, Object> props = (Map<String, Object>) employee.get("properties");
 
         Map<String, Object> age = (Map<String, Object>) props.get("age");
@@ -122,7 +122,7 @@ class ProtoOpenAPIGeneratorTest {
 
         Map<String, Object> schemas = getSchemas(spec);
         // Location has double fields (longitude, latitude) which remain proto double
-        Map<String, Object> location = (Map<String, Object>) schemas.get("Location");
+        Map<String, Object> location = (Map<String, Object>) schemas.get("Locations");
         Map<String, Object> props = (Map<String, Object>) location.get("properties");
 
         Map<String, Object> longitude = (Map<String, Object>) props.get("longitude");
@@ -263,9 +263,9 @@ class ProtoOpenAPIGeneratorTest {
         Map<String, Object> employees = (Map<String, Object>) paths.get("/employees");
         Map<String, Object> post = (Map<String, Object>) employees.get("post");
 
-        assertEquals("createEmployee", post.get("operationId"));
+        assertEquals("createEmployees", post.get("operationId"));
         List<String> tags = (List<String>) post.get("tags");
-        assertTrue(tags.contains("Employee"), "Should be tagged with Employee");
+        assertTrue(tags.contains("Employees"), "Should be tagged with Employees");
     }
 
     @Test

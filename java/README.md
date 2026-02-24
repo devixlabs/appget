@@ -2,7 +2,7 @@
 
 **Write your database schema in SQL and business rules in Gherkin. Automatically generate Java models, validation logic, and REST API endpoints.**
 
-> Production-ready code generation system: Gherkin-first business rules, schema-first protobuf design with SQL views, descriptor-based rule evaluation, compound business rules (AND/OR), metadata-aware authorization, blocking/informational rule enforcement, and 171 comprehensive unit tests.
+> Production-ready code generation system: Gherkin-first business rules, schema-first protobuf design with SQL views, descriptor-based rule evaluation, compound business rules (AND/OR), metadata-aware authorization, blocking/informational rule enforcement, and 280 comprehensive unit tests.
 
 ---
 
@@ -10,7 +10,7 @@
 
 **appget.dev/java** is a code generator that converts your database schema into a complete Java backend with:
 
-1. **Protobuf Models** - Auto-generated from `schema.sql` via `.proto` files (e.g., Employee, Department, Salary as protobuf messages)
+1. **Protobuf Models** - Auto-generated from `schema.sql` via `.proto` files (e.g., Employees, Departments, Salaries as protobuf messages)
 2. **gRPC Service Stubs** - 5 services across 3 domains with full CRUD
 3. **REST API Server** - Spring Boot server with CRUD endpoints for all your models
 4. **Business Rules** - Define rules in Gherkin `.feature` files, embedded in `.proto` as custom options, enforced automatically
@@ -34,7 +34,7 @@ YOU WRITE THIS:                SYSTEM GENERATES THIS:
                                        ▼
 ┌──────────────────┐         ┌──────────────────────────────┐
 │  schema.sql      │         │  Java Domain Models          │
-│  (Your DB)       │────────▶│  (Employee, Department, etc) │
+│  (Your DB)       │────────▶│  (Employees, Departments, etc) │
 └──────────────────┘         └──────────────────────────────┘
                                      │
 ┌──────────────────┐                 │
@@ -87,11 +87,11 @@ YOU WRITE THIS:                SYSTEM GENERATES THIS:
 make all
 # This runs: clean → generate (features-to-specs + proto + specs) → test → build
 # Time: ~5 seconds
-# Result: All 171 tests pass ✓
+# Result: All 280 tests pass ✓
 
 # 2. Run the rule engine demo
 make run
-# See rules evaluated on sample Employee object
+# See rules evaluated on sample Employees object
 # Output shows which rules passed/failed
 
 # 3. View test results
@@ -133,9 +133,9 @@ CREATE TABLE invoices (
 ```
 
 **Domains auto-map based on table names:**
-- `employees` → `dev.appget.model.Employee`
-- `departments` → `dev.appget.hr.model.Department`
-- `invoices` → `dev.appget.finance.model.Invoice`
+- `employees` → `dev.appget.model.Employees`
+- `departments` → `dev.appget.hr.model.Departments`
+- `invoices` → `dev.appget.finance.model.Invoices`
 
 ### Step 2: Define Read Models (`views.sql` - Optional)
 
@@ -169,9 +169,9 @@ make parse-schema
 make generate-proto
 # INPUT:  schema.sql + views.sql + specs.yaml (for rule embedding)
 # OUTPUT: .proto files → protoc → build/generated/
-#         ├── dev/appget/model/Employee.java (protobuf)
-#         ├── dev/appget/hr/model/Department.java (protobuf)
-#         ├── dev/appget/finance/model/Invoice.java (protobuf)
+#         ├── dev/appget/model/Employees.java (protobuf)
+#         ├── dev/appget/hr/model/Departments.java (protobuf)
+#         ├── dev/appget/finance/model/Invoices.java (protobuf)
 #         ├── dev/appget/view/EmployeeSalaryView.java (protobuf)
 #         └── gRPC service stubs (5 services)
 ```
@@ -188,13 +188,13 @@ Edit `features/appget.feature`:
 @domain:appget
 Feature: Appget Domain Business Rules
 
-  @target:Employee @blocking @rule:EmployeeAgeCheck
+  @target:employees @blocking @rule:EmployeeAgeCheck
   Scenario: Employee must be over 18
     When age is greater than 18
     Then status is "APPROVED"
     But otherwise status is "REJECTED"
 
-  @target:Employee @rule:SeniorManagerCheck
+  @target:employees @rule:SeniorManagerCheck
   Scenario: Senior manager must be 30+ and a Manager
     When all conditions are met:
       | field   | operator | value   |
@@ -203,13 +203,13 @@ Feature: Appget Domain Business Rules
     Then status is "SENIOR_MANAGER"
     But otherwise status is "NOT_SENIOR_MANAGER"
 
-  @view @target:EmployeeSalaryView @rule:HighEarnerCheck
+  @view @target:employee_salary_view @rule:HighEarnerCheck
   Scenario: High earner salary threshold
     When salary_amount is greater than 100000
     Then status is "HIGH_EARNER"
     But otherwise status is "STANDARD_EARNER"
 
-  @target:Employee @blocking @rule:AuthenticatedApproval
+  @target:employees @blocking @rule:AuthenticatedApproval
   Scenario: Authenticated employee approval with role level
     Given sso context requires:
       | field         | operator | value |
@@ -224,7 +224,7 @@ Feature: Appget Domain Business Rules
 
 **Gherkin Tags**:
 - `@domain:appget` - Domain assignment (feature-level)
-- `@target:Employee` - Target model/view name
+- `@target:employees` - Target model/view name (snake_case plural)
 - `@rule:EmployeeAgeCheck` - Rule name
 - `@blocking` - Rule causes 422 rejection when unsatisfied
 - `@view` - Target is a view (not a model)
@@ -258,10 +258,10 @@ make all
 #   1. clean (remove old builds)
 #   2. features-to-specs (.feature + metadata → specs.yaml)
 #   3. generate (proto + specs + registry + openapi)
-#   4. test (run 171 tests)
+#   4. test (run 280 tests)
 #   5. build (compile & package)
 #
-# Result: ✓ All 171 tests passing
+# Result: ✓ All 280 tests passing
 ```
 
 ### Step 8: Run the Demo Rule Engine
@@ -274,13 +274,13 @@ make run
 # Output:
 # --- Rule Engine Evaluation (Descriptor-Based) ---
 #
-# Model: Employee (4 rule(s))
+# Model: Employees (4 rule(s))
 #   Rule: EmployeeAgeCheck              | Result: APPROVED
 #   Rule: EmployeeRoleCheck             | Result: REJECTED
 #   Rule: SeniorManagerCheck            | Result: NOT_SENIOR_MANAGER
 #   Rule: AuthenticatedApproval         | Result: DENIED
 #
-# Model: Salary (1 rule(s))
+# Model: Salaries (1 rule(s))
 #   Rule: SalaryAmountCheck             | Result: STANDARD
 ```
 
@@ -301,7 +301,7 @@ views.sql   ──→  (automatic in parse-schema)
 
 (all above) ──→  make generate     ──→  protobuf classes + specs
 
-All updated ──→  make test         ──→  171 tests pass ✓
+All updated ──→  make test         ──→  280 tests pass ✓
 ```
 
 ### Quick Reference
@@ -327,7 +327,7 @@ All updated ──→  make test         ──→  171 tests pass ✓
 ```java
 // Auto-generated via: schema.sql → .proto → protoc
 // Protobuf message with Builder pattern
-Employee employee = Employee.newBuilder()
+Employees employee = Employees.newBuilder()
     .setName("Alice")
     .setAge(30)
     .setRoleId("Manager")
@@ -354,9 +354,9 @@ EmployeeSalaryView view = EmployeeSalaryView.newBuilder()
 
 ```java
 // Auto-generated from: rules: [- name: EmployeeAgeCheck ...]
-public class EmployeeAgeCheck implements Specification<Employee> {
+public class EmployeeAgeCheck implements Specification<Employees> {
     @Override
-    public boolean isSatisfiedBy(Employee target) {
+    public boolean isSatisfiedBy(Employees target) {
         return target.getAge() > 18;
     }
 }
@@ -464,14 +464,14 @@ Rules can be marked `@blocking` in `.feature` files. This affects HTTP responses
 
 ```gherkin
   # Blocking: causes 422 if employee is under 18
-  @target:Employee @blocking @rule:EmployeeAgeCheck
+  @target:employees @blocking @rule:EmployeeAgeCheck
   Scenario: Employee must be over 18
     When age is greater than 18
     Then status is "APPROVED"
     But otherwise status is "REJECTED"
 
   # Informational: reported but doesn't block
-  @target:Employee @rule:EmployeeRoleCheck
+  @target:employees @rule:EmployeeRoleCheck
   Scenario: Employee must hold Manager role
     When role_id equals "Manager"
     Then status is "APPROVED"
@@ -516,7 +516,7 @@ Rules can be marked `@blocking` in `.feature` files. This affects HTTP responses
 6. ProtoOpenAPIGenerator reads .proto files
    - Creates OpenAPI 3.0.0 REST specification (full CRUD, security)
    ↓
-7. SpringBootServerGenerator reads models.yaml + specs.yaml
+7. AppServerGenerator reads models.yaml + specs.yaml
    - Creates Spring Boot REST API
    - Controllers (HTTP endpoints)
    - Services (business logic with rule evaluation)
@@ -582,30 +582,33 @@ Every time you change `schema.sql` or `specs.yaml`, the system regenerates Java 
 - ✓ Views resolved properly
 - ✓ REST endpoint specs are valid
 
-### 171 Comprehensive Tests
+### 280 Comprehensive Tests
 
-The system includes 171 unit tests across 13 test suites:
+The system includes 280 unit tests across 16 test suites:
 
 | Suite | Count | What It Tests |
 |-------|-------|---|
+| Java Type Registry | 44 | Type mappings: SQL → Java, Proto, OpenAPI; nullability rules |
+| Code Gen Utils | 28 | Shared code generation utilities |
+| Java Utils | 28 | Java-specific utility functions, name conversions |
 | Feature To Specs Converter | 24 | Gherkin parsing, condition extraction, YAML generation |
-| Schema To Proto Converter | 20 | Proto generation, field mapping, rule embedding, services |
 | Proto-First OpenAPI Generator | 23 | Proto-first OpenAPI, CRUD, security, type mapping |
-| Specification Generator | 13 | Rule generation, metadata, views |
-| Spring Boot Server Generator | 12 | RuleService bridge, MetadataExtractor, blocking logic |
-| Rule Interceptor | 11 | Loading rules from protobuf descriptors |
-| gRPC Service Stubs | 7 | Service existence, CRUD method descriptors |
+| Specification Patterns | 21 | All comparison operators, edge cases |
+| Schema To Proto Converter | 18 | Proto generation, field mapping, services |
+| App Server Generator | 17 | RuleService bridge, MetadataExtractor, blocking logic |
+| Conformance | 16 | Proto file output matches expected golden files |
 | Rule Engine | 15 | Rule evaluation, metadata, compound logic, type mismatch guard |
+| Specification Generator | 13 | Rule generation, metadata, views |
+| Descriptor Registry | 9 | Model discovery, lookup, field descriptors |
+| gRPC Service Stubs | 7 | Service existence, CRUD method descriptors |
+| Test Data Builder | 6 | DynamicMessage generation, default values |
 | Compound Specifications | 6 | AND/OR logic combinations |
 | Metadata Context | 5 | Authorization metadata storage |
-| Specification Patterns | 21 | All comparison operators, edge cases |
-| Descriptor Registry | 8 | Model discovery, lookup, field descriptors |
-| Test Data Builder | 6 | DynamicMessage generation, default values |
 
 ### Run Tests
 
 ```bash
-make test                # Run all 171 tests (expect ~2s)
+make test                # Run all 280 tests (expect ~2s)
 make all                 # Full pipeline (features → generate → test → build)
 make clean && make test  # Fresh run
 ```
@@ -629,7 +632,7 @@ Shows:
 
 | Task | Time |
 |------|------|
-| `make test` | ~2s (171 tests) |
+| `make test` | ~2s (280 tests) |
 | `make all` | ~5-6s (full pipeline) |
 | `make run` | ~1s (demo execution) |
 | `make generate-server` | ~1s (server generation) |
@@ -641,7 +644,7 @@ Shows:
 | Command | When to Use | What It Does |
 |---------|---|---|
 | `make all` | After editing ANY file | Full pipeline: clean → generate → test → build |
-| `make test` | To verify your changes | Run all 171 tests (takes ~2s) |
+| `make test` | To verify your changes | Run all 280 tests (takes ~2s) |
 | `make run` | To see rules in action | Build + execute demo rule engine |
 
 ### Code Generation Commands
@@ -680,11 +683,11 @@ vim features/appget.feature
 
 # 2. Regenerate + test
 make all
-# Output: Runs all steps, all 171 tests should pass
+# Output: Runs all steps, all 280 tests should pass
 
 # 3. See rules in action
 make run
-# Demo shows Employee evaluated against all rules
+# Demo shows Employees evaluated against all rules
 
 # 4. When ready for REST API
 make generate-server
@@ -785,9 +788,9 @@ public class HighEarnerView {
 
 ```
 schema.sql:
-  employees      → dev.appget.model.Employee
-  departments    → dev.appget.hr.model.Department
-  invoices       → dev.appget.finance.model.Invoice
+  employees      → dev.appget.model.Employees
+  departments    → dev.appget.hr.model.Departments
+  invoices       → dev.appget.finance.model.Invoices
 ```
 
 ✓ Logical separation of concerns
@@ -832,7 +835,7 @@ DATE               LocalDate         string(date)     Date
 
 ### Comprehensive Testing
 
-All 171 tests pass automatically:
+All 280 tests pass automatically:
 ```
 ✓ Gherkin .feature file parsing and specs.yaml generation
 ✓ Proto generation correctness (schema → .proto → Java)
@@ -880,7 +883,7 @@ appget.dev/java/
 ├── openapi.yaml            ✨  Auto-generated REST spec
 ├── src/main/java-generated/✨  All generated Java models, specs
 │   └── dev/appget/
-│       ├── model/          (Employee, Department, Invoice, etc)
+│       ├── model/          (Employees, Departments, Invoices, etc)
 │       ├── view/           (EmployeeSalaryView, etc)
 │       ├── hr/model/       (Domain-specific models)
 │       ├── finance/model/  (Domain-specific models)
@@ -901,22 +904,26 @@ appget.dev/java/
 ```
 src/test/java/dev/appget/
 ├── codegen/
+│   ├── AppServerGeneratorTest.java          (17 tests)
+│   ├── CodeGenUtilsTest.java                (28 tests)
 │   ├── FeatureToSpecsConverterTest.java     (24 tests)
-│   ├── ModelsToProtoConverterTest.java      (20 tests)
+│   ├── JavaTypeRegistryTest.java            (44 tests)
+│   ├── JavaUtilsTest.java                   (28 tests)
+│   ├── ModelsToProtoConverterTest.java      (18 tests)
 │   ├── ProtoOpenAPIGeneratorTest.java       (23 tests)
-│   ├── SpecificationGeneratorTest.java      (13 tests)
-│   └── SpringBootServerGeneratorTest.java   (12 tests)
+│   └── SpecificationGeneratorTest.java      (13 tests)
+├── conformance/
+│   └── ConformanceTest.java                 (16 tests)
 ├── model/
 │   └── RuleTest.java                        (15 tests)
 ├── service/
 │   └── GrpcServiceTest.java                 (7 tests)
 ├── specification/
-│   ├── SpecificationTest.java               (21 tests)
 │   ├── CompoundSpecificationTest.java        (6 tests)
 │   ├── MetadataContextTest.java              (5 tests)
-│   └── RuleInterceptorTest.java             (11 tests)
+│   └── SpecificationTest.java               (21 tests)
 └── util/
-    ├── DescriptorRegistryTest.java           (8 tests)
+    ├── DescriptorRegistryTest.java           (9 tests)
     └── TestDataBuilderTest.java              (6 tests)
 ```
 
@@ -987,7 +994,7 @@ conditions:
 **Solution**: Create `schema.sql` at project root with table definitions
 
 ### "Tests are failing"
-**Problem**: Some of the 171 tests failed
+**Problem**: Some of the 280 tests failed
 **Solution**:
 ```bash
 # 1. Check the error message
@@ -1005,7 +1012,7 @@ make clean
 make all
 ```
 
-### "Can't find class Employee"
+### "Can't find class Employees"
 **Problem**: Java model not found
 **Solution**:
 ```bash
@@ -1092,7 +1099,7 @@ java -version
 
 # Run a quick test
 make test
-# Should show 171 tests passing
+# Should show 280 tests passing
 ```
 
 ---
@@ -1117,8 +1124,8 @@ For more details on implementation and architecture:
 
 ---
 
-**Last Updated**: 2026-02-12
+**Last Updated**: 2026-02-24
 **Status**: Production Ready
-**Test Coverage**: 171 tests, 100% passing (13 suites)
+**Test Coverage**: 280 tests, 100% passing (16 suites)
 **Pipeline**: Gherkin → specs.yaml → Schema → Proto → Protoc → Specs → REST API → gRPC → Fully Typed
 **Java Version**: 25+ required

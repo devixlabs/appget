@@ -333,7 +333,7 @@ Each improvement is labeled **[IMPROVEMENT-N]** for reference in discussion and 
 
 **Current state**:
 
-`SpringBootServerGenerator` generates one concrete `@Component` repository class per entity. The class is a direct `ConcurrentHashMap`-backed implementation. The generated service constructor depends on this concrete class:
+`AppServerGenerator` generates one concrete `@Component` repository class per entity. The class is a direct `ConcurrentHashMap`-backed implementation. The generated service constructor depends on this concrete class:
 
 ```java
 // Currently generated: concrete class, no interface
@@ -360,7 +360,7 @@ Generate two files per model instead of one:
 
 The service layer already uses `{Model}Repository` as its constructor parameter name. Since the interface keeps that name and the old concrete class is renamed `InMemory{Model}Repository`, the **service file requires no changes**. Spring injects `InMemory{Model}Repository` automatically as the sole `@Component` implementing the interface.
 
-**Implementation — `SpringBootServerGenerator.java`**:
+**Implementation — `AppServerGenerator.java`**:
 
 Modify `generateRepository(ModelInfo model, String outputDir)`. Currently it writes one file. Change it to write two files:
 
@@ -429,7 +429,7 @@ public class InMemory{Model}Repository implements {Model}Repository {
 
 **`generateService()` and `generateServer()` — no changes required**: The service imports and injects `{Model}Repository` by that name; the interface keeps that name. The `generateServer()` call to `generateRepository(model, outputDir)` already exists; the method now produces two files instead of one.
 
-**Test additions — `SpringBootServerGeneratorTest.java`**:
+**Test additions — `AppServerGeneratorTest.java`**:
 
 Add assertions (new test method or extend an existing repository test):
 1. File `repository/InMemory{Model}Repository.java` exists in the output directory
@@ -443,7 +443,7 @@ Add assertions (new test method or extend an existing repository test):
 
 **Effort**: Low — one method split into two file writes
 
-**Files affected**: `SpringBootServerGenerator.java`, `SpringBootServerGeneratorTest.java`
+**Files affected**: `AppServerGenerator.java`, `AppServerGeneratorTest.java`
 
 ---
 
@@ -453,7 +453,7 @@ Add assertions (new test method or extend an existing repository test):
 
 **Current state**:
 
-`SpringBootServerGenerator.generateRuleService()` generates a `RuleService` class with a hard-coded list of all specification class instantiations derived from `specs.yaml`:
+`AppServerGenerator.generateRuleService()` generates a `RuleService` class with a hard-coded list of all specification class instantiations derived from `specs.yaml`:
 
 ```java
 // Currently generated — must regenerate whenever a rule is added or removed
@@ -484,7 +484,7 @@ public class RuleService {
 
 Extract the spec list into a new generated `SpecificationRegistry` class. `RuleService` becomes a stable, generic evaluator that injects the registry and never needs to change when rules change.
 
-**Implementation — `SpringBootServerGenerator.java`**:
+**Implementation — `AppServerGenerator.java`**:
 
 **Step 1**: Add a new method `generateSpecificationRegistry(String outputDir, List<Map<String,Object>> rules)`.
 
@@ -576,7 +576,7 @@ public class RuleService {
 
 **Step 3**: In `generateServer()`, add a call to `generateSpecificationRegistry(outputDir, rules)` alongside the existing generate method calls. The `rules` list is already loaded from `specs.yaml` in `generateServer()`.
 
-**Test additions — `SpringBootServerGeneratorTest.java`**:
+**Test additions — `AppServerGeneratorTest.java`**:
 
 Add a new test method with these assertions:
 1. File `service/SpecificationRegistry.java` exists in the output directory
@@ -591,7 +591,7 @@ Add a new test method with these assertions:
 
 **Effort**: Low
 
-**Files affected**: `SpringBootServerGenerator.java`, `SpringBootServerGeneratorTest.java`
+**Files affected**: `AppServerGenerator.java`, `AppServerGeneratorTest.java`
 
 ---
 

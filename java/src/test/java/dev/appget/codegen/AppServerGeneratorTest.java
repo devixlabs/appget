@@ -12,14 +12,14 @@ import java.nio.file.Paths;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-@DisplayName("Spring Boot Server Generator Tests")
-class SpringBootServerGeneratorTest {
+@DisplayName("Application Server Generator Tests")
+class AppServerGeneratorTest {
 
-    private SpringBootServerGenerator generator;
+    private AppServerGenerator generator;
 
     @BeforeEach
     void setUp() {
-        generator = new SpringBootServerGenerator();
+        generator = new AppServerGenerator();
     }
 
     private String generateAndReadFile(Path tempDir, String... pathParts) throws Exception {
@@ -113,9 +113,9 @@ class SpringBootServerGeneratorTest {
     @DisplayName("RuleService uses metadata-aware evaluate for AuthenticatedApproval")
     void testRuleServiceMetadataAwareEvaluate(@TempDir Path tempDir) throws Exception {
         String content = readRuleService(tempDir);
-        // RuleService should use reflection-based evaluate for dynamic invocation
-        assertTrue(content.contains("spec.getClass().getMethod(\"evaluate\""),
-            "Should use reflection to invoke evaluate method");
+        // RuleService should use getMethods() iteration to handle typed spec params
+        assertTrue(content.contains("spec.getClass().getMethods()"),
+            "Should use getMethods() iteration to invoke evaluate method");
         assertTrue(content.contains("BLOCKING_RULES"),
             "Should have BLOCKING_RULES static map");
     }
@@ -214,8 +214,8 @@ class SpringBootServerGeneratorTest {
             "dev", "appget", "server", "service", "SpecificationRegistry.java");
         assertTrue(content.contains("public List<Object> getByTarget(String modelName)"),
             "Should have getByTarget method");
-        assertTrue(content.contains("getTargetName(s)"),
-            "Should call getTargetName for filtering");
+        assertTrue(content.contains("SPEC_TARGETS"),
+            "Should use static SPEC_TARGETS map for filtering");
     }
 
     @Test

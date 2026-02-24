@@ -9,6 +9,7 @@ import java.util.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import dev.appget.codegen.CodeGenUtils;
+import dev.appget.codegen.JavaUtils;
 
 /**
  * Generates a production-ready Spring Boot REST API server from models and specifications.
@@ -21,11 +22,11 @@ import dev.appget.codegen.CodeGenUtils;
  * - Global exception handling
  * - Server configuration (application.yaml)
  *
- * Usage: java -cp <classpath> dev.appget.codegen.SpringBootServerGenerator <models.yaml> <specs.yaml> <output-dir>
+ * Usage: java -cp <classpath> dev.appget.codegen.AppServerGenerator <models.yaml> <specs.yaml> <output-dir>
  */
-public class SpringBootServerGenerator {
+public class AppServerGenerator {
 
-    private static final Logger logger = LogManager.getLogger(SpringBootServerGenerator.class);
+    private static final Logger logger = LogManager.getLogger(AppServerGenerator.class);
     private static final String BASE_PACKAGE = "dev.appget.server";
     private Map<String, ModelInfo> modelIndex = new HashMap<>();
     private List<RuleInfo> rules = new ArrayList<>();
@@ -35,8 +36,8 @@ public class SpringBootServerGenerator {
     public static void main(String[] args) {
         logger.debug("Entering main method with {} arguments", args.length);
         if (args.length < 2) {
-            logger.error("Invalid argument count. Usage: SpringBootServerGenerator <models.yaml> <specs.yaml> [output-dir]");
-            System.err.println("Usage: SpringBootServerGenerator <models.yaml> <specs.yaml> [output-dir]");
+            logger.error("Invalid argument count. Usage: AppServerGenerator <models.yaml> <specs.yaml> [output-dir]");
+            System.err.println("Usage: AppServerGenerator <models.yaml> <specs.yaml> [output-dir]");
             System.exit(1);
         }
 
@@ -44,12 +45,12 @@ public class SpringBootServerGenerator {
         String specsPath = args[1];
         String outputDir = args.length > 2 ? args[2] : "generated-server";
 
-        logger.info("Starting SpringBootServerGenerator with modelsPath={}, specsPath={}, outputDir={}", modelsPath, specsPath, outputDir);
+        logger.info("Starting AppServerGenerator with modelsPath={}, specsPath={}, outputDir={}", modelsPath, specsPath, outputDir);
 
         try {
-            new SpringBootServerGenerator().generateServer(modelsPath, specsPath, outputDir);
-            logger.info("Successfully generated Spring Boot server to: {}", outputDir);
-            System.out.println("✓ Successfully generated Spring Boot server to: " + outputDir);
+            new AppServerGenerator().generateServer(modelsPath, specsPath, outputDir);
+            logger.info("Successfully generated application server to: {}", outputDir);
+            System.out.println("✓ Successfully generated application server to: " + outputDir);
         } catch (Exception e) {
             logger.error("Failed to generate server", e);
             System.err.println("✗ Failed to generate server: " + e.getMessage());
@@ -61,6 +62,13 @@ public class SpringBootServerGenerator {
 
     @SuppressWarnings("unchecked")
     public void generateServer(String modelsPath, String specsPath, String outputDir) throws IOException {
+        // Clean output directory to remove stale generated files
+        Path outPath = Paths.get(outputDir);
+        if (Files.exists(outPath)) {
+            deleteDirectory(outPath);
+            logger.debug("Cleaned output directory: {}", outputDir);
+        }
+
         // Load models
         loadModels(modelsPath);
 
@@ -129,7 +137,6 @@ public class SpringBootServerGenerator {
                     info.name = modelName;
                     info.domain = domainName;
                     info.namespace = namespace;
-                    info.resource = (String) model.get("resource");
                     info.fields = fields != null ? new ArrayList<>(fields) : new ArrayList<>();
 
                     modelIndex.put(modelName, info);
@@ -313,7 +320,7 @@ public class SpringBootServerGenerator {
     private void generateLog4j2Properties(String outputDir) throws IOException {
         StringBuilder props = new StringBuilder();
         props.append("# Log4j2 Configuration for Spring Boot Server\n");
-        props.append("# DO NOT EDIT MANUALLY - Generated from SpringBootServerGenerator\n\n");
+        props.append("# DO NOT EDIT MANUALLY - Generated from AppServerGenerator\n\n");
 
         props.append("status = warn\n");
         props.append("name = AppgetServerLogging\n\n");
@@ -587,22 +594,23 @@ public class SpringBootServerGenerator {
         code.append("        return specs.values();\n");
         code.append("    }\n\n");
 
+        // Build static target map: ruleName -> PascalCase model name
+        code.append("    private static final Map<String, String> SPEC_TARGETS = new java.util.HashMap<>();\n");
+        code.append("    static {\n");
+        for (RuleInfo rule : modelRules) {
+            ModelInfo model = modelIndex.get(rule.targetName);
+            String target = model != null ? pascalName(model) : JavaUtils.snakeToPascal(rule.targetName);
+            code.append("        SPEC_TARGETS.put(\"").append(rule.name).append("\", \"").append(target).append("\");\n");
+        }
+        code.append("    }\n\n");
+
         code.append("    /**\n");
-        code.append("     * All specs whose target model name matches the given class simple name.\n");
-        code.append("     * Uses getTargetModel() — all generated spec classes expose this method.\n");
+        code.append("     * All specs whose target model matches the given class simple name.\n");
         code.append("     */\n");
         code.append("    public List<Object> getByTarget(String modelName) {\n");
         code.append("        return specs.values().stream()\n");
-        code.append("            .filter(s -> modelName.equals(getTargetName(s)))\n");
+        code.append("            .filter(s -> modelName.equals(SPEC_TARGETS.get(s.getClass().getSimpleName())))\n");
         code.append("            .collect(Collectors.toList());\n");
-        code.append("    }\n\n");
-
-        code.append("    private String getTargetName(Object spec) {\n");
-        code.append("        try {\n");
-        code.append("            return (String) spec.getClass().getMethod(\"getTargetModel\").invoke(spec);\n");
-        code.append("        } catch (Exception e) {\n");
-        code.append("            return null;\n");
-        code.append("        }\n");
         code.append("    }\n");
         code.append("}\n");
 
@@ -700,17 +708,19 @@ public class SpringBootServerGenerator {
 
         code.append("    private boolean evaluateSpec(Object spec, Object target, MetadataContext metadata) {\n");
         code.append("        try {\n");
-        code.append("            // Try metadata-aware evaluate first\n");
-        code.append("            return (boolean) spec.getClass().getMethod(\"evaluate\", Object.class, MetadataContext.class)\n");
-        code.append("                .invoke(spec, target, metadata);\n");
-        code.append("        } catch (NoSuchMethodException e) {\n");
-        code.append("            try {\n");
-        code.append("                // Fall back to simple evaluate\n");
-        code.append("                return (boolean) spec.getClass().getMethod(\"evaluate\", Object.class)\n");
-        code.append("                    .invoke(spec, target);\n");
-        code.append("            } catch (Exception ex) {\n");
-        code.append("                return false;\n");
+        code.append("            // Find evaluate(T, MetadataContext) by parameter count — spec classes use typed params\n");
+        code.append("            for (java.lang.reflect.Method m : spec.getClass().getMethods()) {\n");
+        code.append("                if (\"evaluate\".equals(m.getName()) && m.getParameterCount() == 2) {\n");
+        code.append("                    return (boolean) m.invoke(spec, target, metadata);\n");
+        code.append("                }\n");
         code.append("            }\n");
+        code.append("            // Fall back to evaluate(T)\n");
+        code.append("            for (java.lang.reflect.Method m : spec.getClass().getMethods()) {\n");
+        code.append("                if (\"evaluate\".equals(m.getName()) && m.getParameterCount() == 1) {\n");
+        code.append("                    return (boolean) m.invoke(spec, target);\n");
+        code.append("                }\n");
+        code.append("            }\n");
+        code.append("            return false;\n");
         code.append("        } catch (Exception e) {\n");
         code.append("            return false;\n");
         code.append("        }\n");
@@ -718,17 +728,19 @@ public class SpringBootServerGenerator {
 
         code.append("    private String getSpecStatus(Object spec, Object target, MetadataContext metadata) {\n");
         code.append("        try {\n");
-        code.append("            // Try metadata-aware getResult first\n");
-        code.append("            return (String) spec.getClass().getMethod(\"getResult\", Object.class, MetadataContext.class)\n");
-        code.append("                .invoke(spec, target, metadata);\n");
-        code.append("        } catch (NoSuchMethodException e) {\n");
-        code.append("            try {\n");
-        code.append("                // Fall back to simple getResult\n");
-        code.append("                return (String) spec.getClass().getMethod(\"getResult\", Object.class)\n");
-        code.append("                    .invoke(spec, target);\n");
-        code.append("            } catch (Exception ex) {\n");
-        code.append("                return \"UNKNOWN\";\n");
+        code.append("            // Find getResult(T, MetadataContext) by parameter count\n");
+        code.append("            for (java.lang.reflect.Method m : spec.getClass().getMethods()) {\n");
+        code.append("                if (\"getResult\".equals(m.getName()) && m.getParameterCount() == 2) {\n");
+        code.append("                    return (String) m.invoke(spec, target, metadata);\n");
+        code.append("                }\n");
         code.append("            }\n");
+        code.append("            // Fall back to getResult(T)\n");
+        code.append("            for (java.lang.reflect.Method m : spec.getClass().getMethods()) {\n");
+        code.append("                if (\"getResult\".equals(m.getName()) && m.getParameterCount() == 1) {\n");
+        code.append("                    return (String) m.invoke(spec, target);\n");
+        code.append("                }\n");
+        code.append("            }\n");
+        code.append("            return \"UNKNOWN\";\n");
         code.append("        } catch (Exception e) {\n");
         code.append("            return \"UNKNOWN\";\n");
         code.append("        }\n");
@@ -940,13 +952,13 @@ public class SpringBootServerGenerator {
     }
 
     private void generateRepositoryInterface(ModelInfo model, String outputDir) throws IOException {
-        String interfaceName = model.name + "Repository";
+        String interfaceName = pascalName(model) + "Repository";
         String packageName = BASE_PACKAGE + ".repository";
 
         StringBuilder code = new StringBuilder();
         code.append("package ").append(packageName).append(";\n\n");
 
-        code.append("import ").append(model.namespace).append(".model.").append(model.name).append(";\n");
+        code.append("import ").append(model.namespace).append(".model.").append(pascalName(model)).append(";\n");
         code.append("import java.util.List;\n");
         code.append("import java.util.Optional;\n\n");
 
@@ -957,9 +969,9 @@ public class SpringBootServerGenerator {
         code.append(" */\n");
         code.append("public interface ").append(interfaceName).append(" {\n\n");
 
-        code.append("    ").append(model.name).append(" save(").append(model.name).append(" entity);\n\n");
-        code.append("    Optional<").append(model.name).append("> findById(String id);\n\n");
-        code.append("    List<").append(model.name).append("> findAll();\n\n");
+        code.append("    ").append(pascalName(model)).append(" save(").append(pascalName(model)).append(" entity);\n\n");
+        code.append("    Optional<").append(pascalName(model)).append("> findById(String id);\n\n");
+        code.append("    List<").append(pascalName(model)).append("> findAll();\n\n");
         code.append("    void deleteById(String id);\n\n");
         code.append("    boolean existsById(String id);\n");
         code.append("}\n");
@@ -968,14 +980,14 @@ public class SpringBootServerGenerator {
     }
 
     private void generateInMemoryRepository(ModelInfo model, String outputDir) throws IOException {
-        String className = "InMemory" + model.name + "Repository";
-        String interfaceName = model.name + "Repository";
+        String className = "InMemory" + pascalName(model) + "Repository";
+        String interfaceName = pascalName(model) + "Repository";
         String packageName = BASE_PACKAGE + ".repository";
 
         StringBuilder code = new StringBuilder();
         code.append("package ").append(packageName).append(";\n\n");
 
-        code.append("import ").append(model.namespace).append(".model.").append(model.name).append(";\n");
+        code.append("import ").append(model.namespace).append(".model.").append(pascalName(model)).append(";\n");
         code.append("import org.springframework.stereotype.Component;\n");
         code.append("import lombok.extern.log4j.Log4j2;\n");
         code.append("import java.util.Map;\n");
@@ -998,14 +1010,14 @@ public class SpringBootServerGenerator {
         boolean hasIdField = model.fields.stream()
             .anyMatch(f -> "id".equals(f.get("name")));
 
-        code.append("    private final Map<String, ").append(model.name).append("> store = new ConcurrentHashMap<>();\n");
+        code.append("    private final Map<String, ").append(pascalName(model)).append("> store = new ConcurrentHashMap<>();\n");
         if (!hasIdField) {
             code.append("    private final AtomicLong idGenerator = new AtomicLong();\n");
         }
         code.append("\n");
 
         code.append("    @Override\n");
-        code.append("    public ").append(model.name).append(" save(").append(model.name).append(" entity) {\n");
+        code.append("    public ").append(pascalName(model)).append(" save(").append(pascalName(model)).append(" entity) {\n");
         if (hasIdField) {
             code.append("        String id = entity.getId();\n");
         } else {
@@ -1018,9 +1030,9 @@ public class SpringBootServerGenerator {
         code.append("    }\n\n");
 
         code.append("    @Override\n");
-        code.append("    public Optional<").append(model.name).append("> findById(String id) {\n");
+        code.append("    public Optional<").append(pascalName(model)).append("> findById(String id) {\n");
         code.append("        log.debug(\"Looking up ").append(model.name).append(" with id: {}\", id);\n");
-        code.append("        Optional<").append(model.name).append("> result = Optional.ofNullable(store.get(id));\n");
+        code.append("        Optional<").append(pascalName(model)).append("> result = Optional.ofNullable(store.get(id));\n");
         code.append("        if (result.isPresent()) {\n");
         code.append("            log.debug(\"Found ").append(model.name).append(" with id: {}\", id);\n");
         code.append("        } else {\n");
@@ -1030,9 +1042,9 @@ public class SpringBootServerGenerator {
         code.append("    }\n\n");
 
         code.append("    @Override\n");
-        code.append("    public List<").append(model.name).append("> findAll() {\n");
+        code.append("    public List<").append(pascalName(model)).append("> findAll() {\n");
         code.append("        log.debug(\"Retrieving all ").append(model.name).append(" entities\");\n");
-        code.append("        List<").append(model.name).append("> results = new java.util.ArrayList<>(store.values());\n");
+        code.append("        List<").append(pascalName(model)).append("> results = new java.util.ArrayList<>(store.values());\n");
         code.append("        log.debug(\"Found {} ").append(model.name).append(" entities\", results.size());\n");
         code.append("        return results;\n");
         code.append("    }\n\n");
@@ -1056,14 +1068,14 @@ public class SpringBootServerGenerator {
     }
 
     private void generateService(ModelInfo model, String outputDir) throws IOException {
-        String className = model.name + "Service";
+        String className = pascalName(model) + "Service";
         String packageName = BASE_PACKAGE + ".service";
-        String repositoryClass = model.name + "Repository";
+        String repositoryClass = pascalName(model) + "Repository";
 
         StringBuilder code = new StringBuilder();
         code.append("package ").append(packageName).append(";\n\n");
 
-        code.append("import ").append(model.namespace).append(".model.").append(model.name).append(";\n");
+        code.append("import ").append(model.namespace).append(".model.").append(pascalName(model)).append(";\n");
         code.append("import ").append(BASE_PACKAGE).append(".repository.").append(repositoryClass).append(";\n");
         code.append("import ").append(BASE_PACKAGE).append(".dto.RuleAwareResponse;\n");
         code.append("import ").append(BASE_PACKAGE).append(".dto.RuleEvaluationResult;\n");
@@ -1090,7 +1102,7 @@ public class SpringBootServerGenerator {
         code.append("        this.ruleService = ruleService;\n");
         code.append("    }\n\n");
 
-        code.append("    public RuleAwareResponse<").append(model.name).append("> create(").append(model.name).append(" entity, MetadataContext metadata) {\n");
+        code.append("    public RuleAwareResponse<").append(pascalName(model)).append("> create(").append(pascalName(model)).append(" entity, MetadataContext metadata) {\n");
         code.append("        log.info(\"Creating new ").append(model.name).append(" entity\");\n");
         code.append("        log.debug(\"Entity data: {}\", entity);\n");
         code.append("        RuleEvaluationResult ruleResult = ruleService.evaluateAll(entity, metadata);\n");
@@ -1099,15 +1111,15 @@ public class SpringBootServerGenerator {
         code.append("            log.warn(\"").append(model.name).append(" creation failed validation\");\n");
         code.append("            throw new RuleViolationException(\"Validation failed\", ruleResult);\n");
         code.append("        }\n");
-        code.append("        ").append(model.name).append(" saved = repository.save(entity);\n");
+        code.append("        ").append(pascalName(model)).append(" saved = repository.save(entity);\n");
         code.append("        log.info(\"Successfully created ").append(model.name).append(" entity\");\n");
-        code.append("        return RuleAwareResponse.<").append(model.name).append(">builder()\n");
+        code.append("        return RuleAwareResponse.<").append(pascalName(model)).append(">builder()\n");
         code.append("            .data(saved)\n");
         code.append("            .ruleResults(ruleResult)\n");
         code.append("            .build();\n");
         code.append("    }\n\n");
 
-        code.append("    public ").append(model.name).append(" findById(String id) {\n");
+        code.append("    public ").append(pascalName(model)).append(" findById(String id) {\n");
         code.append("        log.debug(\"Fetching ").append(model.name).append(" by id: {}\", id);\n");
         code.append("        return repository.findById(id)\n");
         code.append("            .orElseThrow(() -> {\n");
@@ -1116,12 +1128,12 @@ public class SpringBootServerGenerator {
         code.append("            });\n");
         code.append("    }\n\n");
 
-        code.append("    public List<").append(model.name).append("> findAll() {\n");
+        code.append("    public List<").append(pascalName(model)).append("> findAll() {\n");
         code.append("        log.debug(\"Fetching all ").append(model.name).append(" entities\");\n");
         code.append("        return repository.findAll();\n");
         code.append("    }\n\n");
 
-        code.append("    public RuleAwareResponse<").append(model.name).append("> update(String id, ").append(model.name).append(" entity, MetadataContext metadata) {\n");
+        code.append("    public RuleAwareResponse<").append(pascalName(model)).append("> update(String id, ").append(pascalName(model)).append(" entity, MetadataContext metadata) {\n");
         code.append("        log.info(\"Updating ").append(model.name).append(" with id: {}\", id);\n");
         code.append("        if (!repository.existsById(id)) {\n");
         code.append("            log.warn(\"").append(model.name).append(" not found for update with id: {}\", id);\n");
@@ -1134,9 +1146,9 @@ public class SpringBootServerGenerator {
         code.append("            log.warn(\"").append(model.name).append(" update failed validation for id: {}\", id);\n");
         code.append("            throw new RuleViolationException(\"Validation failed\", ruleResult);\n");
         code.append("        }\n");
-        code.append("        ").append(model.name).append(" updated = repository.save(entity);\n");
+        code.append("        ").append(pascalName(model)).append(" updated = repository.save(entity);\n");
         code.append("        log.info(\"Successfully updated ").append(model.name).append(" with id: {}\", id);\n");
-        code.append("        return RuleAwareResponse.<").append(model.name).append(">builder()\n");
+        code.append("        return RuleAwareResponse.<").append(pascalName(model)).append(">builder()\n");
         code.append("            .data(updated)\n");
         code.append("            .ruleResults(ruleResult)\n");
         code.append("            .build();\n");
@@ -1157,15 +1169,15 @@ public class SpringBootServerGenerator {
     }
 
     private void generateController(ModelInfo model, String outputDir) throws IOException {
-        String className = model.name + "Controller";
+        String className = pascalName(model) + "Controller";
         String packageName = BASE_PACKAGE + ".controller";
-        String serviceClass = model.name + "Service";
-        String resourcePath = "/" + model.resource;
+        String serviceClass = pascalName(model) + "Service";
+        String resourcePath = "/" + toResourceName(model.name);
 
         StringBuilder code = new StringBuilder();
         code.append("package ").append(packageName).append(";\n\n");
 
-        code.append("import ").append(model.namespace).append(".model.").append(model.name).append(";\n");
+        code.append("import ").append(model.namespace).append(".model.").append(pascalName(model)).append(";\n");
         code.append("import ").append(BASE_PACKAGE).append(".service.").append(serviceClass).append(";\n");
         code.append("import ").append(BASE_PACKAGE).append(".config.MetadataExtractor;\n");
         code.append("import ").append(BASE_PACKAGE).append(".dto.RuleAwareResponse;\n");
@@ -1197,45 +1209,45 @@ public class SpringBootServerGenerator {
 
         // POST /entities
         code.append("    @PostMapping\n");
-        code.append("    public ResponseEntity<RuleAwareResponse<").append(model.name).append(">> create(\n");
-        code.append("            @Valid @RequestBody ").append(model.name).append(" entity,\n");
+        code.append("    public ResponseEntity<RuleAwareResponse<").append(pascalName(model)).append(">> create(\n");
+        code.append("            @Valid @RequestBody ").append(pascalName(model)).append(" entity,\n");
         code.append("            HttpServletRequest request) {\n");
         code.append("        log.info(\"POST ").append(resourcePath).append(" - Creating new ").append(model.name).append("\");\n");
         code.append("        log.debug(\"Request headers: {} {}\", request.getMethod(), request.getRequestURI());\n");
         code.append("        MetadataContext metadata = metadataExtractor.extractFromHeaders(request);\n");
-        code.append("        RuleAwareResponse<").append(model.name).append("> response = service.create(entity, metadata);\n");
+        code.append("        RuleAwareResponse<").append(pascalName(model)).append("> response = service.create(entity, metadata);\n");
         code.append("        log.info(\"Successfully created ").append(model.name).append(" with status 201\");\n");
         code.append("        return ResponseEntity.status(HttpStatus.CREATED).body(response);\n");
         code.append("    }\n\n");
 
         // GET /entities
         code.append("    @GetMapping\n");
-        code.append("    public ResponseEntity<List<").append(model.name).append(">> list() {\n");
+        code.append("    public ResponseEntity<List<").append(pascalName(model)).append(">> list() {\n");
         code.append("        log.info(\"GET ").append(resourcePath).append(" - Retrieving all ").append(model.name).append(" entities\");\n");
-        code.append("        List<").append(model.name).append("> results = service.findAll();\n");
+        code.append("        List<").append(pascalName(model)).append("> results = service.findAll();\n");
         code.append("        log.info(\"Retrieved {} ").append(model.name).append(" entities\", results.size());\n");
         code.append("        return ResponseEntity.ok(results);\n");
         code.append("    }\n\n");
 
         // GET /entities/{id}
         code.append("    @GetMapping(\"/{id}\")\n");
-        code.append("    public ResponseEntity<").append(model.name).append("> get(@PathVariable String id) {\n");
+        code.append("    public ResponseEntity<").append(pascalName(model)).append("> get(@PathVariable String id) {\n");
         code.append("        log.info(\"GET ").append(resourcePath).append("/{id} - Retrieving ").append(model.name).append(" with id: {}\", id);\n");
-        code.append("        ").append(model.name).append(" result = service.findById(id);\n");
+        code.append("        ").append(pascalName(model)).append(" result = service.findById(id);\n");
         code.append("        log.info(\"Found ").append(model.name).append(" with id: {}\", id);\n");
         code.append("        return ResponseEntity.ok(result);\n");
         code.append("    }\n\n");
 
         // PUT /entities/{id}
         code.append("    @PutMapping(\"/{id}\")\n");
-        code.append("    public ResponseEntity<RuleAwareResponse<").append(model.name).append(">> update(\n");
+        code.append("    public ResponseEntity<RuleAwareResponse<").append(pascalName(model)).append(">> update(\n");
         code.append("            @PathVariable String id,\n");
-        code.append("            @Valid @RequestBody ").append(model.name).append(" entity,\n");
+        code.append("            @Valid @RequestBody ").append(pascalName(model)).append(" entity,\n");
         code.append("            HttpServletRequest request) {\n");
         code.append("        log.info(\"PUT ").append(resourcePath).append("/{id} - Updating ").append(model.name).append(" with id: {}\", id);\n");
         code.append("        log.debug(\"Request headers: {} {}\", request.getMethod(), request.getRequestURI());\n");
         code.append("        MetadataContext metadata = metadataExtractor.extractFromHeaders(request);\n");
-        code.append("        RuleAwareResponse<").append(model.name).append("> response = service.update(id, entity, metadata);\n");
+        code.append("        RuleAwareResponse<").append(pascalName(model)).append("> response = service.update(id, entity, metadata);\n");
         code.append("        log.info(\"Successfully updated ").append(model.name).append(" with id: {}\", id);\n");
         code.append("        return ResponseEntity.ok(response);\n");
         code.append("    }\n\n");
@@ -1251,6 +1263,14 @@ public class SpringBootServerGenerator {
         code.append("}\n");
 
         writefile(outputDir, packageName, className, code.toString());
+    }
+
+    private String pascalName(ModelInfo model) {
+        return JavaUtils.snakeToPascal(model.name);
+    }
+
+    private String toResourceName(String snakeName) {
+        return snakeName.replace('_', '-');
     }
 
     private String camelToHeaderCase(String camelCase) {
@@ -1271,7 +1291,7 @@ public class SpringBootServerGenerator {
     private String resolveModelImport(RuleInfo rule) {
         ModelInfo model = modelIndex.get(rule.targetName);
         if (model != null) {
-            return model.namespace + ".model." + model.name;
+            return model.namespace + ".model." + pascalName(model);
         }
         return "dev.appget.model." + rule.targetName;
     }
@@ -1293,6 +1313,13 @@ public class SpringBootServerGenerator {
         }
     }
 
+    private void deleteDirectory(Path path) throws IOException {
+        Files.walk(path)
+            .sorted(java.util.Comparator.reverseOrder())
+            .map(Path::toFile)
+            .forEach(java.io.File::delete);
+    }
+
     private void writefile(String outputDir, String packageName, String className, String javaCode) throws IOException {
         Path packagePath = Paths.get(outputDir, packageName.split("\\."));
         Files.createDirectories(packagePath);
@@ -1305,7 +1332,6 @@ public class SpringBootServerGenerator {
         String name;
         String domain;
         String namespace;
-        String resource;
         List<Map<String, Object>> fields;
     }
 

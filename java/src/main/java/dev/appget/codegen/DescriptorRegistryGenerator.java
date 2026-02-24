@@ -81,8 +81,9 @@ public class DescriptorRegistryGenerator {
             if (models != null) {
                 for (Map<String, Object> model : models) {
                     String name = (String) model.get("name");
-                    String importPath = namespace + ".model." + name;
-                    entries.add(new RegistryEntry(name, importPath));
+                    String pascalName = JavaUtils.snakeToPascal(name);
+                    String importPath = namespace + ".model." + pascalName;
+                    entries.add(new RegistryEntry(name, pascalName, importPath));
                     logger.debug("Added model: {} with import: {}", name, importPath);
                 }
             }
@@ -92,8 +93,9 @@ public class DescriptorRegistryGenerator {
             if (views != null) {
                 for (Map<String, Object> view : views) {
                     String name = (String) view.get("name");
-                    String importPath = namespace + ".view." + name;
-                    entries.add(new RegistryEntry(name, importPath));
+                    String pascalName = JavaUtils.snakeToPascal(name);
+                    String importPath = namespace + ".view." + pascalName;
+                    entries.add(new RegistryEntry(name, pascalName, importPath));
                     logger.debug("Added view: {} with import: {}", name, importPath);
                 }
             }
@@ -121,6 +123,7 @@ public class DescriptorRegistryGenerator {
             imports.add(entry.importPath);
             Map<String, String> entryMap = new HashMap<>();
             entryMap.put("name", entry.name);
+            entryMap.put("pascalName", entry.pascalName);
             entryMap.put("importPath", entry.importPath);
             entryMaps.add(entryMap);
         }
@@ -138,10 +141,12 @@ public class DescriptorRegistryGenerator {
 
     private static class RegistryEntry {
         final String name;
+        final String pascalName;
         final String importPath;
 
-        RegistryEntry(String name, String importPath) {
+        RegistryEntry(String name, String pascalName, String importPath) {
             this.name = name;
+            this.pascalName = pascalName;
             this.importPath = importPath;
         }
     }

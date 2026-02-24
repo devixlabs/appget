@@ -300,7 +300,7 @@ rules:
 
 **Why this intermediate?** `models.yaml` is consumed by multiple generators (spec generator, descriptor registry generator, server generator). A single parse of SQL avoids each generator re-implementing SQL parsing independently — a known source of bugs and divergence.
 
-**Single-parse design**: All SQL parsing is consolidated in `SQLSchemaParser`, which emits `models.yaml`. All other generators (`ModelsToProtoConverter`, `SpecificationGenerator`, `DescriptorRegistryGenerator`, `SpringBootServerGenerator`) consume only `models.yaml` — they never re-parse SQL directly.
+**Single-parse design**: All SQL parsing is consolidated in `SQLSchemaParser`, which emits `models.yaml`. All other generators (`ModelsToProtoConverter`, `SpecificationGenerator`, `DescriptorRegistryGenerator`, `AppServerGenerator`) consume only `models.yaml` — they never re-parse SQL directly.
 
 ---
 
@@ -608,7 +608,7 @@ Each dependency below is used in the Java reference implementation. Future langu
 **Port note**: `logging` (Python), `log/slog` (Go), Ruby Logger.
 
 ### JUnit 5 (5.11.3)
-**What it does**: Test framework for 171 unit tests across 13 suites.
+**What it does**: Test framework for 280 unit tests across 16 suites.
 **Port note**: pytest (Python), `testing` (Go), RSpec (Ruby).
 
 ---
@@ -668,7 +668,7 @@ generate-registry
 compile-java
 (all generated + handwritten code)
     ↓
-test (171 unit tests)
+test (280 unit tests)
     ↓
 build (JAR + distributions)
 ```
@@ -737,7 +737,7 @@ Implement the SQL → language type mapping table. Each language has different p
 
 ### Redundancy: Type Mapping Scattered
 
-SQL-to-type mappings exist in `SQLSchemaParser`, `ModelsToProtoConverter`, `ProtoOpenAPIGenerator`, and `SpringBootServerGenerator`. A divergence in any one of them produces inconsistent output.
+SQL-to-type mappings exist in `SQLSchemaParser`, `ModelsToProtoConverter`, `ProtoOpenAPIGenerator`, and `AppServerGenerator`. A divergence in any one of them produces inconsistent output.
 
 **Improvement**: Extract a single shared type registry (neutral type → language type, neutral type → OpenAPI type, neutral type → proto type) consumed by all generators. In future language implementations, define this table once.
 

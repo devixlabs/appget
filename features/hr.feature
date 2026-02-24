@@ -1,7 +1,7 @@
 @domain:hr
 Feature: HR Domain Business Rules
 
-  @target:Salary @rule:SalaryAmountCheck
+  @target:salaries @rule:SalaryAmountCheck
   Scenario: Salary premium threshold
     When amount is greater than 50000
     Then status is "PREMIUM"

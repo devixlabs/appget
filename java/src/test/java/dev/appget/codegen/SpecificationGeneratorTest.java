@@ -66,8 +66,8 @@ class SpecificationGeneratorTest {
             Path agePath = Paths.get(outputDir, "dev", "appget", "specification", "generated", "EmployeeAgeCheck.java");
             String content = Files.readString(agePath);
 
-            assertTrue(content.contains("public boolean evaluate(Employee target)"), "Should have evaluate method");
-            assertTrue(content.contains("public String getResult(Employee target)"), "Should have getResult method");
+            assertTrue(content.contains("public boolean evaluate(Employees target)"), "Should have evaluate method");
+            assertTrue(content.contains("public String getResult(Employees target)"), "Should have getResult method");
             assertTrue(content.contains("getSpec()"), "Should have getSpec method");
         }
     }
@@ -108,7 +108,7 @@ class SpecificationGeneratorTest {
             Path agePath = Paths.get(outputDir, "dev", "appget", "specification", "generated", "EmployeeAgeCheck.java");
             String content = Files.readString(agePath);
 
-            assertTrue(content.contains("import dev.appget.model.Employee"), "Should import Employee model");
+            assertTrue(content.contains("import dev.appget.model.Employees"), "Should import Employees model");
             assertTrue(content.contains("import dev.appget.specification.Specification"), "Should import Specification");
         }
     }

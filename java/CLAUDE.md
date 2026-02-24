@@ -8,7 +8,7 @@ This file provides Claude Code with Java-specific guidance for the appget.dev/ja
 
 **appget.dev/java** is a production-ready code generation system within the DevixLabs platform. It converts Gherkin business rules and database schemas into fully typed, tested Java domain models with business rule specifications, compound conditions, and metadata-aware authorization.
 
-**Key Responsibility**: Gherkin-first business rules, schema-first Java model generation with protobuf descriptor-based specifications, compound AND/OR logic, metadata authorization, blocking/informational rule enforcement, and comprehensive test coverage (277 tests).
+**Key Responsibility**: Gherkin-first business rules, schema-first Java model generation with protobuf descriptor-based specifications, compound AND/OR logic, metadata authorization, blocking/informational rule enforcement, and comprehensive test coverage (280 tests).
 
 ---
 
@@ -80,7 +80,7 @@ This file provides Claude Code with Java-specific guidance for the appget.dev/ja
 ```
 Step 1: compileGenerators (independent)
         ├─ Compiles: FeatureToSpecsConverter, SQLSchemaParser, ModelsToProtoConverter,
-        │             SpecificationGenerator, ProtoOpenAPIGenerator, SpringBootServerGenerator
+        │             SpecificationGenerator, ProtoOpenAPIGenerator, AppServerGenerator
         └─ Output: build/generators/*.class
 
 Step 1b: featuresToSpecs (depends on compileGenerators)
@@ -101,7 +101,7 @@ Step 3b: generateOpenAPI (depends on generateProto)
         └─ Output: openapi.yaml (git-ignored)
 
 Step 3c: generateServer (depends on compileGenerators + generateProto + generateSpecs)
-        ├─ Runs: SpringBootServerGenerator (models.yaml + specs.yaml → REST API)
+        ├─ Runs: AppServerGenerator (models.yaml + specs.yaml → REST API)
         ├─ Output: generated-server/dev/appget/server/ (complete Spring Boot project)
         └─ Note: RuleService uses pre-compiled spec classes (no runtime YAML parsing)
 
@@ -118,8 +118,8 @@ Step 5: compileJava (depends on generateSpecs, generateDescriptorRegistry)
         └─ Output: build/classes/main/*.class
 
 Step 6: test (depends on compileJava)
-        ├─ Runs: 213 JUnit 5 tests
-        └─ Result: 213/213 passing
+        ├─ Runs: 280 JUnit 5 tests
+        └─ Result: 280/280 passing
 
 Step 7: build (depends on test)
         ├─ Packages: JAR, distributions
@@ -217,7 +217,7 @@ private static Map<String, String> createTypeMapping() {
 **Impact on Generators**:
 - ModelsToProtoConverter: Converts models.yaml → proto (schema only, no rules)
 - RuleEngine: Loads rules from specs.yaml, not from proto
-- All downstream generators (SpecificationGenerator, SpringBootServerGenerator): Read rules from specs.yaml
+- All downstream generators (SpecificationGenerator, AppServerGenerator): Read rules from specs.yaml
 
 This separation ensures that:
 1. Proto files remain language-agnostic schema contracts for all future implementations
@@ -280,7 +280,7 @@ Protobuf is the shared schema and code generation medium for ALL future appget.d
 | JavaScript/TypeScript | ts-proto or pbjs | .ts/.js classes | future appget.dev/node |
 | C# | built-in | .cs classes | future appget.dev/csharp |
 
-**All implementations use the same .proto files** (generated from models.yaml) as source of truth, then layer language-specific generators on top (like SpringBootServerGenerator for Java, Django server generation for Python, etc.).
+**All implementations use the same .proto files** (generated from models.yaml) as source of truth, then layer language-specific generators on top (like AppServerGenerator for Java, Django server generation for Python, etc.).
 
 ---
 
@@ -312,9 +312,8 @@ Protobuf is the shared schema and code generation medium for ALL future appget.d
 - **Parenthesis matching**: Correctly handles `DECIMAL(15,2)` nested types
 - **Type mapping**: Comprehensive SQL → Java type conversion
 - **Constraint parsing**: Respects `NOT NULL`, wraps primitives appropriately
-- **Domain assignment**: `DOMAIN_MAPPING` for tables, `VIEW_DOMAIN_MAPPING` for views
-- **Name conversion**: snake_case → camelCase (role_id → roleId)
-- **Singularization**: employees → employee, departments → department
+- **Domain assignment**: comment-based detection (`-- appget domain` before tables assigns domain)
+- **Name preservation**: table and column names kept as snake_case (e.g., `employees`, `role_id`)
 - **View alias resolution**: `e.name` → resolves `e` → `employees` → lookup column type
 - **Aggregate functions**: COUNT → long, SUM → BigDecimal, AVG → double
 
@@ -371,7 +370,7 @@ Business rules are defined in human-friendly Gherkin `.feature` files, one per d
 **Feature-level tags**: `@domain:appget` assigns domain to all scenarios
 
 **Scenario-level tags**:
-- `@target:Employee` - target model/view name
+- `@target:employees` - target model/view name (snake_case plural)
 - `@rule:EmployeeAgeCheck` - explicit rule name
 - `@blocking` - rule causes 422 rejection when unsatisfied
 - `@view` - target is a view (not a model)
@@ -399,8 +398,8 @@ Business rules are defined in human-friendly Gherkin `.feature` files, one per d
 
 ### Feature Files
 
-- `features/appget.feature` - 6 rules (Employee model + EmployeeSalaryView view)
-- `features/hr.feature` - 1 rule (Salary model)
+- `features/appget.feature` - 6 rules (Employees model + EmployeeSalaryView view)
+- `features/hr.feature` - 1 rule (Salaries model)
 - `metadata.yaml` - context POJOs (sso, roles, user, location) committed separately
 
 ### Important Gotchas
@@ -509,7 +508,7 @@ rules:
   - name: EmployeeAgeCheck
     target:
       type: model
-      name: Employee
+      name: employees
       domain: appget
     blocking: true             # Causes 422 rejection if unsatisfied
     conditions:
@@ -533,9 +532,9 @@ rules:
 **Input**: `.proto` files (generated by ModelsToProtoConverter)
 **Output**: `openapi.yaml` (OpenAPI 3.0.0 REST API specification with full CRUD, security)
 
-### SpringBootServerGenerator: YAML → Complete REST API Server (NEW)
+### AppServerGenerator: YAML → Complete REST API Server
 
-**Location**: `src/main/java/dev/appget/codegen/SpringBootServerGenerator.java`
+**Location**: `src/main/java/dev/appget/codegen/AppServerGenerator.java`
 
 **Input**: `models.yaml` + `specs.yaml`
 **Output**: Complete Spring Boot REST API server in `generated-server/dev/appget/server/`
@@ -574,7 +573,7 @@ rules:
 ```
 specs.yaml defines rules → SpecificationGenerator creates spec classes
                                        ↓
-SpringBootServerGenerator reads specs.yaml
+AppServerGenerator reads specs.yaml
   → generates RuleService that instantiates spec classes directly
   → generates MetadataExtractor that reads X-{Category}-{Field} headers
   → no runtime YAML parsing, no @PostConstruct, no reflection
@@ -623,7 +622,7 @@ private final EmployeeAgeCheck employeeAgeCheck = new EmployeeAgeCheck();
 private final AuthenticatedApproval authenticatedApproval = new AuthenticatedApproval();
 
 // instanceof grouping per target model
-if (target instanceof Employee) {
+if (target instanceof Employees) {
     // blocking rules set hasFailures = true when unsatisfied
     // informational rules just report outcome
     // metadata-aware rules use evaluate(target, metadata)
@@ -776,7 +775,7 @@ make run                      # 6. Execute
 - Output: OpenAPI 3.0.0 spec with full CRUD and security
 
 ### make generate-server
-- Runs: `SpringBootServerGenerator models.yaml specs.yaml generated-server/`
+- Runs: `AppServerGenerator models.yaml specs.yaml generated-server/`
 - Output: Complete Spring Boot REST API server
 - Location: `generated-server/dev/appget/server/`
 - Note: Separate from main build, independent generation
@@ -788,7 +787,7 @@ make run                      # 6. Execute
 - Note: Requires Spring Boot dependencies installed
 
 ### make test
-- Runs: `gradle test` (213 tests)
+- Runs: `gradle test` (280 tests)
 
 ### make build
 - Full pipeline: parse → generate → compile → package
@@ -821,7 +820,7 @@ All non-generated classes have logging:
 - `ModelsToProtoConverter.java` - models.yaml + specs → .proto file generation
 - `SpecificationGenerator.java` - Specification and metadata POJO generation
 - `ProtoOpenAPIGenerator.java` - Proto-first OpenAPI spec generation
-- `SpringBootServerGenerator.java` - Spring Boot REST API generation
+- `AppServerGenerator.java` - Spring Boot REST API generation
 - `RuleEngine.java` - Loading rules from specs.yaml and evaluating them
 - `Specification.java` - Specification evaluation with field resolution
 - `CompoundSpecification.java` - AND/OR compound condition evaluation
@@ -871,7 +870,7 @@ These are created once and reused efficiently across all invocations.
 
 ### Test Suite Overview
 
-**213 comprehensive unit tests** in 14 suites covering all components:
+**280 comprehensive unit tests** in 16 suites covering all components:
 
 #### 1. Feature To Specs Converter Tests (24 tests)
 - Gherkin `.feature` file parsing
@@ -904,7 +903,7 @@ These are created once and reused efficiently across all invocations.
 - View-targeting specification generation
 - Proper package structure and imports
 
-#### 6. Spring Boot Server Generator Tests (12 tests)
+#### 6. App Server Generator Tests (17 tests)
 - RuleService has no TODO stubs
 - MetadataExtractor has no TODO stubs
 - RuleService imports and instantiates pre-compiled spec classes
@@ -954,7 +953,7 @@ These are created once and reused efficiently across all invocations.
 - Field descriptors accessible
 
 #### 13. Test Data Builder Tests (6 tests)
-- Build Employee/Salary/View with generic defaults
+- Build Employees/Salaries/View with generic defaults
 - String fields get "Sample_" prefix
 - Int fields default to 42, double to 42.0
 
@@ -963,21 +962,24 @@ These are created once and reused efficiently across all invocations.
 ```
 src/test/java/dev/appget/
 ├── codegen/
-│   ├── CodeGenUtilsTest.java                (42 tests)
+│   ├── AppServerGeneratorTest.java          (17 tests)
+│   ├── CodeGenUtilsTest.java                (28 tests)
 │   ├── FeatureToSpecsConverterTest.java     (24 tests)
-│   ├── JavaUtilsTest.java                   (16 tests)
-│   ├── ModelsToProtoConverterTest.java      (14 tests)
+│   ├── JavaTypeRegistryTest.java            (44 tests)
+│   ├── JavaUtilsTest.java                   (28 tests)
+│   ├── ModelsToProtoConverterTest.java      (18 tests)
 │   ├── ProtoOpenAPIGeneratorTest.java       (23 tests)
-│   ├── SpecificationGeneratorTest.java      (13 tests)
-│   └── SpringBootServerGeneratorTest.java   (12 tests)
+│   └── SpecificationGeneratorTest.java      (13 tests)
+├── conformance/
+│   └── ConformanceTest.java                 (16 tests)
 ├── model/
 │   └── RuleTest.java                        (15 tests)
 ├── service/
 │   └── GrpcServiceTest.java                 (7 tests)
 ├── specification/
-│   ├── SpecificationTest.java               (21 tests)
 │   ├── CompoundSpecificationTest.java        (6 tests)
-│   └── MetadataContextTest.java              (5 tests)
+│   ├── MetadataContextTest.java              (5 tests)
+│   └── SpecificationTest.java               (21 tests)
 └── util/
     ├── DescriptorRegistryTest.java           (9 tests)
     └── TestDataBuilderTest.java              (6 tests)
@@ -1041,7 +1043,7 @@ build/
 - `make clean`: ~0.7s
 - `make parse-schema`: ~0.9s
 - `make generate`: ~1s
-- `make test`: ~2s (213 tests)
+- `make test`: ~2s (280 tests)
 - `make build`: ~1s
 - `make all`: ~5-6s total
 
@@ -1129,7 +1131,7 @@ DON'T commit (all auto-generated):
 | `src/main/java/dev/appget/codegen/SpecificationGenerator.java` | YAML → Spec + metadata POJO generator |
 | `src/main/java/dev/appget/codegen/DescriptorRegistryGenerator.java` | YAML → Auto-generated DescriptorRegistry |
 | `src/main/java/dev/appget/codegen/ProtoOpenAPIGenerator.java` | .proto files → OpenAPI 3.0 YAML (full CRUD, security) |
-| `src/main/java/dev/appget/codegen/SpringBootServerGenerator.java` | Models + specs → Complete REST API server |
+| `src/main/java/dev/appget/codegen/AppServerGenerator.java` | Models + specs → Complete REST API server |
 | `src/main/java/dev/appget/specification/Specification.java` | Dual-path evaluation (descriptor + reflection) |
 | `src/main/java/dev/appget/specification/CompoundSpecification.java` | AND/OR compound logic |
 | `src/main/java/dev/appget/specification/MetadataContext.java` | Authorization metadata holder |
@@ -1139,7 +1141,7 @@ DON'T commit (all auto-generated):
 | `src/main/java/dev/appget/util/TestDataBuilder.java` | DynamicMessage-based sample data builder |
 | `src/main/java/dev/appget/RuleEngine.java` | Descriptor-driven rule evaluation engine |
 | `generated-server/` | Auto-generated Spring Boot REST API (git-ignored) |
-| `src/test/java/dev/appget/...` | 213 unit tests (14 suites) |
+| `src/test/java/dev/appget/...` | 280 unit tests (16 suites) |
 
 ---
 
@@ -1173,7 +1175,7 @@ DON'T commit (all auto-generated):
 9. **Spring Boot REST API**: Complete server with Controllers/Services/Repositories
 
 ### Quality & Operations
-10. **Comprehensive testing**: 213 tests verify entire pipeline (12 test suites)
+10. **Comprehensive testing**: 280 tests verify entire pipeline (16 test suites)
 11. **Reproducible builds**: Same schema + features → same code, always
 12. **Logging**: Log4j2 integrated in all non-generated classes
 13. **Isolated generation**: Independent compilation breaks circular dependencies
@@ -1186,9 +1188,8 @@ DON'T commit (all auto-generated):
 
 ---
 
-**Last Updated**: 2026-02-12
+**Last Updated**: 2026-02-24
 **Status**: Production Ready
-**Test Coverage**: 213 tests, 100% passing
+**Test Coverage**: 280 tests, 100% passing
 **Logging**: Log4j2 integrated in all non-generated classes
-**Testing**: 14 test suites, comprehensive pipeline coverage
-**New (2026-02-12)**: Gherkin .feature files as source of truth for business rules, FeatureToSpecsConverter, 24 new tests
+**Testing**: 16 test suites, comprehensive pipeline coverage

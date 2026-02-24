@@ -144,4 +144,46 @@ class JavaUtilsTest {
         assertEquals("yearsOfService", JavaUtils.snakeToCamel("years_of_service"));
         assertEquals("name", JavaUtils.snakeToCamel("name"));
     }
+
+    // ---- snakeToPascal ----
+
+    @Test
+    @DisplayName("snakeToPascal: converts snake_case to PascalCase")
+    void testSnakeToPascal() {
+        assertEquals("SnakeCase", JavaUtils.snakeToPascal("snake_case"));
+    }
+
+    @Test
+    @DisplayName("snakeToPascal: table names to PascalCase")
+    void testSnakeToPascalTableNames() {
+        assertEquals("Employees", JavaUtils.snakeToPascal("employees"));
+        assertEquals("Salaries", JavaUtils.snakeToPascal("salaries"));
+        assertEquals("Departments", JavaUtils.snakeToPascal("departments"));
+        assertEquals("Invoices", JavaUtils.snakeToPascal("invoices"));
+    }
+
+    @Test
+    @DisplayName("snakeToPascal: view names to PascalCase")
+    void testSnakeToPascalViewNames() {
+        assertEquals("EmployeeSalaryView", JavaUtils.snakeToPascal("employee_salary_view"));
+        assertEquals("DepartmentBudgetView", JavaUtils.snakeToPascal("department_budget_view"));
+    }
+
+    @Test
+    @DisplayName("snakeToPascal: no underscores capitalizes first letter")
+    void testSnakeToPascalNoUnderscore() {
+        assertEquals("Simple", JavaUtils.snakeToPascal("simple"));
+    }
+
+    @Test
+    @DisplayName("snakeToPascal: null returns null")
+    void testSnakeToPascalNull() {
+        assertNull(JavaUtils.snakeToPascal(null));
+    }
+
+    @Test
+    @DisplayName("snakeToPascal: empty string returns empty string")
+    void testSnakeToPascalEmpty() {
+        assertEquals("", JavaUtils.snakeToPascal(""));
+    }
 }

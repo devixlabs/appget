@@ -1,6 +1,6 @@
 package dev.appget.model;
 
-import dev.appget.hr.model.Salary;
+import dev.appget.hr.model.Salaries;
 import dev.appget.view.EmployeeSalaryView;
 import dev.appget.common.Decimal;
 import dev.appget.specification.CompoundSpecification;
@@ -23,13 +23,13 @@ import static org.junit.jupiter.api.Assertions.*;
 @DisplayName("Rule Engine Tests")
 class RuleTest {
 
-    private Employee employee;
+    private Employees employee;
     private Specification ageSpecification;
     private Rule rule;
 
     @BeforeEach
     void setUp() {
-        employee = Employee.newBuilder()
+        employee = Employees.newBuilder()
                 .setName("Alice")
                 .setAge(28)
                 .setRoleId("Engineer")
@@ -59,7 +59,7 @@ class RuleTest {
                 .build();
 
         String result = rule.evaluate(employee);
-        assertEquals("APPROVED", result, "Employee age 28 > 25 should result in APPROVED");
+        assertEquals("APPROVED", result, "Employees age 28 > 25 should result in APPROVED");
     }
 
     @Test
@@ -74,7 +74,7 @@ class RuleTest {
                 .build();
 
         String result = rule.evaluate(employee);
-        assertEquals("REJECTED", result, "Employee age 28 > 30 should result in REJECTED");
+        assertEquals("REJECTED", result, "Employees age 28 > 30 should result in REJECTED");
     }
 
     @Test
@@ -89,7 +89,7 @@ class RuleTest {
                 .build();
 
         String result = rule.evaluate(employee);
-        assertEquals("APPROVED", result, "Employee role 'Engineer' == 'Engineer' should result in APPROVED");
+        assertEquals("APPROVED", result, "Employees role 'Engineer' == 'Engineer' should result in APPROVED");
     }
 
     @Test
@@ -188,13 +188,13 @@ class RuleTest {
                 .failureStatus("REJECTED")
                 .build();
 
-        Employee young = Employee.newBuilder()
+        Employees young = Employees.newBuilder()
                 .setName("Bob")
                 .setAge(22)
                 .setRoleId("Intern")
                 .build();
 
-        Employee senior = Employee.newBuilder()
+        Employees senior = Employees.newBuilder()
                 .setName("Charlie")
                 .setAge(45)
                 .setRoleId("Manager")
@@ -207,9 +207,9 @@ class RuleTest {
     // Generic + compound + metadata tests
 
     @Test
-    @DisplayName("Rule evaluates Salary model generically")
+    @DisplayName("Rule evaluates Salaries model generically")
     void testRuleWithSalaryModel() {
-        Salary salary = Salary.newBuilder()
+        Salaries salary = Salaries.newBuilder()
                 .setEmployeeId("Alice")
                 .setAmount(decimalOf(75000.0))
                 .setYearsOfService(5)
@@ -229,7 +229,7 @@ class RuleTest {
     @Test
     @DisplayName("Rule with compound specification")
     void testRuleWithCompoundSpecification() {
-        Employee manager = Employee.newBuilder()
+        Employees manager = Employees.newBuilder()
                 .setName("Bob")
                 .setAge(40)
                 .setRoleId("Manager")
@@ -296,7 +296,7 @@ class RuleTest {
     @Test
     @DisplayName("Rule targeting view field must not pass when evaluated against wrong model type")
     void testRuleWithViewFieldFailsOnWrongModelType() {
-        // salaryAmount exists on EmployeeSalaryView but NOT on Employee
+        // salaryAmount exists on EmployeeSalaryView but NOT on Employees
         Specification viewFieldSpec = new Specification("salary_amount", ">", 100000);
         Rule viewRule = Rule.builder()
                 .name("HighEarnerCheck")
@@ -305,7 +305,7 @@ class RuleTest {
                 .failureStatus("STANDARD_EARNER")
                 .build();
 
-        // Evaluating against Employee (which lacks salaryAmount) must return failure status
+        // Evaluating against Employees (which lacks salaryAmount) must return failure status
         String result = viewRule.evaluate(employee);
         assertEquals("STANDARD_EARNER", result,
                 "Rule with field not present on target model should return failure status, not throw or pass");

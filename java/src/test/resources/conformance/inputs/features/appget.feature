@@ -1,25 +1,25 @@
 @domain:appget
 Feature: Appget Domain Business Rules
 
-  @target:Employee @rule:CountryOfOriginCheck
+  @target:employees @rule:CountryOfOriginCheck
   Scenario: Country of origin must be USA
     When country_of_origin equals "USA"
     Then status is "APPROVED"
     But otherwise status is "REJECTED"
 
-  @target:Employee @blocking @rule:EmployeeAgeCheck
+  @target:employees @blocking @rule:EmployeeAgeCheck
   Scenario: Employee must be over 18
     When age is greater than 18
     Then status is "APPROVED"
     But otherwise status is "REJECTED"
 
-  @target:Employee @rule:EmployeeRoleCheck
+  @target:employees @rule:EmployeeRoleCheck
   Scenario: Employee must hold Manager role
     When role_id equals "Manager"
     Then status is "APPROVED"
     But otherwise status is "REJECTED"
 
-  @target:Employee @rule:SeniorManagerCheck
+  @target:employees @rule:SeniorManagerCheck
   Scenario: Senior manager must be 30+ and a Manager
     When all conditions are met:
       | field   | operator | value   |
@@ -28,13 +28,13 @@ Feature: Appget Domain Business Rules
     Then status is "SENIOR_MANAGER"
     But otherwise status is "NOT_SENIOR_MANAGER"
 
-  @view @target:EmployeeSalaryView @rule:HighEarnerCheck
+  @view @target:employee_salary_view @rule:HighEarnerCheck
   Scenario: High earner salary threshold
     When salary_amount is greater than 100000
     Then status is "HIGH_EARNER"
     But otherwise status is "STANDARD_EARNER"
 
-  @target:Employee @blocking @rule:AuthenticatedApproval
+  @target:employees @blocking @rule:AuthenticatedApproval
   Scenario: Authenticated employee approval with role level
     Given sso context requires:
       | field         | operator | value |

@@ -8,13 +8,13 @@ option java_multiple_files = true;
 
 package hr;
 
-message Department {
+message Departments {
   string id = 1;
   string name = 2;
   appget.common.Decimal budget = 3;
 }
 
-message Salary {
+message Salaries {
   string employee_id = 1;
   appget.common.Decimal amount = 2;
   optional int32 years_of_service = 3;

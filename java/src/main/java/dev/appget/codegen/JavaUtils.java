@@ -52,4 +52,24 @@ public class JavaUtils {
         }
         return result.toString();
     }
+
+    public static String snakeToPascal(String snake) {
+        if (snake == null || snake.isEmpty()) {
+            return snake;
+        }
+        StringBuilder result = new StringBuilder();
+        boolean capitalizeNext = true;
+        for (int i = 0; i < snake.length(); i++) {
+            char c = snake.charAt(i);
+            if (c == '_') {
+                capitalizeNext = true;
+            } else if (capitalizeNext) {
+                result.append(Character.toUpperCase(c));
+                capitalizeNext = false;
+            } else {
+                result.append(c);
+            }
+        }
+        return result.toString();
+    }
 }

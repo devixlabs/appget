@@ -9,8 +9,15 @@ option java_multiple_files = true;
 
 package finance;
 
-message Invoice {
+message Invoices {
   string invoice_number = 1;
   appget.common.Decimal amount = 2;
   google.protobuf.Timestamp issue_date = 3;
+}
+
+message Locations {
+  string locationid = 1;
+  string locationname = 2;
+  double longitude = 3;
+  double latitude = 4;
 }

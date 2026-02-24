@@ -1,9 +1,9 @@
 package dev.appget.specification;
 
-import dev.appget.model.Employee;
-import dev.appget.hr.model.Salary;
-import dev.appget.hr.model.Department;
-import dev.appget.finance.model.Invoice;
+import dev.appget.model.Employees;
+import dev.appget.hr.model.Salaries;
+import dev.appget.hr.model.Departments;
+import dev.appget.finance.model.Invoices;
 import dev.appget.common.Decimal;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.Timestamp;
@@ -19,11 +19,11 @@ import static org.junit.jupiter.api.Assertions.*;
 @DisplayName("Specification Pattern Tests")
 class SpecificationTest {
 
-    private Employee employee;
+    private Employees employee;
 
     @BeforeEach
     void setUp() {
-        employee = Employee.newBuilder()
+        employee = Employees.newBuilder()
                 .setName("Alice")
                 .setAge(28)
                 .setRoleId("Manager")
@@ -137,7 +137,7 @@ class SpecificationTest {
     @Test
     @DisplayName("Edge case: minimum age boundary")
     void testMinimumAgeBoundary() {
-        Employee youngEmployee = Employee.newBuilder()
+        Employees youngEmployee = Employees.newBuilder()
                 .setName("Bob")
                 .setAge(0)
                 .setRoleId("Intern")
@@ -150,7 +150,7 @@ class SpecificationTest {
     @Test
     @DisplayName("Edge case: large age value")
     void testLargeAgeValue() {
-        Employee seniorEmployee = Employee.newBuilder()
+        Employees seniorEmployee = Employees.newBuilder()
                 .setName("Charlie")
                 .setAge(65)
                 .setRoleId("Director")
@@ -181,7 +181,7 @@ class SpecificationTest {
     @Test
     @DisplayName("Salary Decimal amount comparison")
     void testSalaryAmountComparison() {
-        Salary salary = Salary.newBuilder()
+        Salaries salary = Salaries.newBuilder()
                 .setEmployeeId("Alice")
                 .setAmount(decimalOf(75000.50))
                 .setYearsOfService(5)
@@ -194,7 +194,7 @@ class SpecificationTest {
     @Test
     @DisplayName("Department budget Decimal comparison")
     void testDepartmentBudgetComparison() {
-        Department dept = Department.newBuilder()
+        Departments dept = Departments.newBuilder()
                 .setId("D1")
                 .setName("Engineering")
                 .setBudget(decimalOf(500000.0))
@@ -207,7 +207,7 @@ class SpecificationTest {
     @Test
     @DisplayName("Invoice string field comparison")
     void testInvoiceStringFieldComparison() {
-        Invoice invoice = Invoice.newBuilder()
+        Invoices invoice = Invoices.newBuilder()
                 .setInvoiceNumber("INV-001")
                 .setAmount(decimalOf(1500.0))
                 .setIssueDate(Timestamp.newBuilder().setSeconds(1749945600L).build())
@@ -220,7 +220,7 @@ class SpecificationTest {
     @Test
     @DisplayName("Salary integer field comparison")
     void testSalaryIntegerField() {
-        Salary salary = Salary.newBuilder()
+        Salaries salary = Salaries.newBuilder()
                 .setEmployeeId("Bob")
                 .setAmount(decimalOf(60000.0))
                 .setYearsOfService(10)
