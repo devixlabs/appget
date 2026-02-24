@@ -133,7 +133,8 @@ token VARCHAR(500) NOT NULL              -- ✅ Check token existence instead
 
 - **Table names**: plural, snake_case (e.g., `users`, `blog_posts`, `order_items`)
 - **Column names**: snake_case (e.g., `user_id`, `created_at`, `is_active`)
-- Table names are automatically singularized for model class names: `users` -> `User`, `blog_posts` -> `BlogPost`
+- Table names are automatically singularized for model class names: `users` -> `User`, `blog_posts` -> `BlogPost`, `follows` -> `Follow` (NOT `Follows`)
+- **`@target` values MUST use the singularized form**: `@target:User`, `@target:Follow`, `@target:BlogPost` — never the plural table name
 
 ### Domain Mapping
 
@@ -378,6 +379,20 @@ Use `But otherwise` (not just `Otherwise` — Gherkin requires a valid keyword).
     When token does not equal ""
     Then status is "ACTIVE"
     But otherwise status is "INVALID"
+```
+
+**Mistake: Using plural table name in @target instead of singularized model name**
+```gherkin
+  ❌ WRONG — table is "follows" but @target needs singularized name
+  @target:Follows @rule:ActiveFollow
+  Scenario: Follow is active
+
+  ✅ CORRECT — singularize: follows -> Follow
+  @target:Follow @rule:ActiveFollow
+  Scenario: Follow is active
+    When is_active equals true
+    Then status is "ACTIVE"
+    But otherwise status is "INACTIVE"
 ```
 
 ---
