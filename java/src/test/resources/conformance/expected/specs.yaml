@@ -1,0 +1,156 @@
+schema_version: 1
+metadata:
+  sso:
+    fields:
+      - name: authenticated
+        type: bool
+      - name: sessionId
+        type: string
+  roles:
+    fields:
+      - name: roleName
+        type: string
+      - name: roleLevel
+        type: int32
+  user:
+    fields:
+      - name: userId
+        type: string
+      - name: clearanceLevel
+        type: int32
+  location:
+    fields:
+      - name: locationId
+        type: string
+      - name: locationName
+        type: string
+      - name: longitude
+        type: float64
+      - name: latitude
+        type: float64
+
+
+rules:
+  - name: CountryOfOriginCheck
+    target:
+      type: model
+      name: employees
+      domain: appget
+    conditions:
+      - field: country_of_origin
+        operator: "=="
+        value: "USA"
+        value_type: string
+    then:
+      status: "APPROVED"
+    else:
+      status: "REJECTED"
+
+  - name: EmployeeAgeCheck
+    target:
+      type: model
+      name: employees
+      domain: appget
+    blocking: true
+    conditions:
+      - field: age
+        operator: ">"
+        value: 18
+        value_type: int32
+    then:
+      status: "APPROVED"
+    else:
+      status: "REJECTED"
+
+  - name: EmployeeRoleCheck
+    target:
+      type: model
+      name: employees
+      domain: appget
+    conditions:
+      - field: role_id
+        operator: "=="
+        value: "Manager"
+        value_type: string
+    then:
+      status: "APPROVED"
+    else:
+      status: "REJECTED"
+
+  - name: SeniorManagerCheck
+    target:
+      type: model
+      name: employees
+      domain: appget
+    conditions:
+      operator: AND
+      clauses:
+        - field: age
+          operator: ">="
+          value: 30
+          value_type: int32
+        - field: role_id
+          operator: "=="
+          value: "Manager"
+          value_type: string
+    then:
+      status: "SENIOR_MANAGER"
+    else:
+      status: "NOT_SENIOR_MANAGER"
+
+  - name: HighEarnerCheck
+    target:
+      type: view
+      name: employee_salary_view
+      domain: appget
+    conditions:
+      - field: salary_amount
+        operator: ">"
+        value: 100000
+        value_type: int32
+    then:
+      status: "HIGH_EARNER"
+    else:
+      status: "STANDARD_EARNER"
+
+  - name: AuthenticatedApproval
+    target:
+      type: model
+      name: employees
+      domain: appget
+    blocking: true
+    requires:
+      sso:
+        - field: authenticated
+          operator: "=="
+          value: true
+          value_type: bool
+      roles:
+        - field: roleLevel
+          operator: ">="
+          value: 3
+          value_type: int32
+    conditions:
+      - field: age
+        operator: ">="
+        value: 25
+        value_type: int32
+    then:
+      status: "APPROVED_WITH_AUTH"
+    else:
+      status: "DENIED"
+
+  - name: SalaryAmountCheck
+    target:
+      type: model
+      name: salaries
+      domain: hr
+    conditions:
+      - field: amount
+        operator: ">"
+        value: 50000
+        value_type: int32
+    then:
+      status: "PREMIUM"
+    else:
+      status: "STANDARD"

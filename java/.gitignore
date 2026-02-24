@@ -12,9 +12,9 @@ gradlew*
 src/main/java-generated/
 src/main/proto/*.proto
 generated-server/
-models.yaml
-specs.yaml
-openapi.yaml
+/models.yaml
+/specs.yaml
+/openapi.yaml
 
 # IDE files
 .idea/
