@@ -68,11 +68,13 @@ The `java/` subproject reads these files during its pipeline. Future language su
 
 3. **Generate the four source files** after approval.
 
-4. **Validate** by checking that:
-   - Every `@target` in feature files references a model/view defined in schema.sql/views.sql
-   - Every field referenced in rule conditions exists in the target model/view
-   - Every metadata category referenced in `Given ... context requires:` exists in metadata.yaml
-   - SQL types are from the supported set
+4. **Validate every rule** by checking that:
+   - Every `@target` references a model/view defined in schema.sql/views.sql
+   - **For EVERY field in a `When` condition**: open schema.sql (for models) or views.sql (for views) and verify the exact column name exists on the target table/view. A field on a different table or a view with a similar name does NOT count — it must be on the EXACT target.
+   - **No `When` condition references a `DATE`, `TIMESTAMP`, or `DATETIME` column** — these are non-comparable protobuf message types (see Non-Comparable Types above)
+   - For `@view` targets: verify the field exists in the view's `SELECT` clause, not just on the source tables
+   - Every metadata category in `Given ... context requires:` exists in metadata.yaml
+   - Every metadata field name in `Given` data tables exists in that category's fields in metadata.yaml
    - Gherkin syntax follows the exact DSL defined below
 
 ### When Modifying Existing Files
@@ -98,6 +100,28 @@ The `java/` subproject reads these files during its pipeline. Future language su
 | `DATE` | date | Date without time |
 | `TIMESTAMP`, `DATETIME` | datetime | Date and time |
 | `BOOLEAN`, `BOOL` | bool | True/false |
+
+### Non-Comparable Types (CRITICAL)
+
+**`DATE`, `TIMESTAMP`, and `DATETIME` columns CANNOT be used in `When` conditions.** They map to `google.protobuf.Timestamp`, which is a protobuf message type, not a scalar. The Specification evaluation system only compares scalars (String, Number, BigDecimal, Boolean). Rules that compare TIMESTAMP fields will silently fail or always return false.
+
+**NEVER write rules like these:**
+```gherkin
+When expires_at is greater than 0        ❌ TIMESTAMP is not a number
+When created_at does not equal ""         ❌ TIMESTAMP is not a string
+When assigned_at is greater than 1000     ❌ TIMESTAMP is not comparable
+```
+
+**Instead, use boolean flags or string/numeric fields for the same business logic:**
+```sql
+-- In schema.sql: add a derived boolean column instead
+is_expired BOOLEAN NOT NULL              -- ✅ Comparable
+token VARCHAR(500) NOT NULL              -- ✅ Check token existence instead
+```
+
+**Comparable types for `When` conditions**: `VARCHAR`, `TEXT`, `INT`, `BIGINT`, `DECIMAL`, `FLOAT`, `DOUBLE`, `BOOLEAN`
+
+**Not comparable**: `DATE`, `TIMESTAMP`, `DATETIME` — use these in schema for storage, but NEVER reference them in feature file `When` conditions or compound condition data tables.
 
 ### Constraints
 
@@ -323,6 +347,39 @@ Use `But otherwise` (not just `Otherwise` — Gherkin requires a valid keyword).
     But otherwise status is "DENIED"
 ```
 
+### Common Mistakes to Avoid
+
+**Mistake: Using a field that exists on a VIEW but targeting the MODEL**
+```gherkin
+  ❌ WRONG — user_roles table has: id, user_id, role_id, assigned_at
+  ❌ role_name does NOT exist on user_roles — it exists on user_role_view
+  @target:UserRole @rule:DeveloperCheck
+  Scenario: Check developer role
+    When role_name equals "developer"
+
+  ✅ CORRECT — target the VIEW where role_name actually exists
+  @view @target:UserRoleView @rule:DeveloperCheck
+  Scenario: Check developer role
+    When role_name equals "developer"
+    Then status is "DEVELOPER"
+    But otherwise status is "NOT_DEVELOPER"
+```
+
+**Mistake: Comparing a TIMESTAMP column**
+```gherkin
+  ❌ WRONG — expires_at is TIMESTAMP, not comparable
+  @target:Session @rule:SessionCheck
+  Scenario: Session not expired
+    When expires_at is greater than 0
+
+  ✅ CORRECT — use a comparable field instead
+  @target:Session @rule:SessionCheck
+  Scenario: Session has valid token
+    When token does not equal ""
+    Then status is "ACTIVE"
+    But otherwise status is "INVALID"
+```
+
 ---
 
 ## metadata.yaml Reference
@@ -467,6 +524,9 @@ When a human asks for a "Twitter-like" or "Instagram-like" app, ensure these fou
 - [ ] At least one metadata-aware rule (authentication/authorization)
 - [ ] Informational rules for business classification
 - [ ] One .feature file per domain
+- [ ] Every field in `When` conditions verified against target table/view columns
+- [ ] No `When` conditions reference DATE/TIMESTAMP/DATETIME columns
+- [ ] View-targeting rules use `@view` tag and target a view name, not a table name
 
 ### Authorization (metadata.yaml)
 - [ ] SSO context (authentication status)
