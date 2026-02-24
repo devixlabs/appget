@@ -147,13 +147,14 @@ void testModelServiceDomainImports(@TempDir Path tempDir) throws Exception {
 
 ---
 
-## Verification
+## Verification and Testing
 
 1. Apply the fix to `AppServerGenerator.java`
-2. Run `cd java && make all` — should pass cleanly
-3. Run `cd java && make test` — all 280+ tests pass including new ones
-4. Inspect generated `RuleService.java` — should have NO model imports
-5. Inspect generated per-model `*Service.java` — should have correct domain imports
+2. Run `cd java && make all` — MUST pass cleanly including tests
+3. Inspect generated `RuleService.java` — should have NO model imports
+4. Inspect generated per-model `*Service.java` — should have correct domain imports
+5. Inspect `java/test-api.sh` and all generated API endpoints SHOULD be tested for 200-level happy path scenarios
+6. Run `cd java && make all && make run-server` and make sure `make test-api` passes successfully.
 
 ---
 
