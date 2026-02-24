@@ -259,6 +259,10 @@ When <field_name> <operator_phrase> <value>
 **Numeric values** are unquoted: `When age is greater than 18`
 **Boolean values** are unquoted: `When is_active equals true`
 
+**CRITICAL: `<value>` must ALWAYS be a LITERAL (string, number, or boolean) — NEVER another field name.**
+The DSL does NOT support field-to-field comparisons. `When field_a does not equal field_b` parses `field_b` as a literal string, NOT as a column reference. This creates a no-op rule.
+If a business rule requires comparing two fields (e.g., "follower cannot equal following"), that logic belongs in application code, not in the Gherkin DSL.
+
 **Compound AND condition** (all must be true):
 ```gherkin
 When all conditions are met:
@@ -393,6 +397,54 @@ Use `But otherwise` (not just `Otherwise` — Gherkin requires a valid keyword).
     When is_active equals true
     Then status is "ACTIVE"
     But otherwise status is "INACTIVE"
+```
+
+**Mistake: Comparing a field to another field (field-to-field comparison)**
+```gherkin
+  ❌ WRONG — DSL only compares fields to LITERAL values, not to other fields
+  @target:Follow @rule:SelfFollowPrevention
+  Scenario: User cannot follow themselves
+    When follower_id does not equal following_id
+
+  The parser treats "following_id" as the literal string "following_id",
+  NOT as a reference to the following_id column. This rule is a no-op.
+
+  ✅ CORRECT — use a comparable boolean/string/int field with a literal value
+  @target:Follow @rule:ActiveFollowValidation
+  Scenario: Follow relationship must be active
+    When is_active equals true
+    Then status is "VALID"
+    But otherwise status is "INVALID"
+```
+
+**Mistake: Referencing a column that a view filters on but does NOT project**
+```gherkin
+  ❌ WRONG — feed_post_view uses WHERE u.is_suspended = false
+  ❌ but does NOT include author_suspended in its SELECT clause
+  @view @target:FeedPostView @rule:FeedCheck
+  Scenario: Feed post check
+    When author_suspended equals false
+
+  ✅ CORRECT — only reference columns in the view's SELECT clause
+  @view @target:FeedPostView @rule:FeedCheck
+  Scenario: Feed post check
+    When is_public equals true
+    Then status is "ELIGIBLE"
+    But otherwise status is "FILTERED"
+```
+
+**Mistake: Tautological OR condition (always true)**
+```gherkin
+  ❌ WRONG — bio == "" OR bio != "" is ALWAYS true
+  When any condition is met:
+    | field | operator | value |
+    | bio   | ==       | ""    |
+    | bio   | !=       | ""    |
+
+  ✅ CORRECT — test for the meaningful condition directly
+  When bio does not equal ""
+  Then status is "PROFILE_COMPLETE"
+  But otherwise status is "PROFILE_INCOMPLETE"
 ```
 
 ---
@@ -541,6 +593,9 @@ When a human asks for a "Twitter-like" or "Instagram-like" app, ensure these fou
 - [ ] One .feature file per domain
 - [ ] Every field in `When` conditions verified against target table/view columns
 - [ ] No `When` conditions reference DATE/TIMESTAMP/DATETIME columns
+- [ ] No `When` conditions compare a field to another field (only literal values allowed)
+- [ ] No tautological OR conditions (e.g., `field == x OR field != x` is always true)
+- [ ] For view targets: every field exists in the view's SELECT clause, not just in its WHERE/JOIN
 - [ ] View-targeting rules use `@view` tag and target a view name, not a table name
 
 ### Authorization (metadata.yaml)
