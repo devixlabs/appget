@@ -1,6 +1,6 @@
 # Note to LLMs, DO NOT MUDDY THIS FILE UP, instead create a bash script if you're hacking on something to please your user overlords.
 
-.PHONY: all help check features-to-specs parse-schema generate-proto generate-specs generate-registry generate-openapi generate-server generate-test-script generate build test run run-server test-api clean
+.PHONY: all help check features-to-specs parse-schema generate-proto generate-specs generate-registry generate-openapi generate-server _generate-test-script generate build test run run-server test-api clean
 
 GRADLE_VERSION := 9.3.1
 
@@ -17,7 +17,6 @@ help:
 	@echo "  make generate-registry - Generate DescriptorRegistry from models.yaml"
 	@echo "  make generate-openapi  - Generate OpenAPI spec from .proto files"
 	@echo "  make generate-server   - Generate application server from models and specs"
-	@echo "  make generate-test-script - Generate API test script from OpenAPI spec"
 	@echo "  make build             - Full build: parse schema, generate, then compile"
 	@echo "  make test              - Run unit tests"
 	@echo "  make run               - Build and run the Java Rule Engine POC"
@@ -91,14 +90,13 @@ run-server: test generate-server
 	@echo "✓ Starting application server..."
 	@cd generated-server && ../gradlew bootRun
 
-# Generate API test script from OpenAPI spec
-generate-test-script: test
+_generate-test-script:
 	@echo "✓ Generating API test script from OpenAPI spec..."
 	@./gradlew generateTestScript
 	@shellcheck generated-server/test-api.sh
 
 # Run API test script (requires server to be running)
-test-api: generate-test-script
+test-api: _generate-test-script
 	@echo "✓ Running API tests..."
 	@./generated-server/test-api.sh
 
