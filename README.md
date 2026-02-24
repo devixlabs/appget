@@ -160,6 +160,18 @@ Each subproject's README includes:
 
 ---
 
+## Domain Architect Agent
+
+The **domain-architect** agent ([.claude/agents/domain-architect.md](.claude/agents/domain-architect.md)) translates high-level business descriptions into appget source files (`schema.sql`, `views.sql`, `features/*.feature`, `metadata.yaml`).
+
+**Example prompt**:
+```
+Create all features, specs, and SQL schema needed for a company that is VERY
+similar to Twitter and Instagram -- a social media MVP.
+```
+
+---
+
 ## Resources
 
 - **Java Subproject Documentation**:

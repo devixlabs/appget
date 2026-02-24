@@ -1,61 +1,91 @@
--- ========================================================================
--- schema.sql - SOURCE OF TRUTH FOR DOMAIN MODELS
--- ========================================================================
--- This SQL file is the single source of truth for all domain models.
--- DO NOT manually edit models.yaml - it is auto-generated from this file.
---
--- To update models:
--- 1. Modify this file (schema.sql)
--- 2. Run: make parse-schema
--- 3. Run: make generate
---
--- Generated files (git-ignored):
--- - models.yaml (intermediate YAML representation)
--- - src/main/java-generated/*.java (Java model classes)
--- ========================================================================
-
--- appget domain
-CREATE TABLE roles (
-    name VARCHAR(100) NOT NULL
-);
-
-CREATE TABLE employees (
-    name VARCHAR(100) NOT NULL,
-    age INT NOT NULL,
-    role_id VARCHAR(100) NOT NULL,
-    country_of_origin VARCHAR(100)
-);
-
-CREATE TABLE vendors (
-    name VARCHAR(100) NOT NULL,
-    location_id INT NOT NULL,
-    FOREIGN KEY (location_id) REFERENCES locations(locationId)
-);
-
--- hr domain
-CREATE TABLE departments (
+-- auth domain
+CREATE TABLE users (
     id VARCHAR(50) NOT NULL,
-    name VARCHAR(100) NOT NULL,
-    budget DECIMAL(15, 2) NOT NULL
+    username VARCHAR(100) NOT NULL,
+    email VARCHAR(255) NOT NULL,
+    password_hash VARCHAR(500) NOT NULL,
+    display_name VARCHAR(200),
+    bio TEXT,
+    is_verified BOOLEAN NOT NULL,
+    is_suspended BOOLEAN NOT NULL,
+    follower_count INT NOT NULL,
+    following_count INT NOT NULL,
+    created_at TIMESTAMP NOT NULL
 );
 
-CREATE TABLE salaries (
-    employee_id VARCHAR(50) NOT NULL,
-    amount DECIMAL(15, 2) NOT NULL,
-    years_of_service INT
+CREATE TABLE sessions (
+    id VARCHAR(50) NOT NULL,
+    user_id VARCHAR(50) NOT NULL,
+    token VARCHAR(500) NOT NULL,
+    is_active BOOLEAN NOT NULL,
+    created_at TIMESTAMP NOT NULL,
+    expires_at TIMESTAMP NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id)
 );
 
--- finance domain
-CREATE TABLE invoices (
-    invoice_number VARCHAR(50) NOT NULL,
-    amount DECIMAL(15, 2) NOT NULL,
-    issue_date DATE NOT NULL
+-- social domain
+CREATE TABLE posts (
+    id VARCHAR(50) NOT NULL,
+    author_id VARCHAR(50) NOT NULL,
+    content TEXT NOT NULL,
+    like_count INT NOT NULL,
+    comment_count INT NOT NULL,
+    repost_count INT NOT NULL,
+    is_public BOOLEAN NOT NULL,
+    is_deleted BOOLEAN NOT NULL,
+    created_at TIMESTAMP NOT NULL,
+    FOREIGN KEY (author_id) REFERENCES users(id)
 );
 
--- geo location
-CREATE TABLE locations (
-    locationId VARCHAR(50) NOT NULL,
-    locationName VARCHAR(100) NOT NULL,
-    longitude FLOAT NOT NULL,
-    latitude FLOAT NOT NULL
+CREATE TABLE comments (
+    id VARCHAR(50) NOT NULL,
+    post_id VARCHAR(50) NOT NULL,
+    author_id VARCHAR(50) NOT NULL,
+    content TEXT NOT NULL,
+    like_count INT NOT NULL,
+    is_deleted BOOLEAN NOT NULL,
+    created_at TIMESTAMP NOT NULL,
+    FOREIGN KEY (post_id) REFERENCES posts(id),
+    FOREIGN KEY (author_id) REFERENCES users(id)
+);
+
+CREATE TABLE likes (
+    id VARCHAR(50) NOT NULL,
+    post_id VARCHAR(50) NOT NULL,
+    user_id VARCHAR(50) NOT NULL,
+    created_at TIMESTAMP NOT NULL,
+    FOREIGN KEY (post_id) REFERENCES posts(id),
+    FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+CREATE TABLE follows (
+    id VARCHAR(50) NOT NULL,
+    follower_id VARCHAR(50) NOT NULL,
+    following_id VARCHAR(50) NOT NULL,
+    is_active BOOLEAN NOT NULL,
+    created_at TIMESTAMP NOT NULL,
+    FOREIGN KEY (follower_id) REFERENCES users(id),
+    FOREIGN KEY (following_id) REFERENCES users(id)
+);
+
+CREATE TABLE reposts (
+    id VARCHAR(50) NOT NULL,
+    post_id VARCHAR(50) NOT NULL,
+    user_id VARCHAR(50) NOT NULL,
+    created_at TIMESTAMP NOT NULL,
+    FOREIGN KEY (post_id) REFERENCES posts(id),
+    FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+-- admin domain
+CREATE TABLE moderation_flags (
+    id VARCHAR(50) NOT NULL,
+    post_id VARCHAR(50),
+    comment_id VARCHAR(50),
+    reason VARCHAR(255) NOT NULL,
+    severity_level INT NOT NULL,
+    is_resolved BOOLEAN NOT NULL,
+    created_at TIMESTAMP NOT NULL,
+    FOREIGN KEY (post_id) REFERENCES posts(id),
+    FOREIGN KEY (comment_id) REFERENCES comments(id)
 );

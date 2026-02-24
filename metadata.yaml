@@ -5,25 +5,29 @@ metadata:
         type: boolean
       - name: sessionId
         type: String
+      - name: provider
+        type: String
   roles:
     fields:
       - name: roleName
         type: String
       - name: roleLevel
         type: int
+      - name: isAdmin
+        type: boolean
   user:
     fields:
       - name: userId
         type: String
+      - name: email
+        type: String
       - name: clearanceLevel
         type: int
-  location:
+  tenant:
     fields:
-      - name: locationId
+      - name: tenantId
         type: String
-      - name: locationName
+      - name: tenantPlan
         type: String
-      - name: longitude
-        type: float
-      - name: latitude
-        type: float
+      - name: isEnterprise
+        type: boolean
