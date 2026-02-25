@@ -66,7 +66,7 @@ This file provides Claude Code with Java-specific guidance for the appget.dev/ja
 │ Layer 5: Runtime (Descriptor-Based)             │
 │ RuleEngine: specs.yaml-driven evaluation        │
 │ Specification: protobuf getField() API          │
-│ TestDataBuilder: DynamicMessage samples         │
+│ DefaultDataBuilder: DynamicMessage samples         │
 │ No hard-coded imports or if/else dispatch      │
 └─────────────────────────────────────────────────┘
 ```
@@ -824,7 +824,7 @@ All non-generated classes have logging:
 - `CompoundSpecification.java` - AND/OR compound condition evaluation
 - `MetadataContext.java` - Metadata context management
 - `DescriptorRegistry.java` - Dynamic model discovery and registration
-- `TestDataBuilder.java` - Sample data generation for testing
+- `DefaultDataBuilder.java` - Sample data generation
 - `Rule.java` - Rule evaluation with metadata requirements
 - `RuleEngine.java` - Main rule engine execution and rule loading
 
@@ -980,7 +980,7 @@ src/test/java/dev/appget/
 │   └── SpecificationTest.java               (21 tests)
 └── util/
     ├── DescriptorRegistryTest.java           (9 tests)
-    └── TestDataBuilderTest.java              (6 tests)
+    └── DefaultDataBuilderTest.java           (6 tests)
 ```
 
 ### Test Fixtures
@@ -1146,7 +1146,7 @@ DON'T commit (all auto-generated):
 | `src/main/java/dev/appget/RuleEngine.java` | Loads rules from specs.yaml, evaluates against protobuf model instances |
 | `src/main/java/dev/appget/model/Rule.java` | Generic rule with metadata support |
 | `src/main/java-generated/dev/appget/util/DescriptorRegistry.java` | Auto-generated protobuf descriptor registry (from models.yaml) |
-| `src/main/java/dev/appget/util/TestDataBuilder.java` | DynamicMessage-based sample data builder |
+| `src/main/java/dev/appget/util/DefaultDataBuilder.java` | DynamicMessage-based sample data builder |
 | `src/main/java/dev/appget/RuleEngine.java` | Descriptor-driven rule evaluation engine |
 | `generated-server/` | Auto-generated Spring Boot REST API (git-ignored) |
 | `src/test/java/dev/appget/...` | 280 unit tests (16 suites) |

@@ -12,7 +12,7 @@ import java.math.BigInteger;
  * Builds sample protobuf messages with generic default values.
  * Uses DynamicMessage to populate fields based on descriptor metadata.
  */
-public class TestDataBuilder {
+public class DefaultDataBuilder {
 
     public MessageOrBuilder buildSampleMessage(Descriptors.Descriptor descriptor) {
         DynamicMessage.Builder builder = DynamicMessage.newBuilder(descriptor);

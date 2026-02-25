@@ -12,19 +12,19 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-@DisplayName("Test Data Builder Tests")
-class TestDataBuilderTest {
+@DisplayName("Default Data Builder Tests")
+class DefaultDataBuilderTest {
 
-    private TestDataBuilder builder;
+    private DefaultDataBuilder builder;
 
     @BeforeEach
     void setUp() {
-        builder = new TestDataBuilder();
+        builder = new DefaultDataBuilder();
     }
 
     @Test
     @DisplayName("Should build Users with default values")
-    void testBuildEmployee() {
+    void buildUsers() {
         MessageOrBuilder user = builder.buildSampleMessage(Users.getDescriptor());
         assertNotNull(user);
 
@@ -36,7 +36,7 @@ class TestDataBuilderTest {
 
     @Test
     @DisplayName("Should build ModerationActions with correct types")
-    void testBuildModerationActions() {
+    void buildModerationActions() {
         MessageOrBuilder action = builder.buildSampleMessage(ModerationActions.getDescriptor());
         assertNotNull(action);
 
@@ -48,7 +48,7 @@ class TestDataBuilderTest {
 
     @Test
     @DisplayName("Should build PostDetailView with all fields")
-    void testBuildView() {
+    void buildView() {
         MessageOrBuilder view = builder.buildSampleMessage(PostDetailView.getDescriptor());
         assertNotNull(view);
 
@@ -61,7 +61,7 @@ class TestDataBuilderTest {
 
     @Test
     @DisplayName("String fields should have Sample_ prefix")
-    void testStringFieldFormat() {
+    void stringFieldFormat() {
         MessageOrBuilder user = builder.buildSampleMessage(Users.getDescriptor());
         Object username = user.getField(Users.getDescriptor().findFieldByName("username"));
         assertTrue(username.toString().startsWith("Sample_"), "String fields should start with 'Sample_'");
@@ -69,7 +69,7 @@ class TestDataBuilderTest {
 
     @Test
     @DisplayName("Integer fields should default to 42")
-    void testIntFieldDefault() {
+    void intFieldDefault() {
         MessageOrBuilder user = builder.buildSampleMessage(Users.getDescriptor());
         Object count = user.getField(Users.getDescriptor().findFieldByName("follower_count"));
         assertEquals(42, count);
@@ -77,7 +77,7 @@ class TestDataBuilderTest {
 
     @Test
     @DisplayName("Roles permission_level field should default to 42")
-    void testIntFieldDefaultOnRoles() {
+    void intFieldDefaultOnRoles() {
         MessageOrBuilder role = builder.buildSampleMessage(Roles.getDescriptor());
         Object permLevel = role.getField(Roles.getDescriptor().findFieldByName("permission_level"));
         assertNotNull(permLevel, "permission_level field should not be null");

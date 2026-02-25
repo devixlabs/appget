@@ -90,7 +90,7 @@ LAYER 3: SPECIFICATIONS + METADATA
 │  └── TenantContext.java                                 │
 └────────┬────────────────────────────────────────────────┘
          │
-         ↓ DescriptorRegistry + RuleInterceptor + TestDataBuilder
+         ↓ DescriptorRegistry + RuleInterceptor + DefaultDataBuilder
 
 LAYER 4: RUNTIME EVALUATION (Descriptor-Based)
 ┌───────────────────────────────────────────────────────────┐
@@ -101,7 +101,7 @@ LAYER 4: RUNTIME EVALUATION (Descriptor-Based)
 │  - Specification: reflection fallback for metadata POJOs  │
 │  - Compound rules: AND/OR logic                           │
 │  - Metadata rules: authorization checks before evaluation │
-│  - TestDataBuilder: DynamicMessage-based sample data      │
+│  - DefaultDataBuilder: DynamicMessage-based sample data      │
 │  Result: APPROVED / REJECTED / SENIOR_MANAGER / etc.      │
 └───────────────────────────────────────────────────────────┘
 ```
@@ -333,7 +333,7 @@ Generators use two approaches, chosen based on output complexity:
 | `AppServerGenerator` | Spring Boot REST API (controllers, services, repos) |
 | `ProtoOpenAPIGenerator` | OpenAPI 3.0 YAML |
 | `ModelsToProtoConverter` | .proto files |
-| `OpenAPITestScriptGenerator` | Test scripts |
+| `OpenAPIDefaultScriptGenerator` | Default scripts |
 | `SQLSchemaParser` | models.yaml |
 | `FeatureToSpecsConverter` | specs.yaml |
 

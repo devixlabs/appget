@@ -10,20 +10,19 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
- * Generates a comprehensive bash test script from OpenAPI specification.
+ * Generates a comprehensive bash script from OpenAPI specification.
  *
  * Features:
  * - Parses openapi.yaml to extract all endpoints
  * - Generates sample data for each schema
  * - Creates curl commands for all CRUD operations
- * - Tests POST, GET, PUT, DELETE endpoints
  * - Includes metadata headers for rule validation
  *
- * Usage: java -cp <classpath> dev.appget.codegen.OpenAPITestScriptGenerator <openapi.yaml> <output-script.sh>
+ * Usage: java -cp <classpath> dev.appget.codegen.OpenAPIDefaultScriptGenerator <openapi.yaml> <output-script.sh>
  */
-public class OpenAPITestScriptGenerator {
+public class OpenAPIDefaultScriptGenerator {
 
-    private static final Logger logger = LogManager.getLogger(OpenAPITestScriptGenerator.class);
+    private static final Logger logger = LogManager.getLogger(OpenAPIDefaultScriptGenerator.class);
     private static final String DEFAULT_BASE_URL = "http://localhost:8080";
 
     private Map<String, Map<String, Object>> schemas = new LinkedHashMap<>();
@@ -33,23 +32,23 @@ public class OpenAPITestScriptGenerator {
     public static void main(String[] args) {
         logger.debug("Entering main method with {} arguments", args.length);
         if (args.length < 1) {
-            logger.error("Invalid argument count. Usage: OpenAPITestScriptGenerator <openapi.yaml> [output-script.sh]");
-            System.err.println("Usage: OpenAPITestScriptGenerator <openapi.yaml> [output-script.sh]");
+            logger.error("Invalid argument count. Usage: OpenAPIDefaultScriptGenerator <openapi.yaml> [output-script.sh]");
+            System.err.println("Usage: OpenAPIDefaultScriptGenerator <openapi.yaml> [output-script.sh]");
             System.exit(1);
         }
 
         String openapiPath = args[0];
         String outputScript = args.length > 1 ? args[1] : "test-api.sh";
 
-        logger.info("Starting OpenAPITestScriptGenerator with openapiPath={}, outputScript={}", openapiPath, outputScript);
+        logger.info("Starting OpenAPIDefaultScriptGenerator with openapiPath={}, outputScript={}", openapiPath, outputScript);
 
         try {
-            new OpenAPITestScriptGenerator().generateTestScript(openapiPath, outputScript);
-            logger.info("Successfully generated test script: {}", outputScript);
-            System.out.println("✓ Successfully generated test script: " + outputScript);
+            new OpenAPIDefaultScriptGenerator().generateDefaultScript(openapiPath, outputScript);
+            logger.info("Successfully generated script: {}", outputScript);
+            System.out.println("✓ Successfully generated script: " + outputScript);
         } catch (Exception e) {
-            logger.error("Failed to generate test script", e);
-            System.err.println("✗ Failed to generate test script: " + e.getMessage());
+            logger.error("Failed to generate script", e);
+            System.err.println("✗ Failed to generate script: " + e.getMessage());
             e.printStackTrace();
             System.exit(1);
         }
@@ -57,7 +56,7 @@ public class OpenAPITestScriptGenerator {
     }
 
     @SuppressWarnings("unchecked")
-    public void generateTestScript(String openapiPath, String outputScript) throws IOException {
+    public void generateDefaultScript(String openapiPath, String outputScript) throws IOException {
         logger.debug("Loading OpenAPI spec from: {}", openapiPath);
 
         // Load OpenAPI spec
@@ -247,7 +246,7 @@ public class OpenAPITestScriptGenerator {
         // Make executable
         scriptPath.toFile().setExecutable(true);
 
-        logger.info("Generated test script with {} test sections", endpointsByTag.size());
+        logger.info("Generated script with {} sections", endpointsByTag.size());
     }
 
     private void generatePostTest(StringBuilder script, EndpointInfo endpoint, String tag) {

@@ -1,6 +1,6 @@
 # Note to LLMs, DO NOT MUDDY THIS FILE UP, instead create a bash script if you're hacking on something to please your user overlords.
 
-.PHONY: all help check features-to-specs parse-schema generate-proto generate-specs generate-registry generate-openapi generate-server _generate-test-script generate build test run run-server test-api clean
+.PHONY: all help check features-to-specs parse-schema generate-proto generate-specs generate-registry generate-openapi generate-server _generate-default-script generate build test run run-server test-api clean
 
 GRADLE_VERSION := 9.3.1
 
@@ -90,13 +90,13 @@ run-server: test generate-server
 	@echo "✓ Starting application server..."
 	@cd generated-server && ../gradlew bootRun
 
-_generate-test-script:
-	@echo "✓ Generating API test script from OpenAPI spec..."
-	@./gradlew generateTestScript
+_generate-default-script:
+	@echo "✓ Generating API default script from OpenAPI spec..."
+	@./gradlew generateDefaultScript
 	@shellcheck generated-server/test-api.sh
 
 # Run API test script (requires server to be running)
-test-api: check _generate-test-script
+test-api: check _generate-default-script
 	@echo "✓ Running API tests..."
 	@./generated-server/test-api.sh
 

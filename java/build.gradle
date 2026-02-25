@@ -190,10 +190,10 @@ task generateServer(type: JavaExec) {
     dependsOn 'generateSpecs'
 }
 
-task generateTestScript(type: JavaExec) {
+task generateDefaultScript(type: JavaExec) {
     group = 'build'
-    description = 'Generate API test script from OpenAPI spec'
-    mainClass = 'dev.appget.codegen.OpenAPITestScriptGenerator'
+    description = 'Generate API default script from OpenAPI spec'
+    mainClass = 'dev.appget.codegen.OpenAPIDefaultScriptGenerator'
     classpath = files(compileGenerators.destinationDirectory.get().getAsFile(), configurations.compileClasspath)
     args = ['openapi.yaml', 'generated-server/test-api.sh']
     dependsOn 'generateOpenAPI'

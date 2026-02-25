@@ -7,7 +7,7 @@ import dev.appget.specification.CompoundSpecification;
 import dev.appget.specification.MetadataContext;
 import dev.appget.specification.Specification;
 import dev.appget.util.DescriptorRegistry;
-import dev.appget.util.TestDataBuilder;
+import dev.appget.util.DefaultDataBuilder;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -28,7 +28,7 @@ public class RuleEngine {
 
         try {
             DescriptorRegistry registry = new DescriptorRegistry();
-            TestDataBuilder testData = new TestDataBuilder();
+            DefaultDataBuilder defaultData = new DefaultDataBuilder();
 
             // Load rules from specs.yaml
             Map<String, List<Rule>> rulesByModel = loadRulesFromSpecs("specs.yaml");
@@ -47,13 +47,13 @@ public class RuleEngine {
                     logger.warn("No descriptor found for model: {}", modelName);
                     continue;
                 }
-                MessageOrBuilder testInstance = testData.buildSampleMessage(descriptor);
+                MessageOrBuilder sampleInstance = defaultData.buildSampleMessage(descriptor);
 
                 System.out.println("\nModel: " + modelName + " (" + rules.size() + " rule(s))");
-                System.out.println("Test instance: " + testInstance);
+                System.out.println("Sample instance: " + sampleInstance);
 
                 for (Rule rule : rules) {
-                    String result = rule.evaluate(testInstance, metadata);
+                    String result = rule.evaluate(sampleInstance, metadata);
                     System.out.printf("  Rule: %-30s | Result: %s%n", rule.getName(), result);
                 }
             }

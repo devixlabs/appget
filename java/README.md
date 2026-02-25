@@ -886,7 +886,7 @@ appget.dev/java/
     ├── model/
     │   └── Rule.java       📝  Rule engine (do not modify)
     ├── specification/      📝  Rule evaluation logic (do not modify)
-    ├── util/               📝  DescriptorRegistry, TestDataBuilder
+    ├── util/               📝  DescriptorRegistry, DefaultDataBuilder
     └── RuleEngine.java     📝  Descriptor-driven demo app (do not modify)
 ```
 
@@ -940,7 +940,7 @@ src/test/java/dev/appget/
 │   └── SpecificationTest.java               (21 tests)
 └── util/
     ├── DescriptorRegistryTest.java           (9 tests)
-    └── TestDataBuilderTest.java              (6 tests)
+    └── DefaultDataBuilderTest.java           (6 tests)
 ```
 
 ---
