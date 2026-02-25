@@ -1,239 +1,220 @@
 package dev.appget.specification;
 
-import dev.appget.model.Employees;
-import dev.appget.hr.model.Salaries;
-import dev.appget.hr.model.Departments;
-import dev.appget.finance.model.Invoices;
-import dev.appget.common.Decimal;
-import com.google.protobuf.ByteString;
-import com.google.protobuf.Timestamp;
+import dev.appget.auth.model.Users;
+import dev.appget.admin.model.Roles;
+import dev.appget.social.view.PostDetailView;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-
-import java.math.BigDecimal;
-import java.math.BigInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 @DisplayName("Specification Pattern Tests")
 class SpecificationTest {
 
-    private Employees employee;
+    private Users user;
 
     @BeforeEach
     void setUp() {
-        employee = Employees.newBuilder()
-                .setName("Alice")
-                .setAge(28)
-                .setRoleId("Manager")
+        user = Users.newBuilder()
+                .setUsername("alice")
+                .setEmail("alice@example.com")
+                .setIsVerified(true)
+                .setIsActive(true)
+                .setFollowerCount(100)
                 .build();
     }
 
     @Test
-    @DisplayName("Age greater than operator should evaluate correctly")
+    @DisplayName("follower_count greater than operator should evaluate correctly")
     void testAgeGreaterThan() {
-        Specification spec = new Specification("age", ">", 25);
-        assertTrue(spec.isSatisfiedBy(employee), "Employee age 28 > 25 should be true");
+        Specification spec = new Specification("follower_count", ">", 50);
+        assertTrue(spec.isSatisfiedBy(user), "User follower_count 100 > 50 should be true");
     }
 
     @Test
-    @DisplayName("Age greater than operator should fail when age is less")
+    @DisplayName("follower_count greater than operator should fail when count is less")
     void testAgeGreaterThanFails() {
-        Specification spec = new Specification("age", ">", 30);
-        assertFalse(spec.isSatisfiedBy(employee), "Employee age 28 > 30 should be false");
+        Specification spec = new Specification("follower_count", ">", 200);
+        assertFalse(spec.isSatisfiedBy(user), "User follower_count 100 > 200 should be false");
     }
 
     @Test
-    @DisplayName("Age greater than or equal operator")
+    @DisplayName("follower_count greater than or equal operator")
     void testAgeGreaterThanOrEqual() {
-        Specification spec = new Specification("age", ">=", 28);
-        assertTrue(spec.isSatisfiedBy(employee), "Employee age 28 >= 28 should be true");
+        Specification spec = new Specification("follower_count", ">=", 100);
+        assertTrue(spec.isSatisfiedBy(user), "User follower_count 100 >= 100 should be true");
     }
 
     @Test
-    @DisplayName("Age less than or equal operator")
+    @DisplayName("follower_count less than or equal operator")
     void testAgeLessThanOrEqual() {
-        Specification spec = new Specification("age", "<=", 30);
-        assertTrue(spec.isSatisfiedBy(employee), "Employee age 28 <= 30 should be true");
+        Specification spec = new Specification("follower_count", "<=", 200);
+        assertTrue(spec.isSatisfiedBy(user), "User follower_count 100 <= 200 should be true");
     }
 
     @Test
-    @DisplayName("Age equals operator")
+    @DisplayName("follower_count equals operator")
     void testAgeEquals() {
-        Specification spec = new Specification("age", "==", 28);
-        assertTrue(spec.isSatisfiedBy(employee), "Employee age 28 == 28 should be true");
+        Specification spec = new Specification("follower_count", "==", 100);
+        assertTrue(spec.isSatisfiedBy(user), "User follower_count 100 == 100 should be true");
     }
 
     @Test
-    @DisplayName("Age equals operator should fail for different age")
+    @DisplayName("follower_count equals operator should fail for different count")
     void testAgeEqualsFails() {
-        Specification spec = new Specification("age", "==", 25);
-        assertFalse(spec.isSatisfiedBy(employee), "Employee age 28 == 25 should be false");
+        Specification spec = new Specification("follower_count", "==", 50);
+        assertFalse(spec.isSatisfiedBy(user), "User follower_count 100 == 50 should be false");
     }
 
     @Test
-    @DisplayName("Role equals operator for string field")
+    @DisplayName("username equals operator for string field")
     void testRoleEquals() {
-        Specification spec = new Specification("role_id", "==", "Manager");
-        assertTrue(spec.isSatisfiedBy(employee), "Role 'Manager' == 'Manager' should be true");
+        Specification spec = new Specification("username", "==", "alice");
+        assertTrue(spec.isSatisfiedBy(user), "Username 'alice' == 'alice' should be true");
     }
 
     @Test
-    @DisplayName("Role equals operator should fail for different role")
+    @DisplayName("username equals operator should fail for different username")
     void testRoleEqualsFails() {
-        Specification spec = new Specification("role_id", "==", "Engineer");
-        assertFalse(spec.isSatisfiedBy(employee), "Role 'Manager' == 'Engineer' should be false");
+        Specification spec = new Specification("username", "==", "bob");
+        assertFalse(spec.isSatisfiedBy(user), "Username 'alice' == 'bob' should be false");
     }
 
     @Test
-    @DisplayName("Role not equals operator")
+    @DisplayName("username not equals operator")
     void testRoleNotEquals() {
-        Specification spec = new Specification("role_id", "!=", "Engineer");
-        assertTrue(spec.isSatisfiedBy(employee), "Role 'Manager' != 'Engineer' should be true");
+        Specification spec = new Specification("username", "!=", "bob");
+        assertTrue(spec.isSatisfiedBy(user), "Username 'alice' != 'bob' should be true");
     }
 
     @Test
-    @DisplayName("Role not equals operator should fail when roles match")
+    @DisplayName("username not equals operator should fail when usernames match")
     void testRoleNotEqualsFails() {
-        Specification spec = new Specification("role_id", "!=", "Manager");
-        assertFalse(spec.isSatisfiedBy(employee), "Role 'Manager' != 'Manager' should be false");
+        Specification spec = new Specification("username", "!=", "alice");
+        assertFalse(spec.isSatisfiedBy(user), "Username 'alice' != 'alice' should be false");
     }
 
     @Test
     @DisplayName("Invalid field should return false")
     void testInvalidField() {
         Specification spec = new Specification("invalidField", ">", 25);
-        assertFalse(spec.isSatisfiedBy(employee), "Invalid field should return false");
+        assertFalse(spec.isSatisfiedBy(user), "Invalid field should return false");
     }
 
     @Test
     @DisplayName("Invalid operator should return false")
     void testInvalidOperator() {
-        Specification spec = new Specification("age", ">>", 25);
-        assertFalse(spec.isSatisfiedBy(employee), "Invalid operator should return false");
+        Specification spec = new Specification("follower_count", ">>", 25);
+        assertFalse(spec.isSatisfiedBy(user), "Invalid operator should return false");
     }
 
     @Test
     @DisplayName("Specification toString should be informative")
     void testToString() {
-        Specification spec = new Specification("age", ">", 25);
+        Specification spec = new Specification("follower_count", ">", 50);
         String result = spec.toString();
-        assertTrue(result.contains("age"), "toString should contain field name");
+        assertTrue(result.contains("follower_count"), "toString should contain field name");
         assertTrue(result.contains(">"), "toString should contain operator");
-        assertTrue(result.contains("25"), "toString should contain value");
+        assertTrue(result.contains("50"), "toString should contain value");
     }
 
     @Test
-    @DisplayName("Multiple specifications with same employee")
+    @DisplayName("Multiple specifications with same user")
     void testMultipleSpecifications() {
-        Specification ageSpec = new Specification("age", ">", 20);
-        Specification roleSpec = new Specification("role_id", "==", "Manager");
+        Specification countSpec = new Specification("follower_count", ">", 0);
+        Specification usernameSpec = new Specification("username", "==", "alice");
 
-        assertTrue(ageSpec.isSatisfiedBy(employee), "Age check should pass");
-        assertTrue(roleSpec.isSatisfiedBy(employee), "Role check should pass");
+        assertTrue(countSpec.isSatisfiedBy(user), "follower_count check should pass");
+        assertTrue(usernameSpec.isSatisfiedBy(user), "Username check should pass");
     }
 
     @Test
-    @DisplayName("Edge case: minimum age boundary")
+    @DisplayName("Edge case: minimum follower_count boundary")
     void testMinimumAgeBoundary() {
-        Employees youngEmployee = Employees.newBuilder()
-                .setName("Bob")
-                .setAge(0)
-                .setRoleId("Intern")
+        Users newUser = Users.newBuilder()
+                .setUsername("bob")
+                .setEmail("bob@example.com")
+                .setIsVerified(false)
+                .setIsActive(true)
+                .setFollowerCount(0)
                 .build();
 
-        Specification spec = new Specification("age", ">=", 0);
-        assertTrue(spec.isSatisfiedBy(youngEmployee), "Age 0 >= 0 should be true");
+        Specification spec = new Specification("follower_count", ">=", 0);
+        assertTrue(spec.isSatisfiedBy(newUser), "follower_count 0 >= 0 should be true");
     }
 
     @Test
-    @DisplayName("Edge case: large age value")
+    @DisplayName("Edge case: large follower_count value")
     void testLargeAgeValue() {
-        Employees seniorEmployee = Employees.newBuilder()
-                .setName("Charlie")
-                .setAge(65)
-                .setRoleId("Director")
+        Users popularUser = Users.newBuilder()
+                .setUsername("charlie")
+                .setEmail("charlie@example.com")
+                .setIsVerified(true)
+                .setIsActive(true)
+                .setFollowerCount(1000000)
                 .build();
 
-        Specification spec = new Specification("age", ">=", 60);
-        assertTrue(spec.isSatisfiedBy(seniorEmployee), "Age 65 >= 60 should be true");
+        Specification spec = new Specification("follower_count", ">=", 500000);
+        assertTrue(spec.isSatisfiedBy(popularUser), "follower_count 1000000 >= 500000 should be true");
     }
 
-    // ---- Decimal helper ----
-
-    /**
-     * Build an appget.common.Decimal proto message from a double value.
-     * Uses BigDecimal to extract unscaled value and scale.
-     */
-    private static Decimal decimalOf(double value) {
-        BigDecimal bd = new BigDecimal(String.valueOf(value));
-        BigInteger unscaled = bd.unscaledValue();
-        int scale = bd.scale();
-        return Decimal.newBuilder()
-                .setUnscaled(ByteString.copyFrom(unscaled.toByteArray()))
-                .setScale(scale)
-                .build();
-    }
-
-    // Tests for non-Employee models
+    // Tests for non-Users models
 
     @Test
-    @DisplayName("Salary Decimal amount comparison")
-    void testSalaryAmountComparison() {
-        Salaries salary = Salaries.newBuilder()
-                .setEmployeeId("Alice")
-                .setAmount(decimalOf(75000.50))
-                .setYearsOfService(5)
+    @DisplayName("Roles permission_level integer comparison")
+    void testPermissionLevelComparison() {
+        Roles role = Roles.newBuilder()
+                .setRoleName("Admin")
+                .setPermissionLevel(8)
                 .build();
 
-        Specification spec = new Specification("amount", ">", 50000);
-        assertTrue(spec.isSatisfiedBy(salary), "Salary 75000.50 > 50000 should be true");
+        Specification spec = new Specification("permission_level", ">", 5);
+        assertTrue(spec.isSatisfiedBy(role), "permission_level 8 > 5 should be true");
     }
 
     @Test
-    @DisplayName("Department budget Decimal comparison")
-    void testDepartmentBudgetComparison() {
-        Departments dept = Departments.newBuilder()
-                .setId("D1")
-                .setName("Engineering")
-                .setBudget(decimalOf(500000.0))
+    @DisplayName("Roles permission_level boundary comparison")
+    void testPermissionLevelBoundary() {
+        Roles role = Roles.newBuilder()
+                .setRoleName("SuperAdmin")
+                .setPermissionLevel(10)
                 .build();
 
-        Specification spec = new Specification("budget", ">=", 500000);
-        assertTrue(spec.isSatisfiedBy(dept), "Budget 500000 >= 500000 should be true");
+        Specification spec = new Specification("permission_level", ">=", 10);
+        assertTrue(spec.isSatisfiedBy(role), "permission_level 10 >= 10 should be true");
     }
 
     @Test
-    @DisplayName("Invoice string field comparison")
+    @DisplayName("PostDetailView author_username string field comparison")
     void testInvoiceStringFieldComparison() {
-        Invoices invoice = Invoices.newBuilder()
-                .setInvoiceNumber("INV-001")
-                .setAmount(decimalOf(1500.0))
-                .setIssueDate(Timestamp.newBuilder().setSeconds(1749945600L).build())
+        PostDetailView view = PostDetailView.newBuilder()
+                .setPostContent("Hello world")
+                .setAuthorUsername("alice")
+                .setAuthorVerified(true)
+                .setIsPublic(true)
                 .build();
 
-        Specification spec = new Specification("invoice_number", "==", "INV-001");
-        assertTrue(spec.isSatisfiedBy(invoice), "Invoice number should match");
+        Specification spec = new Specification("author_username", "==", "alice");
+        assertTrue(spec.isSatisfiedBy(view), "author_username should match");
     }
 
     @Test
-    @DisplayName("Salary integer field comparison")
-    void testSalaryIntegerField() {
-        Salaries salary = Salaries.newBuilder()
-                .setEmployeeId("Bob")
-                .setAmount(decimalOf(60000.0))
-                .setYearsOfService(10)
+    @DisplayName("Roles integer field comparison (permission_level)")
+    void testRolesIntegerField() {
+        Roles role = Roles.newBuilder()
+                .setRoleName("Moderator")
+                .setPermissionLevel(10)
                 .build();
 
-        Specification spec = new Specification("years_of_service", ">", 5);
-        assertTrue(spec.isSatisfiedBy(salary), "Years of service 10 > 5 should be true");
+        Specification spec = new Specification("permission_level", ">", 7);
+        assertTrue(spec.isSatisfiedBy(role), "permission_level 10 > 7 should be true");
     }
 
     @Test
-    @DisplayName("Name field comparison on Employee (string via descriptor)")
+    @DisplayName("username field comparison on Users (string via descriptor)")
     void testNameFieldComparison() {
-        Specification spec = new Specification("name", "==", "Alice");
-        assertTrue(spec.isSatisfiedBy(employee), "Name 'Alice' == 'Alice' should be true");
+        Specification spec = new Specification("username", "==", "alice");
+        assertTrue(spec.isSatisfiedBy(user), "Username 'alice' == 'alice' should be true");
     }
 }

@@ -70,19 +70,19 @@ class DescriptorRegistryTest {
     }
 
     @Test
-    @DisplayName("Registry should find Employees descriptor")
+    @DisplayName("Registry should find Users descriptor")
     void testFindEmployee() {
-        Descriptors.Descriptor desc = registry.getDescriptorByName("employees");
-        assertNotNull(desc, "Employees descriptor should be registered");
-        assertEquals("Employees", desc.getName());
+        Descriptors.Descriptor desc = registry.getDescriptorByName("users");
+        assertNotNull(desc, "Users descriptor should be registered");
+        assertEquals("Users", desc.getName());
     }
 
     @Test
-    @DisplayName("Registry should find Salaries descriptor")
-    void testFindSalary() {
-        Descriptors.Descriptor desc = registry.getDescriptorByName("salaries");
-        assertNotNull(desc, "Salaries descriptor should be registered");
-        assertEquals("Salaries", desc.getName());
+    @DisplayName("Registry should find ModerationActions descriptor")
+    void testFindModerationActions() {
+        Descriptors.Descriptor desc = registry.getDescriptorByName("moderation_actions");
+        assertNotNull(desc, "ModerationActions descriptor should be registered");
+        assertEquals("ModerationActions", desc.getName());
     }
 
     @Test
@@ -123,21 +123,21 @@ class DescriptorRegistryTest {
     }
 
     @Test
-    @DisplayName("Employees descriptor should have expected fields")
+    @DisplayName("Users descriptor should have expected fields")
     void testEmployeeFields() {
-        Descriptors.Descriptor desc = registry.getDescriptorByName("employees");
-        assertNotNull(desc, "Employees descriptor should exist");
-        assertNotNull(desc.findFieldByName("name"), "Employees should have name field");
-        assertNotNull(desc.findFieldByName("age"), "Employees should have age field");
-        assertNotNull(desc.findFieldByName("role_id"), "Employees should have role_id field");
+        Descriptors.Descriptor desc = registry.getDescriptorByName("users");
+        assertNotNull(desc, "Users descriptor should exist");
+        assertNotNull(desc.findFieldByName("username"), "Users should have username field");
+        assertNotNull(desc.findFieldByName("email"), "Users should have email field");
+        assertNotNull(desc.findFieldByName("is_verified"), "Users should have is_verified field");
     }
 
     @Test
-    @DisplayName("EmployeeSalaryView descriptor should have expected fields")
+    @DisplayName("PostDetailView descriptor should have expected fields")
     void testViewFields() {
-        Descriptors.Descriptor desc = registry.getDescriptorByName("employee_salary_view");
-        assertNotNull(desc, "EmployeeSalaryView descriptor should exist");
-        assertNotNull(desc.findFieldByName("employee_name"));
-        assertNotNull(desc.findFieldByName("salary_amount"));
+        Descriptors.Descriptor desc = registry.getDescriptorByName("post_detail_view");
+        assertNotNull(desc, "PostDetailView descriptor should exist");
+        assertNotNull(desc.findFieldByName("post_content"));
+        assertNotNull(desc.findFieldByName("author_username"));
     }
 }

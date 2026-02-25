@@ -68,7 +68,17 @@ public class Specification {
             getter = target.getClass().getMethod(getterName);
         } catch (NoSuchMethodException e) {
             logger.debug("Getter method {} not found, trying is* prefix", getterName);
-            getter = target.getClass().getMethod("is" + Character.toUpperCase(fieldName.charAt(0)) + fieldName.substring(1));
+            try {
+                getter = target.getClass().getMethod("is" + Character.toUpperCase(fieldName.charAt(0)) + fieldName.substring(1));
+            } catch (NoSuchMethodException e2) {
+                // Lombok boolean fields starting with "is" (e.g., isAdmin) generate isAdmin() directly
+                if (fieldName.length() > 2 && fieldName.startsWith("is") && Character.isUpperCase(fieldName.charAt(2))) {
+                    logger.debug("Trying direct field name as getter: {}", fieldName);
+                    getter = target.getClass().getMethod(fieldName);
+                } else {
+                    throw e2;
+                }
+            }
         }
         return getter.invoke(target);
     }

@@ -28,13 +28,15 @@ These four file types are the only files a developer writes. Everything else is 
 SQL `CREATE TABLE` statements. Any dialect (MySQL, PostgreSQL, SQLite, Oracle, MSSQL).
 
 ```sql
-CREATE TABLE employees (
-    id          VARCHAR(36)    NOT NULL,
-    name        VARCHAR(255)   NOT NULL,
-    age         INT            NOT NULL,
-    role_id     VARCHAR(50)    NOT NULL,
-    salary      DECIMAL(15,2),          -- nullable → wrapper type
-    created_at  TIMESTAMP      NOT NULL
+-- auth domain
+CREATE TABLE users (
+    id           VARCHAR(50)   NOT NULL,
+    username     VARCHAR(100)  NOT NULL,
+    email        VARCHAR(255)  NOT NULL,
+    is_verified  BOOLEAN       NOT NULL,
+    is_suspended BOOLEAN       NOT NULL,
+    bio          TEXT,                   -- nullable → optional field
+    created_at   TIMESTAMP     NOT NULL
 );
 ```
 
@@ -49,10 +51,12 @@ CREATE TABLE employees (
 SQL `CREATE VIEW` statements. Column types are resolved from the source tables — no manual type annotation.
 
 ```sql
-CREATE VIEW employee_salary_view AS
-    SELECT e.name, e.age, s.amount AS salary_amount, COUNT(*) AS dept_count
-    FROM employees e
-    JOIN salaries s ON e.id = s.employee_id;
+-- social domain
+CREATE VIEW post_detail_view AS
+    SELECT p.id AS post_id, p.content AS post_content,
+           p.like_count, u.username AS author_username, u.is_verified AS author_verified
+    FROM posts p
+    JOIN users u ON p.author_id = u.id;
 ```
 
 **What gets extracted**: view name, column names + types (resolved via table aliases), aggregate function types (`COUNT` → int, `SUM` → decimal, `AVG` → float).
@@ -64,35 +68,32 @@ CREATE VIEW employee_salary_view AS
 One file per domain. Uses standard Gherkin syntax with a restricted DSL for conditions.
 
 ```gherkin
-@domain:appget
-Feature: Employee Business Rules
+@domain:auth
+Feature: Auth Domain Business Rules
 
-  @target:Employee @rule:EmployeeAgeCheck @blocking
-  Scenario: Minimum age requirement
-    When age is greater than 18
-    Then status is "APPROVED"
-    But otherwise status is "REJECTED"
+  @target:users @rule:UserEmailValidation @blocking
+  Scenario: User email must be valid format
+    When email does not equal ""
+    Then status is "VALID_EMAIL"
+    But otherwise status is "INVALID_EMAIL"
 
-  @target:Employee @rule:SeniorManagerCheck
-  Scenario: Senior manager classification
+  @target:users @rule:UserAccountStatus
+  Scenario: Overall user account is in good standing
     When all conditions are met:
-      | field   | operator | value   |
-      | age     | >=       | 30      |
-      | role_id | ==       | Manager |
-    Then status is "SENIOR_MANAGER"
-    But otherwise status is "NOT_SENIOR_MANAGER"
+      | field        | operator | value |
+      | is_suspended | ==       | false |
+      | is_verified  | ==       | true  |
+    Then status is "GOOD_STANDING"
+    But otherwise status is "ACCOUNT_RESTRICTED"
 
-  @target:Employee @rule:AuthenticatedApproval @blocking
-  Scenario: Authenticated high-level approval
-    Given sso context requires:
-      | field         | operator | value |
-      | authenticated | ==       | true  |
+  @target:moderation_flags @rule:AdminAuthorizationRequired @blocking
+  Scenario: Only admins can resolve moderation flags
     Given roles context requires:
-      | field     | operator | value |
-      | roleLevel | >=       | 3     |
-    When age is at least 25
-    Then status is "APPROVED_WITH_AUTH"
-    But otherwise status is "DENIED"
+      | field   | operator | value |
+      | isAdmin | ==       | true  |
+    When is_resolved equals true
+    Then status is "ADMIN_APPROVED"
+    But otherwise status is "UNAUTHORIZED"
 ```
 
 **Scenario tags:**
@@ -235,23 +236,23 @@ metadata:
     fields: [{ name: authenticated, type: boolean }, ...]
 
 rules:
-  - name: EmployeeAgeCheck
-    target: { type: model, name: Employee, domain: appget }
+  - name: UserEmailValidation
+    target: { type: model, name: users, domain: auth }
     blocking: true
     conditions:
-      - { field: age, operator: ">", value: 18 }
-    then: { status: "APPROVED" }
-    else: { status: "REJECTED" }
+      - { field: email, operator: "!=", value: "" }
+    then: { status: "VALID_EMAIL" }
+    else: { status: "INVALID_EMAIL" }
 
-  - name: SeniorManagerCheck
-    target: { type: model, name: Employee, domain: appget }
+  - name: HighEngagementPost
+    target: { type: view, name: post_detail_view, domain: social }
     conditions:
       operator: AND
       clauses:
-        - { field: age, operator: ">=", value: 30 }
-        - { field: role_id, operator: "==", value: "Manager" }
-    then: { status: "SENIOR_MANAGER" }
-    else: { status: "NOT_SENIOR_MANAGER" }
+        - { field: like_count, operator: ">=", value: 1000 }
+        - { field: is_public, operator: "==", value: true }
+    then: { status: "HIGH_ENGAGEMENT" }
+    else: { status: "LOW_ENGAGEMENT" }
 ```
 
 **Why this intermediate?** Downstream generators (spec generator, server generator) need structured rule data. The YAML intermediate decouples Gherkin parsing from code generation — each generator can be developed and tested independently.
@@ -320,32 +321,32 @@ rules:
 
 *Simple rule*:
 ```
-class EmployeeAgeCheck:
-    spec = Specification("age", ">", 18)
+class UserEmailValidation:
+    spec = Specification("email", "!=", "")
 
-    evaluate(target: Employee) → bool
-    getResult(target: Employee) → "APPROVED" | "REJECTED"
+    evaluate(target: Users) → bool
+    getResult(target: Users) → "VALID_EMAIL" | "INVALID_EMAIL"
 ```
 
 *Compound rule (AND)*:
 ```
-class SeniorManagerCheck:
+class HighEngagementPost:
     spec = CompoundSpecification(AND, [
-        Specification("age", ">=", 30),
-        Specification("role_id", "==", "Manager")
+        Specification("like_count", ">=", 1000),
+        Specification("is_public", "==", true)
     ])
 ```
 
 *Metadata-aware rule*:
 ```
-class AuthenticatedApproval:
-    spec = Specification("age", ">=", 25)
+class AdminAuthorizationRequired:
+    spec = Specification("is_verified", "==", true)
     metaSpecs = {
         sso: [Specification("authenticated", "==", true)],
-        roles: [Specification("roleLevel", ">=", 3)]
+        roles: [Specification("isAdmin", "==", true)]
     }
 
-    evaluate(target: Employee, metadata: MetadataContext) → bool
+    evaluate(target: Users, metadata: MetadataContext) → bool
         check all metaSpecs against metadata contexts first
         then evaluate spec against target
 ```
@@ -400,7 +401,7 @@ generated-server/
 
 **Rule evaluation in the server**:
 ```
-POST /employees { body } + headers
+POST /users { body } + headers
     │
     ▼
 Controller → MetadataExtractor.extract(request)
@@ -478,17 +479,17 @@ Examples:
 
 ```
 DescriptorRegistry:
-    "Employee"           → Employee descriptor
-    "Role"               → Role descriptor
-    "EmployeeSalaryView" → EmployeeSalaryView descriptor
+    "users"           → Users descriptor
+    "posts"           → Posts descriptor
+    "post_detail_view" → PostDetailView descriptor
     ...
 
 Usage:
-    descriptor = registry.get("Employee")
-    fieldValue = descriptor.getField("age", instance)
+    descriptor = registry.get("users")
+    fieldValue = descriptor.getField("email", instance)
 ```
 
-**Why a registry?** Without it, the rule engine would need an `if model == "Employee" ... else if model == "Role" ...` dispatch. The registry makes the engine generic — new models are added to the registry at generation time and the runtime requires no changes.
+**Why a registry?** Without it, the rule engine would need an `if model == "users" ... else if model == "posts" ...` dispatch. The registry makes the engine generic — new models are added to the registry at generation time and the runtime requires no changes.
 
 ---
 
@@ -501,7 +502,7 @@ The runtime evaluates compiled spec classes against model instances. No YAML is 
 │                    RUNTIME EVALUATION                            │
 ├──────────────────────────────────────────────────────────────────┤
 │                                                                  │
-│  Request arrives (POST /employees)                               │
+│  Request arrives (POST /users)                                   │
 │       ↓                                                          │
 │  MetadataExtractor                                               │
 │  reads HTTP headers → MetadataContext { sso, roles, ... }       │
@@ -618,24 +619,21 @@ Each dependency below is used in the Java reference implementation. Future langu
 Tables and views are assigned to domains. Each domain gets its own namespace/package.
 
 ```
-DOMAIN_MAPPING (tables):
-  employees  → appget
-  roles      → appget
-  departments → hr
-  salaries   → hr
-  invoices   → finance
+Domain detection (comment-based in schema.sql / views.sql):
+  -- auth domain   → users, sessions
+  -- social domain → posts, comments, likes, follows, reposts
+  -- admin domain  → moderation_flags
 
-VIEW_DOMAIN_MAPPING (views):
-  employee_salary_view    → appget
-  department_budget_view  → hr
+Views (all -- social domain):
+  user_profile_view, post_detail_view, comment_detail_view, feed_post_view
 ```
 
 **Namespace convention**:
 | Domain | Namespace |
 |--------|-----------|
-| `appget` | `dev.appget.model` / `dev.appget.view` |
-| `hr` | `dev.appget.hr.model` / `dev.appget.hr.view` |
-| `finance` | `dev.appget.finance.model` |
+| `auth`   | `dev.appget.auth.model` |
+| `social` | `dev.appget.social.model` / `dev.appget.social.view` |
+| `admin`  | `dev.appget.admin.model` |
 
 **Why domains?** Multi-table schemas often have logical groupings (HR tables, finance tables, core tables). Domains prevent naming conflicts, allow independent deployment, and map naturally to microservice boundaries.
 

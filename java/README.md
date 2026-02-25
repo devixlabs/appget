@@ -10,7 +10,7 @@
 
 **appget.dev/java** is a code generator that converts your database schema into a complete Java backend with:
 
-1. **Protobuf Models** - Auto-generated from `schema.sql` via `.proto` files (e.g., Employees, Departments, Salaries as protobuf messages)
+1. **Protobuf Models** - Auto-generated from `schema.sql` via `.proto` files (e.g., Users, Posts, ModerationFlags as protobuf messages)
 2. **gRPC Service Stubs** - 5 services across 3 domains with full CRUD
 3. **REST API Server** - Spring Boot server with CRUD endpoints for all your models
 4. **Business Rules** - Define rules in Gherkin `.feature` files, embedded in `.proto` as custom options, enforced automatically
@@ -34,7 +34,7 @@ YOU WRITE THIS:                SYSTEM GENERATES THIS:
                                        ▼
 ┌──────────────────┐         ┌──────────────────────────────┐
 │  schema.sql      │         │  Java Domain Models          │
-│  (Your DB)       │────────▶│  (Employees, Departments, etc) │
+│  (Your DB)       │────────▶│  (Users, Posts, ModerationFlags, etc) │
 └──────────────────┘         └──────────────────────────────┘
                                      │
 ┌──────────────────┐                 │
@@ -91,7 +91,7 @@ make all
 
 # 2. Run the rule engine demo
 make run
-# See rules evaluated on sample Employees object
+# See rules evaluated on sample Users object
 # Output shows which rules passed/failed
 
 # 3. View test results
@@ -110,45 +110,53 @@ open build/reports/tests/test/index.html
 This is where you define all your models. Edit `schema.sql`:
 
 ```sql
--- Your company's domain (appget is the default)
-CREATE TABLE employees (
-    name VARCHAR(100) NOT NULL,
-    age INT NOT NULL,
-    role_id VARCHAR(100) NOT NULL
+-- auth domain
+CREATE TABLE users (
+    id VARCHAR(50) NOT NULL,
+    username VARCHAR(100) NOT NULL,
+    email VARCHAR(255) NOT NULL,
+    is_verified BOOLEAN NOT NULL,
+    is_suspended BOOLEAN NOT NULL
 );
 
--- HR domain models
-CREATE TABLE departments (
+-- social domain
+CREATE TABLE posts (
     id VARCHAR(50) NOT NULL,
-    name VARCHAR(100) NOT NULL,
-    budget DECIMAL(15, 2) NOT NULL
+    content TEXT NOT NULL,
+    like_count INT NOT NULL,
+    is_public BOOLEAN NOT NULL,
+    is_deleted BOOLEAN NOT NULL
 );
 
--- Finance domain models
-CREATE TABLE invoices (
+-- admin domain
+CREATE TABLE moderation_flags (
     id VARCHAR(50) NOT NULL,
-    amount DECIMAL(15, 2) NOT NULL,
-    status VARCHAR(50) NOT NULL
+    reason VARCHAR(255) NOT NULL,
+    severity_level INT NOT NULL,
+    is_resolved BOOLEAN NOT NULL
 );
 ```
 
-**Domains auto-map based on table names:**
-- `employees` → `dev.appget.model.Employees`
-- `departments` → `dev.appget.hr.model.Departments`
-- `invoices` → `dev.appget.finance.model.Invoices`
+**Domains assigned from SQL comments (`-- <domain> domain` before each table group):**
+- `users` → `dev.appget.auth.model.Users`
+- `posts` → `dev.appget.social.model.Posts`
+- `moderation_flags` → `dev.appget.admin.model.ModerationFlags`
 
 ### Step 2: Define Read Models (`views.sql` - Optional)
 
 Create composite views for reporting/read-optimization:
 
 ```sql
-CREATE VIEW employee_salary_view AS
+-- social domain
+CREATE VIEW post_detail_view AS
 SELECT
-    e.name AS employee_name,
-    e.age AS employee_age,
-    s.amount AS salary_amount
-FROM employees e
-JOIN salaries s ON e.name = s.employee_id;
+    p.id AS post_id,
+    p.content AS post_content,
+    p.like_count AS like_count,
+    u.username AS author_username,
+    u.is_verified AS author_verified
+FROM posts p
+JOIN users u ON p.author_id = u.id;
 ```
 
 Views generate Java view classes automatically. System resolves column types from source tables.
@@ -169,11 +177,11 @@ make parse-schema
 make generate-proto
 # INPUT:  schema.sql + views.sql + specs.yaml (for rule embedding)
 # OUTPUT: .proto files → protoc → build/generated/
-#         ├── dev/appget/model/Employees.java (protobuf)
-#         ├── dev/appget/hr/model/Departments.java (protobuf)
-#         ├── dev/appget/finance/model/Invoices.java (protobuf)
-#         ├── dev/appget/view/EmployeeSalaryView.java (protobuf)
-#         └── gRPC service stubs (5 services)
+#         ├── dev/appget/auth/model/Users.java (protobuf)
+#         ├── dev/appget/social/model/Posts.java (protobuf)
+#         ├── dev/appget/admin/model/ModerationFlags.java (protobuf)
+#         ├── dev/appget/social/view/PostDetailView.java (protobuf)
+#         └── gRPC service stubs (8 services)
 ```
 
 All models are protobuf `MessageOrBuilder` classes with Builder pattern.
@@ -182,50 +190,47 @@ All models are protobuf `MessageOrBuilder` classes with Builder pattern.
 
 This is where you write authorization and validation logic using human-friendly Gherkin syntax.
 
-Edit `features/appget.feature`:
+Edit `features/auth.feature`:
 
 ```gherkin
-@domain:appget
-Feature: Appget Domain Business Rules
+@domain:auth
+Feature: Auth Domain Business Rules
 
-  @target:employees @blocking @rule:EmployeeAgeCheck
-  Scenario: Employee must be over 18
-    When age is greater than 18
-    Then status is "APPROVED"
-    But otherwise status is "REJECTED"
+  @target:users @blocking @rule:UserEmailValidation
+  Scenario: User email must be valid format
+    When email does not equal ""
+    Then status is "VALID_EMAIL"
+    But otherwise status is "INVALID_EMAIL"
 
-  @target:employees @rule:SeniorManagerCheck
-  Scenario: Senior manager must be 30+ and a Manager
+  @target:users @blocking @rule:UsernamePresence
+  Scenario: Username must exist
+    When username does not equal ""
+    Then status is "USERNAME_PRESENT"
+    But otherwise status is "NO_USERNAME"
+
+  @target:users @rule:UserAccountStatus
+  Scenario: Overall user account is in good standing
     When all conditions are met:
-      | field   | operator | value   |
-      | age     | >=       | 30      |
-      | role_id | ==       | Manager |
-    Then status is "SENIOR_MANAGER"
-    But otherwise status is "NOT_SENIOR_MANAGER"
+      | field        | operator | value |
+      | is_suspended | ==       | false |
+      | is_verified  | ==       | true  |
+    Then status is "GOOD_STANDING"
+    But otherwise status is "ACCOUNT_RESTRICTED"
 
-  @view @target:employee_salary_view @rule:HighEarnerCheck
-  Scenario: High earner salary threshold
-    When salary_amount is greater than 100000
-    Then status is "HIGH_EARNER"
-    But otherwise status is "STANDARD_EARNER"
-
-  @target:employees @blocking @rule:AuthenticatedApproval
-  Scenario: Authenticated employee approval with role level
-    Given sso context requires:
-      | field         | operator | value |
-      | authenticated | ==       | true  |
-    And roles context requires:
-      | field     | operator | value |
-      | roleLevel | >=       | 3     |
-    When age is at least 25
-    Then status is "APPROVED_WITH_AUTH"
-    But otherwise status is "DENIED"
+  @target:moderation_flags @blocking @rule:AdminAuthorizationRequired
+  Scenario: Only admins can resolve moderation flags
+    Given roles context requires:
+      | field   | operator | value |
+      | isAdmin | ==       | true  |
+    When is_resolved equals true
+    Then status is "ADMIN_APPROVED"
+    But otherwise status is "UNAUTHORIZED"
 ```
 
 **Gherkin Tags**:
-- `@domain:appget` - Domain assignment (feature-level)
-- `@target:employees` - Target model/view name (snake_case plural)
-- `@rule:EmployeeAgeCheck` - Rule name
+- `@domain:auth` - Domain assignment (feature-level)
+- `@target:users` - Target model/view name (snake_case plural, matches SQL table)
+- `@rule:UserEmailValidation` - Rule name
 - `@blocking` - Rule causes 422 rejection when unsatisfied
 - `@view` - Target is a view (not a model)
 
@@ -274,14 +279,17 @@ make run
 # Output:
 # --- Rule Engine Evaluation (Descriptor-Based) ---
 #
-# Model: Employees (4 rule(s))
-#   Rule: EmployeeAgeCheck              | Result: APPROVED
-#   Rule: EmployeeRoleCheck             | Result: REJECTED
-#   Rule: SeniorManagerCheck            | Result: NOT_SENIOR_MANAGER
-#   Rule: AuthenticatedApproval         | Result: DENIED
+# Model: Users (7 rule(s))
+#   Rule: UserEmailValidation           | Result: VALID_EMAIL
+#   Rule: UserSuspensionCheck           | Result: ACTIVE
+#   Rule: VerifiedUserRequirement       | Result: VERIFIED
+#   Rule: UsernamePresence              | Result: USERNAME_PRESENT
+#   Rule: UserAccountStatus             | Result: GOOD_STANDING
+#   ...
 #
-# Model: Salaries (1 rule(s))
-#   Rule: SalaryAmountCheck             | Result: STANDARD
+# Model: ModerationFlags (5 rule(s))
+#   Rule: SeverityLevelValidation       | Result: VALID_SEVERITY
+#   Rule: ReasonPresence                | Result: REASON_PROVIDED
 ```
 
 ---
@@ -327,10 +335,11 @@ All updated ──→  make test         ──→  280 tests pass ✓
 ```java
 // Auto-generated via: schema.sql → .proto → protoc
 // Protobuf message with Builder pattern
-Employees employee = Employees.newBuilder()
-    .setName("Alice")
-    .setAge(30)
-    .setRoleId("Manager")
+Users user = Users.newBuilder()
+    .setUsername("alice")
+    .setEmail("alice@example.com")
+    .setIsVerified(true)
+    .setIsSuspended(false)
     .build();
 ```
 
@@ -341,10 +350,12 @@ Employees employee = Employees.newBuilder()
 ```java
 // Auto-generated via: views.sql → .proto → protoc
 // Protobuf message with Builder pattern
-EmployeeSalaryView view = EmployeeSalaryView.newBuilder()
-    .setEmployeeName("Alice")
-    .setEmployeeAge(30)
-    .setSalaryAmount(75000.0)
+PostDetailView view = PostDetailView.newBuilder()
+    .setPostId("post-1")
+    .setPostContent("Hello world")
+    .setLikeCount(42)
+    .setAuthorUsername("alice")
+    .setAuthorVerified(true)
     .build();
 ```
 
@@ -353,11 +364,10 @@ EmployeeSalaryView view = EmployeeSalaryView.newBuilder()
 **Generated to**: `src/main/java-generated/dev/appget/specification/generated/`
 
 ```java
-// Auto-generated from: rules: [- name: EmployeeAgeCheck ...]
-public class EmployeeAgeCheck implements Specification<Employees> {
-    @Override
-    public boolean isSatisfiedBy(Employees target) {
-        return target.getAge() > 18;
+// Auto-generated from: rules: [- name: UserEmailValidation ...]
+public class UserEmailValidation implements Specification<Users> {
+    public boolean isSatisfiedBy(Users target) {
+        return !target.getEmail().isEmpty();
     }
 }
 ```
@@ -387,13 +397,13 @@ After running `make generate-server`, you get a complete REST API server with pr
 ### Generated REST Endpoints
 
 ```
-POST   /employees         - Create new employee (validates rules)
-GET    /employees         - List all employees
-GET    /employees/{id}    - Get specific employee
-PUT    /employees/{id}    - Update employee (validates rules)
-DELETE /employees/{id}    - Delete employee
+POST   /users             - Create new user (validates rules)
+GET    /users             - List all users
+GET    /users/{id}        - Get specific user
+PUT    /users/{id}        - Update user (validates rules)
+DELETE /users/{id}        - Delete user
 
-Same for: /departments, /salaries, /invoices, /roles
+Same for: /sessions, /posts, /comments, /follows, /moderation-flags, etc.
 ```
 
 ### Start the Server
@@ -406,13 +416,14 @@ make run-server        # Start server on http://localhost:8080
 ### Test an Endpoint
 
 ```bash
-# Create employee (will validate EmployeeAgeCheck rule)
-curl -X POST http://localhost:8080/employees \
+# Create user (will validate UserEmailValidation, UsernamePresence, etc.)
+curl -X POST http://localhost:8080/users \
   -H "Content-Type: application/json" \
   -d '{
-    "name": "Alice",
-    "age": 30,
-    "roleId": "Manager"
+    "username": "alice",
+    "email": "alice@example.com",
+    "isVerified": true,
+    "isSuspended": false
   }'
 
 # Response:
@@ -421,8 +432,8 @@ curl -X POST http://localhost:8080/employees \
 #   "data": { ... },
 #   "ruleResults": {
 #     "outcomes": [
-#       { "ruleName": "EmployeeAgeCheck", "status": "APPROVED" },
-#       { "ruleName": "SeniorManagerCheck", "status": "SENIOR_MANAGER" },
+#       { "ruleName": "UserEmailValidation", "status": "VALID_EMAIL" },
+#       { "ruleName": "UserAccountStatus", "status": "GOOD_STANDING" },
 #       ...
 #     ],
 #     "hasFailures": false
@@ -436,18 +447,15 @@ Rules that check metadata (the `requires:` block) extract data from HTTP headers
 Headers follow the convention `X-{Category}-{Field-Name}`:
 
 ```bash
-curl -X POST http://localhost:8080/employees \
+curl -X POST http://localhost:8080/moderation-flags \
   -H "Content-Type: application/json" \
   -H "X-Sso-Authenticated: true" \
-  -H "X-Sso-Session-Id: session123" \
-  -H "X-Roles-Role-Name: Admin" \
-  -H "X-Roles-Role-Level: 5" \
+  -H "X-Roles-Is-Admin: true" \
   -H "X-User-User-Id: user456" \
-  -H "X-User-Clearance-Level: 3" \
   -d '{
-    "name": "Bob",
-    "age": 25,
-    "roleId": "Engineer"
+    "reason": "Spam content",
+    "severityLevel": 5,
+    "isResolved": true
   }'
 
 # MetadataExtractor reads X-{Category}-{Field} headers
@@ -463,19 +471,22 @@ Rules can be marked `@blocking` in `.feature` files. This affects HTTP responses
 - **Informational rules** (default): Always reported in outcomes but never block the request
 
 ```gherkin
-  # Blocking: causes 422 if employee is under 18
-  @target:employees @blocking @rule:EmployeeAgeCheck
-  Scenario: Employee must be over 18
-    When age is greater than 18
-    Then status is "APPROVED"
-    But otherwise status is "REJECTED"
+  # Blocking: causes 422 if email is empty
+  @target:users @blocking @rule:UserEmailValidation
+  Scenario: User email must be valid format
+    When email does not equal ""
+    Then status is "VALID_EMAIL"
+    But otherwise status is "INVALID_EMAIL"
 
   # Informational: reported but doesn't block
-  @target:employees @rule:EmployeeRoleCheck
-  Scenario: Employee must hold Manager role
-    When role_id equals "Manager"
-    Then status is "APPROVED"
-    But otherwise status is "REJECTED"
+  @target:users @rule:UserAccountStatus
+  Scenario: Overall user account is in good standing
+    When all conditions are met:
+      | field        | operator | value |
+      | is_suspended | ==       | false |
+      | is_verified  | ==       | true  |
+    Then status is "GOOD_STANDING"
+    But otherwise status is "ACCOUNT_RESTRICTED"
 ```
 
 ---
@@ -679,7 +690,7 @@ Shows:
 ```bash
 # 1. Edit your files
 vim schema.sql
-vim features/appget.feature
+vim features/auth.feature
 
 # 2. Regenerate + test
 make all
@@ -687,7 +698,7 @@ make all
 
 # 3. See rules in action
 make run
-# Demo shows Employees evaluated against all rules
+# Demo shows Users evaluated against all rules
 
 # 4. When ready for REST API
 make generate-server
@@ -695,9 +706,9 @@ make run-server
 # Server runs on http://localhost:8080
 
 # 5. Test an endpoint
-curl -X POST http://localhost:8080/employees \
+curl -X POST http://localhost:8080/users \
   -H "Content-Type: application/json" \
-  -d '{"name":"Bob","age":25,"roleId":"Engineer"}'
+  -d '{"username":"alice","email":"alice@example.com","isVerified":true,"isSuspended":false}'
 ```
 
 ## Key Features Explained
@@ -707,10 +718,12 @@ curl -X POST http://localhost:8080/employees \
 **Your database schema defines everything.** No manual type definitions.
 
 ```sql
-CREATE TABLE employees (
-    name VARCHAR(100) NOT NULL,  -- ✓ Auto-becomes String name
-    age INT NOT NULL,             -- ✓ Auto-becomes int age
-    role_id VARCHAR(100)          -- ✓ Auto-becomes String roleId (camelCase)
+-- auth domain
+CREATE TABLE users (
+    id VARCHAR(50) NOT NULL,       -- ✓ Auto-becomes String id
+    username VARCHAR(100) NOT NULL, -- ✓ Auto-becomes String username
+    follower_count INT NOT NULL,    -- ✓ Auto-becomes int followerCount (camelCase)
+    is_verified BOOLEAN NOT NULL    -- ✓ Auto-becomes boolean isVerified
 );
 ```
 
@@ -723,21 +736,23 @@ CREATE TABLE employees (
 **Define read-optimized views for reporting.** System auto-resolves column types.
 
 ```sql
-CREATE VIEW high_earner_view AS
+-- social domain
+CREATE VIEW post_detail_view AS
 SELECT
-    e.name AS emp_name,
-    s.amount AS salary
-FROM employees e
-JOIN salaries s ON e.id = s.employee_id;
+    p.id AS post_id,
+    p.like_count AS like_count,
+    u.username AS author_username,
+    u.is_verified AS author_verified
+FROM posts p
+JOIN users u ON p.author_id = u.id;
 ```
 
 Generated as Java class:
 ```java
-@Data
-public class HighEarnerView {
-    private String empName;      // ✓ Type resolved from employees.name
-    private BigDecimal salary;   // ✓ Type resolved from salaries.amount
-}
+// PostDetailView (protobuf MessageOrBuilder)
+public int getLikeCount()         // ✓ Type resolved from posts.like_count
+public String getAuthorUsername() // ✓ Type resolved from users.username
+public boolean getAuthorVerified()// ✓ Type resolved from users.is_verified
 ```
 
 ✓ View classes in `view/` subpackage
@@ -748,14 +763,14 @@ public class HighEarnerView {
 **Write rules in YAML. System enforces them automatically.**
 
 ```yaml
-- name: SeniorManagerCheck
+- name: HighEngagementPost
   conditions:
     operator: AND                # All must be true
     clauses:
-      - field: age >= 30
-      - field: role_id == "Manager"
+      - field: like_count >= 1000
+      - field: is_public == true
   then:
-    status: "SENIOR_MANAGER"
+    status: "HIGH_ENGAGEMENT"
 ```
 
 ✓ Simple conditions (single field checks)
@@ -768,14 +783,14 @@ public class HighEarnerView {
 **Rules can check HTTP headers for authentication/authorization.**
 
 ```yaml
-- name: ApproveIfAdmin
+- name: AdminAuthorizationRequired
   requires:                      # Check these headers first
     roles:
-      - field: roleLevel >= 3
+      - field: isAdmin == true
   conditions:                    # Then check model fields
-    - field: age >= 25
+    - field: is_resolved == true
   then:
-    status: "APPROVED"
+    status: "ADMIN_APPROVED"
 ```
 
 ✓ Extract metadata from HTTP headers
@@ -787,10 +802,10 @@ public class HighEarnerView {
 **Organize models by business domain. System auto-creates packages.**
 
 ```
-schema.sql:
-  employees      → dev.appget.model.Employees
-  departments    → dev.appget.hr.model.Departments
-  invoices       → dev.appget.finance.model.Invoices
+schema.sql (with -- <domain> domain comments):
+  users, sessions       → dev.appget.auth.model.Users, Sessions
+  posts, comments, ...  → dev.appget.social.model.Posts, Comments, ...
+  moderation_flags      → dev.appget.admin.model.ModerationFlags
 ```
 
 ✓ Logical separation of concerns
@@ -858,8 +873,9 @@ Run: `make test` to verify your changes at any time.
 ```
 appget.dev/java/
 ├── features/
-│   ├── appget.feature      🖊️  Appget domain business rules (Gherkin)
-│   └── hr.feature          🖊️  HR domain business rules (Gherkin)
+│   ├── admin.feature       🖊️  Admin domain business rules (Gherkin)
+│   ├── auth.feature        🖊️  Auth domain business rules (Gherkin)
+│   └── social.feature      🖊️  Social domain business rules (Gherkin)
 ├── metadata.yaml           🖊️  Context POJO definitions (sso, roles, user, location)
 ├── schema.sql              🖊️  Your database schema (tables)
 ├── views.sql               🖊️  Your read models (views)
@@ -883,10 +899,10 @@ appget.dev/java/
 ├── openapi.yaml            ✨  Auto-generated REST spec
 ├── src/main/java-generated/✨  All generated Java models, specs
 │   └── dev/appget/
-│       ├── model/          (Employees, Departments, Invoices, etc)
-│       ├── view/           (EmployeeSalaryView, etc)
-│       ├── hr/model/       (Domain-specific models)
-│       ├── finance/model/  (Domain-specific models)
+│       ├── auth/model/     (Users, Sessions)
+│       ├── social/model/   (Posts, Comments, Likes, Follows, Reposts)
+│       ├── social/view/    (PostDetailView, FeedPostView, etc)
+│       └── admin/model/    (ModerationFlags)
 │       └── specification/
 │           ├── generated/  (Specification classes)
 │           └── context/    (Metadata POJOs)
@@ -1012,7 +1028,7 @@ make clean
 make all
 ```
 
-### "Can't find class Employees"
+### "Can't find class Users"
 **Problem**: Java model not found
 **Solution**:
 ```bash

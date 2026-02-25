@@ -1,6 +1,6 @@
 package dev.appget.specification;
 
-import dev.appget.model.Employees;
+import dev.appget.auth.model.Users;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -12,14 +12,16 @@ import static org.junit.jupiter.api.Assertions.*;
 @DisplayName("Compound Specification Tests")
 class CompoundSpecificationTest {
 
-    private Employees employee;
+    private Users user;
 
     @BeforeEach
     void setUp() {
-        employee = Employees.newBuilder()
-                .setName("Alice")
-                .setAge(35)
-                .setRoleId("Manager")
+        user = Users.newBuilder()
+                .setUsername("alice")
+                .setEmail("alice@example.com")
+                .setIsVerified(true)
+                .setIsActive(true)
+                .setFollowerCount(200)
                 .build();
     }
 
@@ -29,11 +31,11 @@ class CompoundSpecificationTest {
         CompoundSpecification spec = new CompoundSpecification(
                 CompoundSpecification.Logic.AND,
                 List.of(
-                        new Specification("age", ">", 30),
-                        new Specification("role_id", "==", "Manager")
+                        new Specification("follower_count", ">", 100),
+                        new Specification("username", "==", "alice")
                 )
         );
-        assertTrue(spec.isSatisfiedBy(employee));
+        assertTrue(spec.isSatisfiedBy(user));
     }
 
     @Test
@@ -42,11 +44,11 @@ class CompoundSpecificationTest {
         CompoundSpecification spec = new CompoundSpecification(
                 CompoundSpecification.Logic.AND,
                 List.of(
-                        new Specification("age", ">", 40),
-                        new Specification("role_id", "==", "Manager")
+                        new Specification("follower_count", ">", 500),
+                        new Specification("username", "==", "alice")
                 )
         );
-        assertFalse(spec.isSatisfiedBy(employee));
+        assertFalse(spec.isSatisfiedBy(user));
     }
 
     @Test
@@ -55,11 +57,11 @@ class CompoundSpecificationTest {
         CompoundSpecification spec = new CompoundSpecification(
                 CompoundSpecification.Logic.OR,
                 List.of(
-                        new Specification("age", ">", 40),
-                        new Specification("role_id", "==", "Manager")
+                        new Specification("follower_count", ">", 500),
+                        new Specification("username", "==", "alice")
                 )
         );
-        assertTrue(spec.isSatisfiedBy(employee));
+        assertTrue(spec.isSatisfiedBy(user));
     }
 
     @Test
@@ -68,11 +70,11 @@ class CompoundSpecificationTest {
         CompoundSpecification spec = new CompoundSpecification(
                 CompoundSpecification.Logic.OR,
                 List.of(
-                        new Specification("age", ">", 40),
-                        new Specification("role_id", "==", "Engineer")
+                        new Specification("follower_count", ">", 500),
+                        new Specification("username", "==", "bob")
                 )
         );
-        assertFalse(spec.isSatisfiedBy(employee));
+        assertFalse(spec.isSatisfiedBy(user));
     }
 
     @Test
@@ -80,9 +82,9 @@ class CompoundSpecificationTest {
     void testAndSingleCondition() {
         CompoundSpecification spec = new CompoundSpecification(
                 CompoundSpecification.Logic.AND,
-                List.of(new Specification("age", ">", 30))
+                List.of(new Specification("follower_count", ">", 100))
         );
-        assertTrue(spec.isSatisfiedBy(employee));
+        assertTrue(spec.isSatisfiedBy(user));
     }
 
     @Test
@@ -90,7 +92,7 @@ class CompoundSpecificationTest {
     void testToString() {
         CompoundSpecification spec = new CompoundSpecification(
                 CompoundSpecification.Logic.AND,
-                List.of(new Specification("age", ">", 30))
+                List.of(new Specification("follower_count", ">", 100))
         );
         String str = spec.toString();
         assertTrue(str.contains("AND"));

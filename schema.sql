@@ -1,61 +1,128 @@
--- ========================================================================
--- schema.sql - SOURCE OF TRUTH FOR DOMAIN MODELS
--- ========================================================================
--- This SQL file is the single source of truth for all domain models.
--- DO NOT manually edit models.yaml - it is auto-generated from this file.
---
--- To update models:
--- 1. Modify this file (schema.sql)
--- 2. Run: make parse-schema
--- 3. Run: make generate
---
--- Generated files (git-ignored):
--- - models.yaml (intermediate YAML representation)
--- - src/main/java-generated/*.java (Java model classes)
--- ========================================================================
-
--- appget domain
-CREATE TABLE roles (
-    name VARCHAR(100) NOT NULL
-);
-
-CREATE TABLE employees (
-    name VARCHAR(100) NOT NULL,
-    age INT NOT NULL,
-    role_id VARCHAR(100) NOT NULL,
-    country_of_origin VARCHAR(100)
-);
-
-CREATE TABLE vendors (
-    name VARCHAR(100) NOT NULL,
-    location_id INT NOT NULL,
-    FOREIGN KEY (location_id) REFERENCES locations(locationId)
-);
-
--- hr domain
-CREATE TABLE departments (
+-- auth domain
+CREATE TABLE users (
     id VARCHAR(50) NOT NULL,
-    name VARCHAR(100) NOT NULL,
-    budget DECIMAL(15, 2) NOT NULL
+    username VARCHAR(100) NOT NULL,
+    email VARCHAR(255) NOT NULL,
+    display_name VARCHAR(200),
+    bio TEXT,
+    is_verified BOOLEAN NOT NULL,
+    follower_count INT NOT NULL,
+    is_active BOOLEAN NOT NULL
 );
 
-CREATE TABLE salaries (
-    employee_id VARCHAR(50) NOT NULL,
-    amount DECIMAL(15, 2) NOT NULL,
-    years_of_service INT
+CREATE TABLE oauth_providers (
+    id VARCHAR(50) NOT NULL,
+    provider_name VARCHAR(50) NOT NULL,
+    client_id VARCHAR(255) NOT NULL,
+    client_secret VARCHAR(255) NOT NULL,
+    scope VARCHAR(500) NOT NULL
 );
 
--- finance domain
-CREATE TABLE invoices (
-    invoice_number VARCHAR(50) NOT NULL,
-    amount DECIMAL(15, 2) NOT NULL,
-    issue_date DATE NOT NULL
+CREATE TABLE oauth_tokens (
+    id VARCHAR(50) NOT NULL,
+    user_id VARCHAR(50) NOT NULL,
+    provider_id VARCHAR(50) NOT NULL,
+    access_token VARCHAR(1000) NOT NULL,
+    refresh_token VARCHAR(1000),
+    is_valid BOOLEAN NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    FOREIGN KEY (provider_id) REFERENCES oauth_providers(id)
 );
 
--- geo location
-CREATE TABLE locations (
-    locationId VARCHAR(50) NOT NULL,
-    locationName VARCHAR(100) NOT NULL,
-    longitude FLOAT NOT NULL,
-    latitude FLOAT NOT NULL
+CREATE TABLE api_keys (
+    id VARCHAR(50) NOT NULL,
+    user_id VARCHAR(50) NOT NULL,
+    key_hash VARCHAR(500) NOT NULL,
+    tier VARCHAR(50) NOT NULL,
+    rate_limit INT NOT NULL,
+    is_active BOOLEAN NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+CREATE TABLE sessions (
+    id VARCHAR(50) NOT NULL,
+    user_id VARCHAR(50) NOT NULL,
+    token VARCHAR(1000) NOT NULL,
+    is_active BOOLEAN NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+-- social domain
+CREATE TABLE posts (
+    id VARCHAR(50) NOT NULL,
+    author_id VARCHAR(50) NOT NULL,
+    content TEXT NOT NULL,
+    like_count INT NOT NULL,
+    comment_count INT NOT NULL,
+    is_public BOOLEAN NOT NULL,
+    is_deleted BOOLEAN NOT NULL,
+    FOREIGN KEY (author_id) REFERENCES users(id)
+);
+
+CREATE TABLE comments (
+    id VARCHAR(50) NOT NULL,
+    post_id VARCHAR(50) NOT NULL,
+    author_id VARCHAR(50) NOT NULL,
+    content TEXT NOT NULL,
+    like_count INT NOT NULL,
+    is_deleted BOOLEAN NOT NULL,
+    FOREIGN KEY (post_id) REFERENCES posts(id),
+    FOREIGN KEY (author_id) REFERENCES users(id)
+);
+
+CREATE TABLE likes (
+    id VARCHAR(50) NOT NULL,
+    user_id VARCHAR(50) NOT NULL,
+    likeable_type VARCHAR(50) NOT NULL,
+    likeable_id VARCHAR(50) NOT NULL,
+    is_active BOOLEAN NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+CREATE TABLE follows (
+    id VARCHAR(50) NOT NULL,
+    follower_id VARCHAR(50) NOT NULL,
+    following_id VARCHAR(50) NOT NULL,
+    is_active BOOLEAN NOT NULL,
+    FOREIGN KEY (follower_id) REFERENCES users(id),
+    FOREIGN KEY (following_id) REFERENCES users(id)
+);
+
+CREATE TABLE feeds (
+    id VARCHAR(50) NOT NULL,
+    user_id VARCHAR(50) NOT NULL,
+    is_following_feed BOOLEAN NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+-- admin domain
+CREATE TABLE roles (
+    id VARCHAR(50) NOT NULL,
+    role_name VARCHAR(100) NOT NULL,
+    permission_level INT NOT NULL
+);
+
+CREATE TABLE user_roles (
+    id VARCHAR(50) NOT NULL,
+    user_id VARCHAR(50) NOT NULL,
+    role_id VARCHAR(50) NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id),
+    FOREIGN KEY (role_id) REFERENCES roles(id)
+);
+
+CREATE TABLE moderation_actions (
+    id VARCHAR(50) NOT NULL,
+    moderator_id VARCHAR(50) NOT NULL,
+    target_user_id VARCHAR(50) NOT NULL,
+    action_type VARCHAR(100) NOT NULL,
+    is_active BOOLEAN NOT NULL,
+    FOREIGN KEY (moderator_id) REFERENCES users(id),
+    FOREIGN KEY (target_user_id) REFERENCES users(id)
+);
+
+CREATE TABLE company_settings (
+    id VARCHAR(50) NOT NULL,
+    company_name VARCHAR(255) NOT NULL,
+    is_public BOOLEAN NOT NULL,
+    feature_flags VARCHAR(500) NOT NULL
 );

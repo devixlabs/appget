@@ -6,9 +6,13 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.File;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -66,12 +70,12 @@ class AppServerGeneratorTest {
             "dev", "appget", "server", "service", "SpecificationRegistry.java");
 
         // SpecificationRegistry should import the spec classes
-        assertTrue(registryContent.contains("import dev.appget.specification.generated.EmployeeAgeCheck"),
-            "Registry should import EmployeeAgeCheck");
-        assertTrue(registryContent.contains("import dev.appget.specification.generated.EmployeeRoleCheck"),
-            "Registry should import EmployeeRoleCheck");
-        assertTrue(registryContent.contains("import dev.appget.specification.generated.AuthenticatedApproval"),
-            "Registry should import AuthenticatedApproval");
+        assertTrue(registryContent.contains("import dev.appget.specification.generated.UserActivationCheck"),
+            "Registry should import UserActivationCheck");
+        assertTrue(registryContent.contains("import dev.appget.specification.generated.OAuthTokenValidity"),
+            "Registry should import OAuthTokenValidity");
+        assertTrue(registryContent.contains("import dev.appget.specification.generated.PostNotDeletedCheck"),
+            "Registry should import PostNotDeletedCheck");
 
         // RuleService should inject SpecificationRegistry instead
         assertTrue(ruleServiceContent.contains("SpecificationRegistry"),
@@ -85,11 +89,11 @@ class AppServerGeneratorTest {
             "dev", "appget", "server", "service", "SpecificationRegistry.java");
 
         // SpecificationRegistry should instantiate the spec classes
-        assertTrue(registryContent.contains("new EmployeeAgeCheck()"), "Registry should instantiate EmployeeAgeCheck");
-        assertTrue(registryContent.contains("new EmployeeRoleCheck()"), "Registry should instantiate EmployeeRoleCheck");
-        assertTrue(registryContent.contains("new SeniorManagerCheck()"), "Registry should instantiate SeniorManagerCheck");
-        assertTrue(registryContent.contains("new AuthenticatedApproval()"), "Registry should instantiate AuthenticatedApproval");
-        assertTrue(registryContent.contains("new SalaryAmountCheck()"), "Registry should instantiate SalaryAmountCheck");
+        assertTrue(registryContent.contains("new UserActivationCheck()"), "Registry should instantiate UserActivationCheck");
+        assertTrue(registryContent.contains("new OAuthTokenValidity()"), "Registry should instantiate OAuthTokenValidity");
+        assertTrue(registryContent.contains("new ModerationActionActive()"), "Registry should instantiate ModerationActionActive");
+        assertTrue(registryContent.contains("new AdminAuthenticationRequired()"), "Registry should instantiate AdminAuthenticationRequired");
+        assertTrue(registryContent.contains("new PostNotDeletedCheck()"), "Registry should instantiate PostNotDeletedCheck");
     }
 
     @Test
@@ -97,7 +101,10 @@ class AppServerGeneratorTest {
     void testRuleServiceSkipsViewRules(@TempDir Path tempDir) throws Exception {
         String registryContent = generateAndReadFile(tempDir,
             "dev", "appget", "server", "service", "SpecificationRegistry.java");
-        assertFalse(registryContent.contains("HighEarnerCheck"), "Should skip view-targeting HighEarnerCheck");
+        assertFalse(registryContent.contains("PublicPostViewable"), "Should skip view-targeting PublicPostViewable");
+        assertFalse(registryContent.contains("VerifiedAuthorPriority"), "Should skip view-targeting VerifiedAuthorPriority");
+        assertFalse(registryContent.contains("UserHasAdminRole"), "Should skip view-targeting UserHasAdminRole");
+        assertFalse(registryContent.contains("ActiveContentCreator"), "Should skip view-targeting ActiveContentCreator");
     }
 
     @Test
@@ -110,7 +117,7 @@ class AppServerGeneratorTest {
     }
 
     @Test
-    @DisplayName("RuleService uses metadata-aware evaluate for AuthenticatedApproval")
+    @DisplayName("RuleService uses metadata-aware evaluate for AdminAuthorizationRequired")
     void testRuleServiceMetadataAwareEvaluate(@TempDir Path tempDir) throws Exception {
         String content = readRuleService(tempDir);
         // RuleService should use getMethods() iteration to handle typed spec params
@@ -133,12 +140,12 @@ class AppServerGeneratorTest {
         String content = readRuleService(tempDir);
         // RuleService should check BLOCKING_RULES map
         assertTrue(content.contains("BLOCKING_RULES"), "Should have BLOCKING_RULES static map");
-        assertTrue(content.contains("BLOCKING_RULES.put(\"EmployeeAgeCheck\", true)"),
-            "EmployeeAgeCheck should be marked as blocking");
-        assertTrue(content.contains("BLOCKING_RULES.put(\"AuthenticatedApproval\", true)"),
-            "AuthenticatedApproval should be marked as blocking");
-        assertTrue(content.contains("BLOCKING_RULES.put(\"EmployeeRoleCheck\", false)"),
-            "EmployeeRoleCheck should be marked as non-blocking");
+        assertTrue(content.contains("BLOCKING_RULES.put(\"UserActivationCheck\", true)"),
+            "UserActivationCheck should be marked as blocking");
+        assertTrue(content.contains("BLOCKING_RULES.put(\"AdminAuthenticationRequired\", true)"),
+            "AdminAuthenticationRequired should be marked as blocking");
+        assertTrue(content.contains("BLOCKING_RULES.put(\"UserVerificationStatus\", false)"),
+            "UserVerificationStatus should be marked as non-blocking");
 
         // Verify blocking logic
         assertTrue(content.contains("if (isBlocking && !outcome.isSatisfied()) {"),
@@ -166,7 +173,7 @@ class AppServerGeneratorTest {
         assertTrue(content.contains("X-Roles-Role-Name"), "Should read X-Roles-Role-Name header");
         assertTrue(content.contains("X-Roles-Role-Level"), "Should read X-Roles-Role-Level header");
         assertTrue(content.contains("X-User-User-Id"), "Should read X-User-User-Id header");
-        assertTrue(content.contains("X-User-Clearance-Level"), "Should read X-User-Clearance-Level header");
+        assertTrue(content.contains("X-User-Email"), "Should read X-User-Email header");
     }
 
     @Test
@@ -197,14 +204,14 @@ class AppServerGeneratorTest {
     void testSpecificationRegistryRegistersAllSpecs(@TempDir Path tempDir) throws Exception {
         String content = generateAndReadFile(tempDir,
             "dev", "appget", "server", "service", "SpecificationRegistry.java");
-        assertTrue(content.contains("register(\"EmployeeAgeCheck\""),
-            "Should register EmployeeAgeCheck");
-        assertTrue(content.contains("register(\"EmployeeRoleCheck\""),
-            "Should register EmployeeRoleCheck");
-        assertTrue(content.contains("register(\"AuthenticatedApproval\""),
-            "Should register AuthenticatedApproval");
-        assertTrue(content.contains("register(\"SalaryAmountCheck\""),
-            "Should register SalaryAmountCheck");
+        assertTrue(content.contains("register(\"UserActivationCheck\""),
+            "Should register UserActivationCheck");
+        assertTrue(content.contains("register(\"OAuthTokenValidity\""),
+            "Should register OAuthTokenValidity");
+        assertTrue(content.contains("register(\"AdminAuthenticationRequired\""),
+            "Should register AdminAuthenticationRequired");
+        assertTrue(content.contains("register(\"ModerationActionActive\""),
+            "Should register ModerationActionActive");
     }
 
     @Test
@@ -235,5 +242,157 @@ class AppServerGeneratorTest {
             "RuleService should inject SpecificationRegistry");
         assertTrue(content.contains("public RuleService(SpecificationRegistry registry)"),
             "RuleService constructor should accept SpecificationRegistry");
+    }
+
+    @Test
+    @DisplayName("RuleService does not import model classes (uses reflection)")
+    void testRuleServiceNoModelImports(@TempDir Path tempDir) throws Exception {
+        String content = readRuleService(tempDir);
+        assertFalse(content.contains("import dev.appget.model."),
+            "RuleService should not import flat dev.appget.model.* (no such package in multi-domain)");
+        // Should not import ANY domain-specific model classes either (they're unused)
+        assertFalse(content.matches("(?s).*import dev\\.appget\\.\\w+\\.model\\..*"),
+            "RuleService should not import domain-specific model classes (uses reflection, not static types)");
+    }
+
+    @Test
+    @DisplayName("SpecificationRegistry resolves multi-domain target names")
+    void testSpecRegistryMultiDomainTargets(@TempDir Path tempDir) throws Exception {
+        String content = generateAndReadFile(tempDir,
+            "dev", "appget", "server", "service", "SpecificationRegistry.java");
+        // Verify PascalCase target names are correctly resolved
+        assertTrue(content.contains("SPEC_TARGETS"),
+            "Should have SPEC_TARGETS map for target resolution");
+    }
+
+    @Test
+    @DisplayName("Per-model services import from domain-specific namespaces")
+    void testModelServiceDomainImports(@TempDir Path tempDir) throws Exception {
+        String outputDir = tempDir.toString();
+        if (new File("models.yaml").exists() && new File("specs.yaml").exists()) {
+            generator.generateServer("models.yaml", "specs.yaml", outputDir);
+            // Check a per-model service for correct domain-specific imports
+            Path usersServicePath = Paths.get(outputDir,
+                "dev", "appget", "server", "service", "UsersService.java");
+            if (Files.exists(usersServicePath)) {
+                String content = Files.readString(usersServicePath);
+                assertFalse(content.contains("import dev.appget.model."),
+                    "UsersService should not use flat dev.appget.model package");
+                assertTrue(content.contains(".model.Users"),
+                    "UsersService should import Users from domain-specific namespace");
+            }
+        }
+    }
+
+    // ---- Dual-keying and deduplication tests (modelIndex fix) ----
+
+    @Test
+    @DisplayName("No generated file uses flat dev.appget.model.* import")
+    void testNoGeneratedFileUsesFlatModelImport(@TempDir Path tempDir) throws Exception {
+        String outputDir = tempDir.toString();
+        if (new File("models.yaml").exists() && new File("specs.yaml").exists()) {
+            generator.generateServer("models.yaml", "specs.yaml", outputDir);
+
+            // Scan ALL generated .java files for the flat (wrong) import pattern
+            Path serverRoot = Paths.get(outputDir, "dev", "appget", "server");
+            List<Path> javaFiles;
+            try (Stream<Path> walk = Files.walk(serverRoot)) {
+                javaFiles = walk.filter(p -> p.toString().endsWith(".java"))
+                    .collect(Collectors.toList());
+            }
+            assertTrue(javaFiles.size() > 10, "Should have generated many .java files");
+
+            for (Path javaFile : javaFiles) {
+                String content = Files.readString(javaFile);
+                assertFalse(content.contains("import dev.appget.model."),
+                    javaFile.getFileName() + " should not use flat dev.appget.model.* import");
+            }
+        }
+    }
+
+    @Test
+    @DisplayName("All three domains have correct namespace imports in generated services")
+    void testAllDomainNamespaceImports(@TempDir Path tempDir) throws Exception {
+        String outputDir = tempDir.toString();
+        if (new File("models.yaml").exists() && new File("specs.yaml").exists()) {
+            generator.generateServer("models.yaml", "specs.yaml", outputDir);
+
+            // auth domain: Users → dev.appget.auth.model.Users
+            String usersService = Files.readString(Paths.get(outputDir,
+                "dev", "appget", "server", "service", "UsersService.java"));
+            assertTrue(usersService.contains("import dev.appget.auth.model.Users"),
+                "UsersService should import from auth domain namespace");
+
+            // admin domain: Roles → dev.appget.admin.model.Roles
+            String rolesService = Files.readString(Paths.get(outputDir,
+                "dev", "appget", "server", "service", "RolesService.java"));
+            assertTrue(rolesService.contains("import dev.appget.admin.model.Roles"),
+                "RolesService should import from admin domain namespace");
+
+            // social domain: Posts → dev.appget.social.model.Posts
+            String postsService = Files.readString(Paths.get(outputDir,
+                "dev", "appget", "server", "service", "PostsService.java"));
+            assertTrue(postsService.contains("import dev.appget.social.model.Posts"),
+                "PostsService should import from social domain namespace");
+        }
+    }
+
+    @Test
+    @DisplayName("SPEC_TARGETS maps rule names to PascalCase model names")
+    void testSpecTargetsUsesPascalCaseModelNames(@TempDir Path tempDir) throws Exception {
+        String content = generateAndReadFile(tempDir,
+            "dev", "appget", "server", "service", "SpecificationRegistry.java");
+
+        // The dual-keying fix ensures modelIndex.get(rule.targetName) resolves correctly,
+        // producing PascalCase model names (not snake_case) in SPEC_TARGETS
+        assertTrue(content.contains("SPEC_TARGETS.put(\"UserActivationCheck\", \"Users\")"),
+            "UserActivationCheck should target PascalCase 'Users'");
+        assertTrue(content.contains("SPEC_TARGETS.put(\"AdminRoleClassification\", \"Roles\")"),
+            "AdminRoleClassification should target PascalCase 'Roles'");
+        assertTrue(content.contains("SPEC_TARGETS.put(\"PostNotDeletedCheck\", \"Posts\")"),
+            "PostNotDeletedCheck should target PascalCase 'Posts'");
+        assertTrue(content.contains("SPEC_TARGETS.put(\"ModerationActionActive\", \"ModerationActions\")"),
+            "ModerationActionActive should target PascalCase 'ModerationActions'");
+
+        // Verify no snake_case target values leaked into SPEC_TARGETS
+        assertFalse(content.contains("SPEC_TARGETS.put(\"UserActivationCheck\", \"users\")"),
+            "SPEC_TARGETS should not have snake_case target 'users'");
+        assertFalse(content.contains("SPEC_TARGETS.put(\"AdminRoleClassification\", \"roles\")"),
+            "SPEC_TARGETS should not have snake_case target 'roles'");
+    }
+
+    @Test
+    @DisplayName("Per-model generation produces exactly one set of files per model (no duplicates)")
+    void testNoDuplicatePerModelFiles(@TempDir Path tempDir) throws Exception {
+        String outputDir = tempDir.toString();
+        if (new File("models.yaml").exists() && new File("specs.yaml").exists()) {
+            generator.generateServer("models.yaml", "specs.yaml", outputDir);
+
+            // Count Controller files (one per model, views excluded)
+            Path controllerDir = Paths.get(outputDir, "dev", "appget", "server", "controller");
+            long controllerCount;
+            try (Stream<Path> walk = Files.list(controllerDir)) {
+                controllerCount = walk.filter(p -> p.toString().endsWith("Controller.java")).count();
+            }
+
+            // Count Service files (minus RuleService and SpecificationRegistry which are infrastructure)
+            Path serviceDir = Paths.get(outputDir, "dev", "appget", "server", "service");
+            long modelServiceCount;
+            try (Stream<Path> walk = Files.list(serviceDir)) {
+                modelServiceCount = walk.filter(p -> {
+                    String name = p.getFileName().toString();
+                    return name.endsWith("Service.java")
+                        && !name.equals("RuleService.java");
+                }).count();
+            }
+
+            // Controllers and model services should match 1:1 (each model gets exactly one of each)
+            assertEquals(controllerCount, modelServiceCount,
+                "Controller count should equal model service count (no duplicates from dual-keying)");
+
+            // With 14 models (3 domains, views excluded), expect exactly 14 controllers
+            assertEquals(14, controllerCount,
+                "Should generate exactly 14 controllers (one per model, no duplicates)");
+        }
     }
 }

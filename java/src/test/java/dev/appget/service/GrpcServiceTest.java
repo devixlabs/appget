@@ -13,61 +13,61 @@ import static org.junit.jupiter.api.Assertions.*;
 class GrpcServiceTest {
 
     @Test
-    @DisplayName("EmployeesServiceGrpc stub class exists and has service descriptor")
+    @DisplayName("UsersServiceGrpc stub class exists and has service descriptor")
     void testEmployeeServiceGrpcExists() {
-        assertNotNull(EmployeesServiceGrpc.getServiceDescriptor(),
-                "EmployeesServiceGrpc should have a service descriptor");
-        assertEquals("appget_services.EmployeesService",
-                EmployeesServiceGrpc.getServiceDescriptor().getName());
+        assertNotNull(dev.appget.auth.service.UsersServiceGrpc.getServiceDescriptor(),
+                "UsersServiceGrpc should have a service descriptor");
+        assertEquals("auth_services.UsersService",
+                dev.appget.auth.service.UsersServiceGrpc.getServiceDescriptor().getName());
     }
 
     @Test
-    @DisplayName("EmployeesServiceGrpc has all CRUD method descriptors")
+    @DisplayName("UsersServiceGrpc has all CRUD method descriptors")
     void testEmployeeServiceMethods() {
-        var desc = EmployeesServiceGrpc.getServiceDescriptor();
+        var desc = dev.appget.auth.service.UsersServiceGrpc.getServiceDescriptor();
         Set<String> methodNames = desc.getMethods().stream()
                 .map(m -> ((MethodDescriptor<?, ?>) m).getBareMethodName())
                 .collect(Collectors.toSet());
 
-        assertTrue(methodNames.contains("CreateEmployees"), "Should have CreateEmployees");
-        assertTrue(methodNames.contains("GetEmployees"), "Should have GetEmployees");
-        assertTrue(methodNames.contains("UpdateEmployees"), "Should have UpdateEmployees");
-        assertTrue(methodNames.contains("DeleteEmployees"), "Should have DeleteEmployees");
-        assertTrue(methodNames.contains("ListEmployees"), "Should have ListEmployees");
+        assertTrue(methodNames.contains("CreateUsers"), "Should have CreateUsers");
+        assertTrue(methodNames.contains("GetUsers"), "Should have GetUsers");
+        assertTrue(methodNames.contains("UpdateUsers"), "Should have UpdateUsers");
+        assertTrue(methodNames.contains("DeleteUsers"), "Should have DeleteUsers");
+        assertTrue(methodNames.contains("ListUsers"), "Should have ListUsers");
     }
 
     @Test
-    @DisplayName("RolesServiceGrpc stub class exists")
+    @DisplayName("SessionsServiceGrpc stub class exists")
     void testRoleServiceGrpcExists() {
-        assertNotNull(RolesServiceGrpc.getServiceDescriptor(),
-                "RolesServiceGrpc should have a service descriptor");
+        assertNotNull(dev.appget.auth.service.SessionsServiceGrpc.getServiceDescriptor(),
+                "SessionsServiceGrpc should have a service descriptor");
     }
 
     @Test
-    @DisplayName("HR SalariesServiceGrpc stub exists")
+    @DisplayName("social PostsServiceGrpc stub exists")
     void testSalaryServiceGrpcExists() {
-        assertNotNull(dev.appget.hr.service.SalariesServiceGrpc.getServiceDescriptor(),
-                "SalariesServiceGrpc should have a service descriptor");
+        assertNotNull(dev.appget.social.service.PostsServiceGrpc.getServiceDescriptor(),
+                "PostsServiceGrpc should have a service descriptor");
     }
 
     @Test
-    @DisplayName("HR DepartmentsServiceGrpc stub exists")
+    @DisplayName("social CommentsServiceGrpc stub exists")
     void testDepartmentServiceGrpcExists() {
-        assertNotNull(dev.appget.hr.service.DepartmentsServiceGrpc.getServiceDescriptor(),
-                "DepartmentsServiceGrpc should have a service descriptor");
+        assertNotNull(dev.appget.social.service.CommentsServiceGrpc.getServiceDescriptor(),
+                "CommentsServiceGrpc should have a service descriptor");
     }
 
     @Test
-    @DisplayName("Finance InvoicesServiceGrpc stub exists")
-    void testInvoiceServiceGrpcExists() {
-        assertNotNull(dev.appget.finance.service.InvoicesServiceGrpc.getServiceDescriptor(),
-                "InvoicesServiceGrpc should have a service descriptor");
+    @DisplayName("admin ModerationActionsServiceGrpc stub exists")
+    void testModerationActionsServiceGrpcExists() {
+        assertNotNull(dev.appget.admin.service.ModerationActionsServiceGrpc.getServiceDescriptor(),
+                "ModerationActionsServiceGrpc should have a service descriptor");
     }
 
     @Test
-    @DisplayName("EmployeesServiceGrpc has 5 CRUD methods")
+    @DisplayName("UsersServiceGrpc has 5 CRUD methods")
     void testEmployeeServiceMethodCount() {
-        var desc = EmployeesServiceGrpc.getServiceDescriptor();
-        assertEquals(5, desc.getMethods().size(), "EmployeesService should have 5 CRUD methods");
+        var desc = dev.appget.auth.service.UsersServiceGrpc.getServiceDescriptor();
+        assertEquals(5, desc.getMethods().size(), "UsersService should have 5 CRUD methods");
     }
 }

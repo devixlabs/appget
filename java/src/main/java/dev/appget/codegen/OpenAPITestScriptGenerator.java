@@ -144,10 +144,10 @@ public class OpenAPITestScriptGenerator {
         script.append("# Auto-generated API test script from openapi.yaml\n");
         script.append("# Generated: ").append(new java.util.Date()).append("\n\n");
 
-        script.append("set -e  # Exit on error\n\n");
+        script.append("FAILURES=0\n\n");
 
         script.append("BASE_URL=\"").append(baseUrl).append("\"\n");
-        script.append("CREATED_IDS=()\n\n");
+        script.append("\n");
 
         script.append("# Colors for output\n");
         script.append("GREEN='\\033[0;32m'\n");
@@ -229,7 +229,13 @@ public class OpenAPITestScriptGenerator {
             script.append("\n");
         }
 
-        // Footer
+        // Footer with conditional exit code
+        script.append("if [ \"$FAILURES\" -gt 0 ]; then\n");
+        script.append("  echo -e \"${RED}========================================${NC}\"\n");
+        script.append("  echo -e \"${RED}$FAILURES test(s) failed!${NC}\"\n");
+        script.append("  echo -e \"${RED}========================================${NC}\"\n");
+        script.append("  exit 1\n");
+        script.append("fi\n");
         script.append("echo -e \"${GREEN}========================================${NC}\"\n");
         script.append("echo -e \"${GREEN}All tests completed successfully!${NC}\"\n");
         script.append("echo -e \"${GREEN}========================================${NC}\"\n");
@@ -255,6 +261,8 @@ public class OpenAPITestScriptGenerator {
         // Add metadata headers for rule validation
         script.append("  -H 'X-Sso-Authenticated: true' \\\n");
         script.append("  -H 'X-Roles-Role-Level: 5' \\\n");
+        script.append("  -H 'X-Roles-Is-Admin: true' \\\n");
+        script.append("  -H 'X-Api-Is-Active: true' \\\n");
 
         script.append("  -d '").append(sampleJson).append("')\n");
         script.append("HTTP_CODE=$(echo \"$RESPONSE\" | tail -n1)\n");
@@ -268,6 +276,7 @@ public class OpenAPITestScriptGenerator {
         script.append("else\n");
         script.append("  echo -e \"${RED}✗ POST ").append(endpoint.path).append(" - Failed ($HTTP_CODE)${NC}\"\n");
         script.append("  echo \"$BODY\"\n");
+        script.append("  FAILURES=$((FAILURES + 1))\n");
         script.append("fi\n");
         script.append("echo \"\"\n\n");
     }
@@ -283,6 +292,7 @@ public class OpenAPITestScriptGenerator {
         script.append("else\n");
         script.append("  echo -e \"${RED}✗ GET ").append(endpoint.path).append(" - Failed ($HTTP_CODE)${NC}\"\n");
         script.append("  echo \"$BODY\"\n");
+        script.append("  FAILURES=$((FAILURES + 1))\n");
         script.append("fi\n");
         script.append("echo \"\"\n\n");
     }
@@ -300,6 +310,7 @@ public class OpenAPITestScriptGenerator {
         script.append("  else\n");
         script.append("    echo -e \"${RED}✗ GET ").append(endpoint.path).append(" - Failed ($HTTP_CODE)${NC}\"\n");
         script.append("    echo \"$BODY\"\n");
+        script.append("    FAILURES=$((FAILURES + 1))\n");
         script.append("  fi\n");
         script.append("  echo \"\"\n");
         script.append("fi\n\n");
@@ -316,6 +327,8 @@ public class OpenAPITestScriptGenerator {
         script.append("    -H 'Content-Type: application/json' \\\n");
         script.append("    -H 'X-Sso-Authenticated: true' \\\n");
         script.append("    -H 'X-Roles-Role-Level: 5' \\\n");
+        script.append("    -H 'X-Roles-Is-Admin: true' \\\n");
+        script.append("    -H 'X-Api-Is-Active: true' \\\n");
         script.append("    -d '").append(sampleJson).append("')\n");
         script.append("  HTTP_CODE=$(echo \"$RESPONSE\" | tail -n1)\n");
         script.append("  BODY=$(echo \"$RESPONSE\" | sed '$d')\n");
@@ -325,6 +338,7 @@ public class OpenAPITestScriptGenerator {
         script.append("  else\n");
         script.append("    echo -e \"${RED}✗ PUT ").append(endpoint.path).append(" - Failed ($HTTP_CODE)${NC}\"\n");
         script.append("    echo \"$BODY\"\n");
+        script.append("    FAILURES=$((FAILURES + 1))\n");
         script.append("  fi\n");
         script.append("  echo \"\"\n");
         script.append("fi\n\n");
@@ -340,6 +354,7 @@ public class OpenAPITestScriptGenerator {
         script.append("    echo -e \"${GREEN}✓ DELETE ").append(endpoint.path).append(" - Success (204)${NC}\"\n");
         script.append("  else\n");
         script.append("    echo -e \"${RED}✗ DELETE ").append(endpoint.path).append(" - Failed ($HTTP_CODE)${NC}\"\n");
+        script.append("    FAILURES=$((FAILURES + 1))\n");
         script.append("  fi\n");
         script.append("  echo \"\"\n");
         script.append("fi\n\n");
@@ -389,7 +404,7 @@ public class OpenAPITestScriptGenerator {
             } else if ("number".equals(type)) {
                 json.append("99.99");
             } else if ("boolean".equals(type)) {
-                json.append("true");
+                json.append(propName.toLowerCase().contains("deleted") ? "false" : "true");
             } else {
                 json.append("\"sample\"");
             }

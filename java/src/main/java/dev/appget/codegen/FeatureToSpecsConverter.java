@@ -49,9 +49,9 @@ public class FeatureToSpecsConverter {
             .map(Pattern::quote)
             .collect(Collectors.joining("|"));
 
-    // Regex: field_name <operator_phrase> "quoted_value"
+    // Regex: field_name <operator_phrase> "quoted_value" (allows empty string "")
     private static final Pattern SIMPLE_CONDITION_QUOTED = Pattern.compile(
-            "(\\w+)\\s+(" + OPERATOR_ALTERNATION + ")\\s+\"([^\"]+)\"$");
+            "(\\w+)\\s+(" + OPERATOR_ALTERNATION + ")\\s+\"([^\"]*)\"$");
 
     // Regex: field_name <operator_phrase> unquoted_value
     private static final Pattern SIMPLE_CONDITION_UNQUOTED = Pattern.compile(
@@ -318,6 +318,10 @@ public class FeatureToSpecsConverter {
     // Coerce a raw string value to the appropriate type
     Object coerceValue(String raw) {
         if (raw == null) return null;
+        // Strip surrounding double-quotes (e.g., "" → empty string, "Manager" → Manager)
+        if (raw.startsWith("\"") && raw.endsWith("\"") && raw.length() >= 2) {
+            return raw.substring(1, raw.length() - 1);
+        }
         // Try integer
         try {
             return Integer.parseInt(raw);

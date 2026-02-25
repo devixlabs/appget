@@ -338,12 +338,12 @@ Each improvement is labeled **[IMPROVEMENT-N]** for reference in discussion and 
 ```java
 // Currently generated: concrete class, no interface
 @Component
-public class EmployeeRepository {
-    private final Map<String, Employee> store = new ConcurrentHashMap<>();
+public class UsersRepository {
+    private final Map<String, Users> store = new ConcurrentHashMap<>();
 
-    public Employee save(Employee entity) { ... }
-    public Employee findById(String id) { ... }
-    public List<Employee> findAll() { ... }
+    public Users save(Users entity) { ... }
+    public Users findById(String id) { ... }
+    public List<Users> findAll() { ... }
     public void deleteById(String id) { ... }
 }
 ```
@@ -460,9 +460,9 @@ Add assertions (new test method or extend an existing repository test):
 @Service
 public class RuleService {
     private final List<Object> allSpecs = List.of(
-        new EmployeeAgeCheck(),
-        new SeniorManagerCheck(),
-        new AuthenticatedApproval()
+        new UserEmailValidation(),
+        new UserSuspensionCheck(),
+        new AdminAuthorizationRequired()
     );
 
     public List<RuleOutcome> evaluateAll(Object entity, MetadataContext ctx) {
@@ -512,8 +512,8 @@ public class SpecificationRegistry {
     private final Map<String, Object> specs = new LinkedHashMap<>();
 
     public SpecificationRegistry() {
-        register("EmployeeAgeCheck", new EmployeeAgeCheck());
-        register("SeniorManagerCheck", new SeniorManagerCheck());
+        register("UserEmailValidation", new UserEmailValidation());
+        register("UserSuspensionCheck", new UserSuspensionCheck());
         // one register() call per rule in specs.yaml, in declaration order
     }
 
@@ -584,10 +584,10 @@ Add a new test method with these assertions:
 3. The file contains one `register(` call per rule in `specs.yaml` (assert count: occurrences of `"register("` equals `rules.size()`)
 4. The file contains `getByTarget(` method
 5. `service/RuleService.java` constructor parameter type is `SpecificationRegistry`
-6. `service/RuleService.java` does NOT contain `new EmployeeAgeCheck()` (no inline spec class instantiation)
+6. `service/RuleService.java` does NOT contain `new UserEmailValidation()` (no inline spec class instantiation)
 7. `service/RuleService.java` contains `registry.getByTarget(`
 
-**Why this matters**: When rules change, only `SpecificationRegistry` regenerates — `RuleService` is stable. The registry also enables targeted single-rule testing: `registry.get("EmployeeAgeCheck")` fetches one spec for focused assertions without evaluating all rules.
+**Why this matters**: When rules change, only `SpecificationRegistry` regenerates — `RuleService` is stable. The registry also enables targeted single-rule testing: `registry.get("UserEmailValidation")` fetches one spec for focused assertions without evaluating all rules.
 
 **Effort**: Low
 

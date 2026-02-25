@@ -1,0 +1,173 @@
+schema_version: 1
+organization: appget
+
+domains:
+  appget:
+    namespace: dev.appget
+    models:
+      - name: roles
+        source_table: roles
+        fields:
+          - name: name
+            type: string
+            nullable: false
+            field_number: 1
+
+      - name: employees
+        source_table: employees
+        fields:
+          - name: name
+            type: string
+            nullable: false
+            field_number: 1
+          - name: age
+            type: int32
+            nullable: false
+            field_number: 2
+          - name: role_id
+            type: string
+            nullable: false
+            field_number: 3
+          - name: country_of_origin
+            type: string
+            nullable: true
+            field_number: 4
+
+      - name: vendors
+        source_table: vendors
+        fields:
+          - name: name
+            type: string
+            nullable: false
+            field_number: 1
+          - name: location_id
+            type: int32
+            nullable: false
+            field_number: 2
+
+    views:
+      - name: employee_salary_view
+        source_view: employee_salary_view
+        fields:
+          - name: employee_name
+            type: string
+            nullable: false
+            field_number: 1
+          - name: employee_age
+            type: int32
+            nullable: false
+            field_number: 2
+          - name: role_id
+            type: string
+            nullable: false
+            field_number: 3
+          - name: salary_amount
+            type: decimal
+            nullable: false
+            field_number: 4
+            precision: 15
+            scale: 2
+          - name: years_of_service
+            type: int32
+            nullable: true
+            field_number: 5
+
+  finance:
+    namespace: dev.appget.finance
+    models:
+      - name: invoices
+        source_table: invoices
+        fields:
+          - name: invoice_number
+            type: string
+            nullable: false
+            field_number: 1
+          - name: amount
+            type: decimal
+            nullable: false
+            field_number: 2
+            precision: 15
+            scale: 2
+          - name: issue_date
+            type: date
+            nullable: false
+            field_number: 3
+
+      - name: locations
+        source_table: locations
+        fields:
+          - name: locationid
+            type: string
+            nullable: false
+            field_number: 1
+          - name: locationname
+            type: string
+            nullable: false
+            field_number: 2
+          - name: longitude
+            type: float64
+            nullable: false
+            field_number: 3
+          - name: latitude
+            type: float64
+            nullable: false
+            field_number: 4
+
+  hr:
+    namespace: dev.appget.hr
+    models:
+      - name: departments
+        source_table: departments
+        fields:
+          - name: id
+            type: string
+            nullable: false
+            field_number: 1
+          - name: name
+            type: string
+            nullable: false
+            field_number: 2
+          - name: budget
+            type: decimal
+            nullable: false
+            field_number: 3
+            precision: 15
+            scale: 2
+
+      - name: salaries
+        source_table: salaries
+        fields:
+          - name: employee_id
+            type: string
+            nullable: false
+            field_number: 1
+          - name: amount
+            type: decimal
+            nullable: false
+            field_number: 2
+            precision: 15
+            scale: 2
+          - name: years_of_service
+            type: int32
+            nullable: true
+            field_number: 3
+
+    views:
+      - name: department_budget_view
+        source_view: department_budget_view
+        fields:
+          - name: department_id
+            type: string
+            nullable: false
+            field_number: 1
+          - name: department_name
+            type: string
+            nullable: false
+            field_number: 2
+          - name: department_budget
+            type: decimal
+            nullable: false
+            field_number: 3
+            precision: 15
+            scale: 2
+

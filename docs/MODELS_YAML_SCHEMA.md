@@ -9,12 +9,12 @@ schema_version: 1
 organization: appget
 
 domains:
-  appget:
-    namespace: dev.appget
+  auth:
+    namespace: dev.appget.auth
     models:
-      - name: Employee
-        source_table: employees
-        resource: employees
+      - name: users
+        source_table: users
+        resource: users
         fields:
           - name: id
             type: string
@@ -22,21 +22,17 @@ domains:
             field_number: 1
             primary_key: true
             primary_key_position: 1
-          - name: salary
-            type: decimal
-            precision: 15
-            scale: 2
-            nullable: true
+          - name: email
+            type: string
+            nullable: false
             field_number: 2
     views:
-      - name: EmployeeSalaryView
-        source_view: employee_salary_view
-        resource: employee-salary-view
+      - name: user_profile_view
+        source_view: user_profile_view
+        resource: user-profile-view
         fields:
-          - name: salary_amount
-            type: decimal
-            precision: 15
-            scale: 2
+          - name: follower_count
+            type: int64
             nullable: false
             field_number: 1
 ```

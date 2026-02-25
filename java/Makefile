@@ -1,12 +1,12 @@
 # Note to LLMs, DO NOT MUDDY THIS FILE UP, instead create a bash script if you're hacking on something to please your user overlords.
 
-.PHONY: all help setup features-to-specs parse-schema generate-proto generate-specs generate-registry generate-openapi generate-server generate-test-script generate build test run run-server test-api clean
+.PHONY: all help check features-to-specs parse-schema generate-proto generate-specs generate-registry generate-openapi generate-server _generate-test-script generate build test run run-server test-api clean
 
 GRADLE_VERSION := 9.3.1
 
 help:
 	@echo "Available commands:"
-	@echo "  make setup             - Initialize Gradle wrapper (Java 25 support)"
+	@echo "  make check             - Static analysis and tooling checks"
 	@echo "  make help              - Show this help message"
 	@echo "  make all               - Build everything (clean, generate, test, build)"
 	@echo "  make features-to-specs - Convert .feature files + metadata.yaml to specs.yaml"
@@ -17,7 +17,6 @@ help:
 	@echo "  make generate-registry - Generate DescriptorRegistry from models.yaml"
 	@echo "  make generate-openapi  - Generate OpenAPI spec from .proto files"
 	@echo "  make generate-server   - Generate application server from models and specs"
-	@echo "  make generate-test-script - Generate API test script from OpenAPI spec"
 	@echo "  make build             - Full build: parse schema, generate, then compile"
 	@echo "  make test              - Run unit tests"
 	@echo "  make run               - Build and run the Java Rule Engine POC"
@@ -25,8 +24,7 @@ help:
 	@echo "  make test-api          - Run the generated API test script (requires server running)"
 	@echo "  make clean             - Remove build artifacts and generated code"
 
-# Initialize gradle wrapper (required for Java 25 support)
-setup:
+check:
 	@if [ ! -f "gradlew" ]; then \
 		echo "Initializing Gradle wrapper with version $(GRADLE_VERSION)..."; \
 		gradle wrapper --gradle-version=$(GRADLE_VERSION); \
@@ -34,45 +32,45 @@ setup:
 	fi
 
 # Default target - build everything
-all: setup clean generate test build
+all: check clean generate test build
 
 # Convert .feature files + metadata.yaml to specs.yaml
-features-to-specs: setup
+features-to-specs: check
 	@echo "Converting .feature files + metadata.yaml to specs.yaml..."
 	@./gradlew featuresToSpecs
 
 # Parse schema.sql + views.sql and generate models.yaml
-parse-schema: setup
+parse-schema: check
 	@echo "Parsing schema.sql + views.sql and generating models.yaml..."
 	@./gradlew parseSchema
 
 # Full build: compile manual code, generate from YAML, compile everything
-build: setup
+build: check
 	@echo "Building with Gradle (includes parsing schema, generating specs and compiling)..."
 	@./gradlew build
 
 # Generate protobuf models: models.yaml -> .proto -> protoc -> Java classes
-generate-proto: setup
+generate-proto: check
 	@echo "Generating protobuf models from models.yaml..."
 	@./gradlew generateProto
 
 # Generate specifications only
-generate-specs: setup
+generate-specs: check
 	@echo "Generating specifications from YAML..."
 	@./gradlew generateSpecs -PspecsFile=specs.yaml
 
 # Generate DescriptorRegistry from models.yaml
-generate-registry: setup
+generate-registry: check
 	@echo "Generating DescriptorRegistry from models.yaml..."
 	@./gradlew generateDescriptorRegistry
 
 # Generate OpenAPI spec only
-generate-openapi: setup
+generate-openapi: check
 	@echo "Generating OpenAPI spec from YAML..."
 	@./gradlew generateOpenAPI
 
 # Generate application server only
-generate-server: setup
+generate-server: check
 	@echo "✓ Generating application server from models and specs..."
 	@./gradlew generateServer
 
@@ -84,24 +82,24 @@ run: build
 	@./gradlew run
 
 # Run unit tests
-test: setup
+test: build
 	@./gradlew test
 
-# Build and run the application server
-run-server: build generate-server
+# Build, test, and run the application server
+run-server: test generate-server
 	@echo "✓ Starting application server..."
 	@cd generated-server && ../gradlew bootRun
 
-# Generate API test script from OpenAPI spec
-generate-test-script: setup
+_generate-test-script:
 	@echo "✓ Generating API test script from OpenAPI spec..."
 	@./gradlew generateTestScript
+	@shellcheck generated-server/test-api.sh
 
 # Run API test script (requires server to be running)
-test-api: generate-test-script
+test-api: check _generate-test-script
 	@echo "✓ Running API tests..."
-	@./test-api.sh
+	@./generated-server/test-api.sh
 
 # Clean build artifacts and generated code
-clean: setup
+clean: check
 	@./gradlew clean

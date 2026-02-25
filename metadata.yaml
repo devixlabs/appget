@@ -5,25 +5,35 @@ metadata:
         type: boolean
       - name: sessionId
         type: String
+      - name: provider
+        type: String
   roles:
     fields:
       - name: roleName
         type: String
       - name: roleLevel
         type: int
+      - name: isAdmin
+        type: boolean
   user:
     fields:
       - name: userId
         type: String
-      - name: clearanceLevel
-        type: int
-  location:
+      - name: email
+        type: String
+  oauth:
     fields:
-      - name: locationId
+      - name: accessToken
         type: String
-      - name: locationName
+      - name: scope
         type: String
-      - name: longitude
-        type: float
-      - name: latitude
-        type: float
+      - name: expiresIn
+        type: int
+  api:
+    fields:
+      - name: apiKey
+        type: String
+      - name: rateLimitTier
+        type: int
+      - name: isActive
+        type: boolean

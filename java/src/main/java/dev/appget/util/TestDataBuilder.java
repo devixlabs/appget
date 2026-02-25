@@ -42,7 +42,8 @@ public class TestDataBuilder {
                 if ("Decimal".equals(msgDesc.getName())) {
                     return buildSampleDecimal(msgDesc);
                 }
-                return field.getDefaultValue();
+                // For all other message types (e.g. google.protobuf.Timestamp), return an empty instance
+                return DynamicMessage.newBuilder(msgDesc).build();
             }
             default:
                 return field.getDefaultValue();

@@ -90,8 +90,9 @@ public class AppServerGenerator {
         // Generate specification registry
         generateSpecificationRegistry(outputDir);
 
-        // Generate per-model components
-        for (ModelInfo model : modelIndex.values()) {
+        // Generate per-model components (deduplicate since modelIndex has both snake_case and PascalCase keys)
+        Set<ModelInfo> uniqueModels = new LinkedHashSet<>(modelIndex.values());
+        for (ModelInfo model : uniqueModels) {
             generateRepositoryInterface(model, outputDir);
             generateInMemoryRepository(model, outputDir);
             generateService(model, outputDir);
@@ -104,7 +105,7 @@ public class AppServerGenerator {
         System.out.println("  Generated: log4j2.properties (src/main/resources/)");
         System.out.println("  Generated: SpecificationRegistry");
         System.out.println("  Generated: RuleService (with SpecificationRegistry injection)");
-        System.out.println("  Generated: " + modelIndex.size() + " model endpoints (Controller/Service/Interface/InMemoryRepository)");
+        System.out.println("  Generated: " + uniqueModels.size() + " model endpoints (Controller/Service/Interface/InMemoryRepository)");
     }
 
     @SuppressWarnings("unchecked")
@@ -140,6 +141,7 @@ public class AppServerGenerator {
                     info.fields = fields != null ? new ArrayList<>(fields) : new ArrayList<>();
 
                     modelIndex.put(modelName, info);
+                    modelIndex.put(JavaUtils.snakeToPascal(modelName), info);
                 }
             }
         }
@@ -630,15 +632,6 @@ public class AppServerGenerator {
 
         StringBuilder code = new StringBuilder();
         code.append("package ").append(BASE_PACKAGE).append(".service;\n\n");
-
-        // Import target model classes (deduplicate)
-        Set<String> modelImports = new LinkedHashSet<>();
-        for (RuleInfo rule : modelRules) {
-            modelImports.add(resolveModelImport(rule));
-        }
-        for (String imp : modelImports) {
-            code.append("import ").append(imp).append(";\n");
-        }
 
         code.append("import dev.appget.specification.MetadataContext;\n");
         code.append("import ").append(BASE_PACKAGE).append(".dto.RuleOutcome;\n");
@@ -1286,14 +1279,6 @@ public class AppServerGenerator {
             }
         }
         return result.toString();
-    }
-
-    private String resolveModelImport(RuleInfo rule) {
-        ModelInfo model = modelIndex.get(rule.targetName);
-        if (model != null) {
-            return model.namespace + ".model." + pascalName(model);
-        }
-        return "dev.appget.model." + rule.targetName;
     }
 
     private String parseHeaderValue(String varName, String type) {
