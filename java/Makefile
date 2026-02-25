@@ -96,7 +96,7 @@ _generate-test-script:
 	@shellcheck generated-server/test-api.sh
 
 # Run API test script (requires server to be running)
-test-api: _generate-test-script
+test-api: check _generate-test-script
 	@echo "✓ Running API tests..."
 	@./generated-server/test-api.sh
 
