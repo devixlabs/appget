@@ -1,5 +1,8 @@
 metadata:
+  # ─── Identity & Authentication ───
   sso:
+    enabled: true
+    description: "Single sign-on session state"
     fields:
       - name: authenticated
         type: boolean
@@ -7,21 +10,21 @@ metadata:
         type: String
       - name: provider
         type: String
-  roles:
-    fields:
-      - name: roleName
-        type: String
-      - name: roleLevel
-        type: int
-      - name: isAdmin
-        type: boolean
+
   user:
+    enabled: true
+    description: "Authenticated user identity"
     fields:
       - name: userId
         type: String
       - name: email
         type: String
+      - name: username
+        type: String
+
   oauth:
+    enabled: true
+    description: "OAuth 2.0 token context"
     fields:
       - name: accessToken
         type: String
@@ -29,7 +32,60 @@ metadata:
         type: String
       - name: expiresIn
         type: int
+      - name: provider
+        type: String
+
+  jwt:
+    enabled: false
+    description: "JWT token claims"
+    fields:
+      - name: subject
+        type: String
+      - name: issuer
+        type: String
+      - name: audience
+        type: String
+      - name: expiresAt
+        type: int
+
+  mfa:
+    enabled: false
+    description: "Multi-factor authentication state"
+    fields:
+      - name: verified
+        type: boolean
+      - name: method
+        type: String
+
+  # ─── Authorization ───
+  roles:
+    enabled: true
+    description: "Role-based access control"
+    fields:
+      - name: roleName
+        type: String
+      - name: roleLevel
+        type: int
+      - name: isAdmin
+        type: boolean
+
+  permissions:
+    enabled: false
+    description: "Fine-grained permission checks"
+    fields:
+      - name: permissionName
+        type: String
+      - name: resourceType
+        type: String
+      - name: canRead
+        type: boolean
+      - name: canWrite
+        type: boolean
+
+  # ─── API Management ───
   api:
+    enabled: true
+    description: "API key authentication and rate limiting"
     fields:
       - name: apiKey
         type: String
@@ -37,3 +93,97 @@ metadata:
         type: int
       - name: isActive
         type: boolean
+
+  # ─── Multi-tenancy ───
+  tenant:
+    enabled: false
+    description: "Multi-tenant isolation context"
+    fields:
+      - name: tenantId
+        type: String
+      - name: tenantName
+        type: String
+      - name: plan
+        type: String
+      - name: isActive
+        type: boolean
+
+  # ─── Commerce ───
+  billing:
+    enabled: false
+    description: "Billing and subscription context"
+    fields:
+      - name: customerId
+        type: String
+      - name: plan
+        type: String
+      - name: isActive
+        type: boolean
+      - name: billingCycle
+        type: String
+
+  payments:
+    enabled: false
+    description: "Payment processing context"
+    fields:
+      - name: paymentMethodId
+        type: String
+      - name: provider
+        type: String
+      - name: currency
+        type: String
+      - name: isVerified
+        type: boolean
+
+  invoice:
+    enabled: false
+    description: "Invoice and billing records context"
+    fields:
+      - name: invoiceId
+        type: String
+      - name: status
+        type: String
+      - name: amount
+        type: int
+      - name: isPaid
+        type: boolean
+
+  # ─── Compliance & Observability ───
+  audit:
+    enabled: false
+    description: "Request audit trail"
+    fields:
+      - name: requestId
+        type: String
+      - name: sourceIp
+        type: String
+      - name: userAgent
+        type: String
+
+  geo:
+    enabled: false
+    description: "Geolocation context"
+    fields:
+      - name: country
+        type: String
+      - name: region
+        type: String
+      - name: timezone
+        type: String
+
+  # ─── Custom Categories ───
+  # Add your own categories below using the same format.
+  # Example:
+  #
+  # bitcoin:
+  #   enabled: true
+  #   description: "Bitcoin node and wallet context"
+  #   fields:
+  #     - name: address
+  #       type: String
+  #     - name: wallet
+  #       type: String
+  #     - name: node
+  #       type: String
+  #     - name: port
+  #       type: int

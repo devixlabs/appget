@@ -72,7 +72,9 @@ Views are read-only projections — often JOINs or computed columns — defined 
 
 ### Authorization Metadata
 
-Metadata context is declared in `metadata.yaml` and delivered to each request via HTTP headers. The university application uses the following categories and fields:
+Metadata context is declared in `metadata.yaml` — a **curated registry** of built-in categories with an `enabled: true/false` toggle. Each category represents a cross-cutting concern (authentication, authorization, billing, etc.) independent of any specific `schema.sql`. Users enable the categories they need; disabled categories are excluded from the pipeline output.
+
+The university application enables `sso` and `roles`:
 
 | Category | Field | Type | HTTP Header |
 |----------|-------|------|-------------|
@@ -97,16 +99,23 @@ Metadata context is declared in `metadata.yaml` and delivered to each request vi
 
 ## Writing `metadata.yaml`
 
-`metadata.yaml` declares the authorization context categories available to `Given … context requires:` steps. If a category or field name in a `Given` step does not exist in `metadata.yaml`, the pipeline will fail.
+`metadata.yaml` is a **curated registry** of authorization context categories. It ships with 14 built-in categories covering standard application concerns (SSO, roles, OAuth, billing, audit, etc.). Each category has an `enabled: true/false` toggle — only enabled categories are emitted into `specs.yaml` and available to `Given … context requires:` steps.
+
+The pipeline validates all metadata references at build time:
+- Referencing a **non-existent** category → build error
+- Referencing a **disabled** category → build error with guidance to enable it
+- Referencing a **non-existent field** in an enabled category → build error
 
 ### Structure
 
 ```yaml
 metadata:
-  <category_name>:       # lowercase, matches the "Given <category> context requires:" label
+  <category_name>:          # lowercase, matches "Given <category> context requires:" label
+    enabled: true            # true = active in pipeline; false = dormant in registry
+    description: "..."       # documentation-only, not emitted to specs.yaml
     fields:
-      - name: <fieldName>  # camelCase — becomes a Java getter; used in data table "field" column
-        type: <type>       # boolean | String | int
+      - name: <fieldName>   # camelCase — becomes a Java getter; used in data table "field" column
+        type: <type>         # boolean | String | int
 ```
 
 Field names must be **camelCase** and match exactly what you write in the `Given` data table. They are read from HTTP request headers at runtime: a field `roleLevel` in category `roles` is delivered via the `X-Roles-Role-Level` header.
@@ -119,13 +128,36 @@ Field names must be **camelCase** and match exactly what you write in the `Given
 | `String` | identifiers, names | `provider == "google"` |
 | `int` | levels, counts | `roleLevel >= 3` |
 
-### University application `metadata.yaml`
+### Built-in categories
 
-The university examples in this guide use the `sso` and `roles` categories. This is what the project's `metadata.yaml` defines for them:
+The registry ships with 14 built-in categories. Three are pre-enabled (`sso`, `user`, `roles`) as the most universal. Enable others by setting `enabled: true`.
+
+| Group | Category | Pre-enabled | Fields |
+|-------|----------|-------------|--------|
+| Identity | `sso` | yes | authenticated, sessionId, provider |
+| Identity | `user` | yes | userId, email, username |
+| Identity | `oauth` | no | accessToken, scope, expiresIn, provider |
+| Identity | `jwt` | no | subject, issuer, audience, expiresAt |
+| Identity | `mfa` | no | verified, method |
+| Authorization | `roles` | yes | roleName, roleLevel, isAdmin |
+| Authorization | `permissions` | no | permissionName, resourceType, canRead, canWrite |
+| API | `api` | no | apiKey, rateLimitTier, isActive |
+| Multi-tenancy | `tenant` | no | tenantId, tenantName, plan, isActive |
+| Commerce | `billing` | no | customerId, plan, isActive, billingCycle |
+| Commerce | `payments` | no | paymentMethodId, provider, currency, isVerified |
+| Commerce | `invoice` | no | invoiceId, status, amount, isPaid |
+| Compliance | `audit` | no | requestId, sourceIp, userAgent |
+| Compliance | `geo` | no | country, region, timezone |
+
+### University application example
+
+The university examples in this guide use the `sso` and `roles` categories (both pre-enabled):
 
 ```yaml
 metadata:
   sso:
+    enabled: true
+    description: "Single sign-on session state"
     fields:
       - name: authenticated
         type: boolean
@@ -134,6 +166,8 @@ metadata:
       - name: provider
         type: String
   roles:
+    enabled: true
+    description: "Role-based access control"
     fields:
       - name: roleName
         type: String
@@ -143,10 +177,15 @@ metadata:
         type: boolean
 ```
 
-If you need university-specific authorization context beyond role levels — for example, distinguishing students from faculty at the header level — add a new category:
+### Adding a custom category
+
+Custom categories use the same format as built-ins. Add them at the bottom of `metadata.yaml`:
 
 ```yaml
+  # ─── Custom Categories ───
   university:
+    enabled: true
+    description: "University-specific role context"
     fields:
       - name: isStudent
         type: boolean
@@ -156,7 +195,7 @@ If you need university-specific authorization context beyond role levels — for
         type: boolean
 ```
 
-Then use it in a `Given` step just like any other category:
+Then use it in a `Given` step just like any built-in category:
 
 ```gherkin
 Given university context requires:
@@ -164,9 +203,22 @@ Given university context requires:
   | isFaculty | ==       | true  |
 ```
 
-### Checklist for adding a new category
+### Enabling a built-in category
+
+To start using a built-in category that's currently disabled, just set `enabled: true`:
+
+```yaml
+  jwt:
+    enabled: true      # was false
+    description: "JWT token claims"
+    fields:
+      ...
+```
+
+### Checklist for adding or enabling a category
 
 - [ ] Category name is lowercase (`university`, not `University`)
+- [ ] `enabled: true` is set
 - [ ] Field names are camelCase (`roleLevel`, `isFaculty` — not `role_level`, `is_faculty`)
 - [ ] Each field type is one of `boolean`, `String`, or `int`
 - [ ] Run `make features-to-specs` after updating to confirm the pipeline still passes

@@ -86,6 +86,10 @@ public class FeatureToSpecsConverter {
         String metadataContent = Files.readString(Path.of(metadataPath));
         logger.debug("Loaded metadata from {}", metadataPath);
 
+        // Parse metadata registry for validation
+        Map<String, Map<String, Object>> registry = parseMetadataRegistry(metadataContent);
+        logger.debug("Parsed metadata registry with {} categories", registry.size());
+
         // Find and parse feature files in alphabetical order
         List<Path> featureFiles;
         try (Stream<Path> paths = Files.list(Path.of(featuresDir))) {
@@ -103,6 +107,9 @@ public class FeatureToSpecsConverter {
             allRules.addAll(rules);
             logger.info("Parsed {} rules from {}", rules.size(), featureFile.getFileName());
         }
+
+        // Validate metadata references before writing output
+        validateMetadataReferences(allRules, registry, metadataPath);
 
         // Write combined specs.yaml
         String output = assembleSpecsYaml(metadataContent, allRules);
@@ -353,6 +360,91 @@ public class FeatureToSpecsConverter {
         return tags.stream().anyMatch(t -> t.getName().equals(fullName));
     }
 
+    // ---- Metadata Registry ----
+
+    /**
+     * Parse metadata.yaml into a structured registry: category name → category data map.
+     * Each category data map contains: enabled (Boolean), description (String), fields (List).
+     */
+    @SuppressWarnings("unchecked")
+    Map<String, Map<String, Object>> parseMetadataRegistry(String metadataContent) {
+        org.yaml.snakeyaml.Yaml yamlParser = new org.yaml.snakeyaml.Yaml();
+        Map<String, Object> parsed = yamlParser.load(metadataContent);
+        if (parsed == null) return Collections.emptyMap();
+
+        Map<String, Object> metadata = (Map<String, Object>) parsed.get("metadata");
+        if (metadata == null) return Collections.emptyMap();
+
+        Map<String, Map<String, Object>> registry = new LinkedHashMap<>();
+        for (Map.Entry<String, Object> entry : metadata.entrySet()) {
+            registry.put(entry.getKey(), (Map<String, Object>) entry.getValue());
+        }
+        return registry;
+    }
+
+    /**
+     * Validate that all metadata category and field references in parsed rules
+     * exist in the registry and are enabled.
+     *
+     * Checks:
+     * - Category must exist in metadata.yaml
+     * - Category must have enabled: true
+     * - Each referenced field must exist in the category's field list
+     */
+    @SuppressWarnings("unchecked")
+    void validateMetadataReferences(List<Map<String, Object>> allRules,
+                                    Map<String, Map<String, Object>> registry,
+                                    String metadataPath) throws IOException {
+        for (Map<String, Object> rule : allRules) {
+            Map<String, List<Map<String, Object>>> requires =
+                    (Map<String, List<Map<String, Object>>>) rule.get("requires");
+            if (requires == null) continue;
+
+            String ruleName = (String) rule.get("name");
+
+            for (Map.Entry<String, List<Map<String, Object>>> entry : requires.entrySet()) {
+                String category = entry.getKey();
+                Map<String, Object> catData = registry.get(category);
+
+                // Category must exist
+                if (catData == null) {
+                    throw new IOException("Metadata category '" + category +
+                            "' referenced in rule '" + ruleName +
+                            "' does not exist in " + metadataPath);
+                }
+
+                // Category must be enabled
+                Object enabled = catData.get("enabled");
+                if (!Boolean.TRUE.equals(enabled)) {
+                    throw new IOException("Category '" + category +
+                            "' is referenced in rule '" + ruleName +
+                            "' but is disabled in " + metadataPath +
+                            ". Set 'enabled: true' to use it.");
+                }
+
+                // Build set of valid field names for this category
+                List<Map<String, Object>> catFields = (List<Map<String, Object>>) catData.get("fields");
+                Set<String> validFields = new HashSet<>();
+                if (catFields != null) {
+                    for (Map<String, Object> f : catFields) {
+                        validFields.add((String) f.get("name"));
+                    }
+                }
+
+                // Each referenced field must exist
+                for (Map<String, Object> req : entry.getValue()) {
+                    String field = (String) req.get("field");
+                    if (!validFields.contains(field)) {
+                        throw new IOException("Field '" + field +
+                                "' not found in metadata category '" + category +
+                                "' (referenced in rule '" + ruleName + "')");
+                    }
+                }
+            }
+        }
+        logger.debug("Metadata reference validation passed for {} rules", allRules.size());
+    }
+
     // ---- YAML Output ----
 
     /**
@@ -418,6 +510,14 @@ public class FeatureToSpecsConverter {
         for (Map.Entry<String, Object> catEntry : metadata.entrySet()) {
             String category = catEntry.getKey();
             Map<String, Object> catData = (Map<String, Object>) catEntry.getValue();
+
+            // Skip disabled categories
+            Object enabled = catData.get("enabled");
+            if (!Boolean.TRUE.equals(enabled)) {
+                logger.debug("Skipping disabled metadata category: {}", category);
+                continue;
+            }
+
             sb.append("  ").append(category).append(":\n");
             sb.append("    fields:\n");
             List<Map<String, Object>> fields = (List<Map<String, Object>>) catData.get("fields");

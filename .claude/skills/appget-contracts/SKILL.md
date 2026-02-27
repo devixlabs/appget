@@ -12,7 +12,7 @@ These contracts define the shared, language-agnostic intermediate representation
 1. `schema.sql` — domain models
 2. `views.sql` — derived read models
 3. `features/*.feature` — business rules
-4. `metadata.yaml` — auth context types
+4. `metadata.yaml` — curated registry of 14 metadata categories with `enabled: true/false` toggle
 
 **Authoritative Artifacts**:
 1. `models.yaml` — authoritative model and view schemas
@@ -115,7 +115,19 @@ rules:
       status: "REJECTED"
 ```
 
-**Metadata section**: Map of categories, each with `fields` (name + type). Type set is identical to models.yaml.
+**Metadata section**: Map of categories, each with `fields` (name + type). Type set is identical to models.yaml. Only categories with `enabled: true` in `metadata.yaml` appear in specs.yaml. The pipeline validates all `requires:` references at build time — unknown or disabled categories produce errors.
+
+**metadata.yaml source format** (toggle model):
+```yaml
+metadata:
+  sso:
+    enabled: true
+    description: "Single sign-on session state"
+    fields:
+      - name: authenticated
+        type: boolean
+```
+14 built-in categories, 3 pre-enabled by default (sso, user, roles). `description` is documentation-only, not emitted to specs.yaml.
 
 **Rule fields**: `name` (string, used as class name), `target` (type/name/domain), `blocking` (bool, default false), `requires` (metadata conditions), `conditions` (list or compound object), `then`/`else` (status strings).
 

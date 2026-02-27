@@ -18,7 +18,7 @@ appget.dev/
 │   ├── PIPELINE.md                # Detailed pipeline architecture
 │   ├── schema.sql                 # SQL source of truth
 │   ├── features/                  # Gherkin business rules
-│   ├── metadata.yaml              # Context POJOs
+│   ├── metadata.yaml              # Metadata registry (14 categories, toggle model)
 │   └── src/                       # Java generators and runtime
 │
 └── [Future subprojects...]        # Python, Go, Rust, etc.
@@ -127,6 +127,7 @@ make generate-server     # Generate Spring Boot REST API
 1. **New models**: Edit `schema.sql` in java/
 2. **New rules**: Edit `features/*.feature` in java/ (see [docs/GHERKIN_GUIDE.md](docs/GHERKIN_GUIDE.md) for the complete DSL reference)
 3. **New authorization**: Edit `metadata.yaml` in java/
+   - Enable built-in categories with `enabled: true`; only enabled categories flow through pipeline
 4. **Run pipeline**: `make all` in java/
 
 ---
@@ -175,5 +176,5 @@ Adjust "Phase N" to match the relevant phase from `ROADMAP.md`. No banner = curr
 
 ---
 
-**Last Updated**: 2026-02-24
+**Last Updated**: 2026-02-27
 **Status**: Language-agnostic guidance (Java details in java/CLAUDE.md)

@@ -137,9 +137,16 @@ And roles context requires:
   | roleLevel | >=       | 3     |
 ```
 
-**Category names** must match categories defined in `metadata.yaml` (e.g., `sso`, `roles`, `user`, `oauth`, `api`, `tenant`).
+**Category names** must match categories defined in `metadata.yaml` (e.g., `sso`, `roles`, `user`, `oauth`, `api`, `tenant`). The category must also have `enabled: true` in metadata.yaml — disabled categories cannot be referenced.
 
 **Field names** must match field names in that category's `fields` list in `metadata.yaml`. Use **camelCase** (e.g., `roleLevel`, `isAdmin`), NOT snake_case.
+
+**Automated validation** (`FeatureToSpecsConverter` enforces at build time):
+- Unknown category → **build error**: "Category 'X' does not exist in metadata.yaml"
+- Disabled category → **build error**: "Category 'X' is disabled in metadata.yaml. Set 'enabled: true' to use it."
+- Unknown field in enabled category → **build error**: "Field 'X' not found in metadata category 'Y'"
+
+**metadata.yaml toggle model**: 14 built-in categories, each with `enabled: true/false`. 3 pre-enabled by default (sso, user, roles). To use a built-in category, set `enabled: true`.
 
 At runtime, metadata values come from HTTP headers: `X-{Category}-{Field}` (e.g., `X-Sso-Authenticated: true`, `X-Roles-Role-Level: 3`).
 
@@ -326,8 +333,8 @@ Before finalizing any feature file, verify:
 - [ ] No `When` conditions reference `DATE`, `TIMESTAMP`, or `DATETIME` columns
 - [ ] No field-to-field comparisons (values must be literals)
 - [ ] No tautological OR conditions (e.g., `field == x OR field != x`)
-- [ ] Every metadata category in `Given ... context requires:` exists in `metadata.yaml`
-- [ ] Every metadata field name exists in that category's `fields` list
+- [ ] Every metadata category in `Given ... context requires:` exists and is `enabled: true` in `metadata.yaml` (enforced automatically — build fails if not)
+- [ ] Every metadata field name exists in that category's `fields` list (enforced automatically — build fails if not)
 - [ ] Every scenario has both `Then status is "..."` and `But otherwise status is "..."`
 - [ ] `@rule` names are unique across all feature files
 - [ ] Status values are descriptive SCREAMING_SNAKE_CASE (not generic OK/FAIL)

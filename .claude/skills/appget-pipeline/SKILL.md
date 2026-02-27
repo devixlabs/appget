@@ -66,7 +66,7 @@ All generated files are git-ignored. Regenerate with `make all` — never hand-e
 - `schema.sql` — Add/modify tables → new domain models
 - `views.sql` — Add/modify SQL VIEWs → composite read models
 - `features/<domain>.feature` — Add/modify Gherkin rules → business logic
-- `metadata.yaml` — Add/modify auth context POJOs (sso, roles, user, location)
+- `metadata.yaml` — Curated registry of 14 built-in categories with `enabled: true/false` toggle (3 pre-enabled: sso, user, roles; this project also enables oauth, api)
 - `src/main/java/dev/appget/**/*.java` — Generator code, specification logic, runtime
 
 **Never edit these (generated, git-ignored):**
@@ -77,22 +77,53 @@ All generated files are git-ignored. Regenerate with `make all` — never hand-e
 
 ---
 
+## Metadata Registry (Toggle Model)
+
+`metadata.yaml` is a curated registry of 14 built-in categories, each with `enabled: true/false`. Only enabled categories are emitted to specs.yaml and flow through the pipeline.
+
+**Categories are NOT tables** — they represent request-scoped cross-cutting concerns (auth, roles, etc.), independent of `schema.sql`.
+
+**Pre-enabled defaults**: sso, user, roles. **This project enables**: sso, user, roles, oauth, api (5 total).
+
+**Pipeline flow**:
+```
+metadata.yaml (14 categories, 5 enabled)
+    + features/*.feature (Given <category> context requires:)
+    → FeatureToSpecsConverter (filters enabled-only, validates references)
+    → specs.yaml metadata section (5 categories)
+    → SpecificationGenerator → 5 Context POJOs (SsoContext, RolesContext, etc.)
+    → AppServerGenerator → MetadataExtractor (reads X-{Category}-{Field} headers)
+```
+
+**Build-time validation** (`FeatureToSpecsConverter`):
+- Reference to unknown category → error
+- Reference to disabled category → error with "Set 'enabled: true' to use it"
+- Reference to unknown field in enabled category → error
+
+**To enable a built-in category**: Set `enabled: true` in `metadata.yaml`.
+**To add a custom category**: Add entry at bottom of `metadata.yaml` with same format (name, enabled, description, fields).
+
+---
+
 ## Domain → Package Mapping
 
 ```
 Tables → Domain → Java Package:
-  employees, roles     → appget  → dev.appget.model
-  departments, salaries → hr     → dev.appget.hr.model
-  invoices             → finance → dev.appget.finance.model
+  admin:  roles, user_roles, moderation_actions, company_settings → dev.appget.admin.model
+  auth:   users, oauth_providers, oauth_tokens, api_keys, sessions → dev.appget.auth.model
+  social: posts, comments, likes, follows, feeds                  → dev.appget.social.model
 
 Views → Domain:
-  employee_salary_view  → appget → dev.appget.view
-  department_budget_view → hr   → dev.appget.hr.view
+  admin:  user_role_view, moderation_queue_view, company_health_view → dev.appget.admin.view
+  auth:   user_oauth_view, api_key_stats_view                       → dev.appget.auth.view
+  social: post_detail_view, comment_detail_view, user_feed_view, etc → dev.appget.social.view
 ```
 
-**Adding a new table**: Edit `schema.sql`, add to `DOMAIN_MAPPING` in `SQLSchemaParser.java`, run `make all`.
+**Domain assignment**: SQL comments (`-- auth domain`) before table groups drive domain assignment. No hardcoded DOMAIN_MAPPING.
 
-**Adding a new domain**: Create `features/<domain>.feature` with `@domain:<name>` tag, add tables to `schema.sql` and `DOMAIN_MAPPING`, run `make clean && make all`.
+**Adding a new table**: Edit `schema.sql`, place after the correct `-- <domain> domain` comment, run `make all`.
+
+**Adding a new domain**: Create `features/<domain>.feature` with `@domain:<name>` tag, add tables to `schema.sql` with `-- <domain> domain` comment, run `make clean && make all`.
 
 SQL naming: `role_id` (snake_case) → proto field `role_id` → Java getter `getRoleId()` (camelCase).
 
@@ -163,7 +194,7 @@ For the complete DSL reference — validation rules, common mistakes, non-compar
 DescriptorRegistry    — auto-generated registry of all protobuf models/views
 Specification.java    — dual-path: descriptor API for protobuf, reflection for Lombok POJOs
 CompoundSpecification — AND/OR logic combining multiple Specification instances
-MetadataContext       — holds typed auth POJOs (SsoContext, RolesContext, etc.)
+MetadataContext       — holds typed auth POJOs (SsoContext, RolesContext, UserContext, OauthContext, ApiContext)
 Rule.java             — evaluate(target) or evaluate(target, metadata)
 RuleEngine            — orchestrates specs.yaml-driven evaluation
 ```
@@ -266,7 +297,7 @@ Adjust verbosity: Edit `log4j2.properties`, change `dev.appget.codegen.level` fr
 
 | Subproject | Status | Notes |
 |------------|--------|-------|
-| `java/` | Production-ready | 280 tests passing, AppServerGenerator (Spring Boot) complete |
+| `java/` | Production-ready | 290+ tests passing, AppServerGenerator (Spring Boot) complete |
 | `rust/` | POC | `cargo run/build/test/clean` via Makefile; Actix-web |
 | `python/` | Planned | Not started |
 | `node/` | Planned | Not started |

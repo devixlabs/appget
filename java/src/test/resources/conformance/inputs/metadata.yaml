@@ -1,23 +1,27 @@
 metadata:
   sso:
+    enabled: true
     fields:
       - name: authenticated
         type: boolean
       - name: sessionId
         type: String
   roles:
+    enabled: true
     fields:
       - name: roleName
         type: String
       - name: roleLevel
         type: int
   user:
+    enabled: true
     fields:
       - name: userId
         type: String
       - name: clearanceLevel
         type: int
   location:
+    enabled: true
     fields:
       - name: locationId
         type: String

@@ -2,7 +2,7 @@
 
 **Write your database schema in SQL and business rules in Gherkin. Automatically generate Java models, validation logic, and REST API endpoints.**
 
-> Production-ready code generation system: Gherkin-first business rules, schema-first protobuf design with SQL views, descriptor-based rule evaluation, compound business rules (AND/OR), metadata-aware authorization, blocking/informational rule enforcement, and 280 comprehensive unit tests.
+> Production-ready code generation system: Gherkin-first business rules, schema-first protobuf design with SQL views, descriptor-based rule evaluation, compound business rules (AND/OR), metadata-aware authorization with toggle-based category registry, blocking/informational rule enforcement, and over 290 comprehensive unit tests.
 
 ---
 
@@ -10,10 +10,10 @@
 
 **appget.dev/java** is a code generator that converts your database schema into a complete Java backend with:
 
-1. **Protobuf Models** - Auto-generated from `schema.sql` via `.proto` files (e.g., Users, Posts, ModerationFlags as protobuf messages)
-2. **gRPC Service Stubs** - 5 services across 3 domains with full CRUD
+1. **Protobuf Models** - Auto-generated from `schema.sql` via `.proto` files (14 models + 10 views across 3 domains)
+2. **gRPC Service Stubs** - Services across 3 domains with full CRUD
 3. **REST API Server** - Spring Boot server with CRUD endpoints for all your models
-4. **Business Rules** - Define rules in Gherkin `.feature` files, embedded in `.proto` as custom options, enforced automatically
+4. **Business Rules** - Define rules in Gherkin `.feature` files, converted to `specs.yaml`, enforced automatically via generated Specification classes
 5. **Authorization** - Rules can check headers/metadata to enforce access control
 6. **Type Safety** - Everything generated from same schema source = perfect type alignment
 
@@ -34,7 +34,7 @@ YOU WRITE THIS:                SYSTEM GENERATES THIS:
                                        ▼
 ┌──────────────────┐         ┌──────────────────────────────┐
 │  schema.sql      │         │  Java Domain Models          │
-│  (Your DB)       │────────▶│  (Users, Posts, ModerationFlags, etc) │
+│  (Your DB)       │────────▶│  (Users, Posts, ModerationActions, etc) │
 └──────────────────┘         └──────────────────────────────┘
                                      │
 ┌──────────────────┐                 │
@@ -62,7 +62,7 @@ YOU WRITE THIS:                SYSTEM GENERATES THIS:
 | File | Purpose | Edit When |
 |------|---------|-----------|
 | **features/*.feature** | Business rules in Gherkin (BDD) | Adding or changing validation logic |
-| **metadata.yaml** | Context POJO definitions (sso, roles, user) | Adding new authorization categories |
+| **metadata.yaml** | Curated metadata registry with toggle model (14 built-in categories) | Enabling/disabling categories or adding custom ones |
 | **schema.sql** | Database table definitions | Adding new models or tables |
 | **views.sql** | SQL composite views (read models) | Creating read-optimized views |
 
@@ -87,7 +87,7 @@ YOU WRITE THIS:                SYSTEM GENERATES THIS:
 make all
 # This runs: clean → generate (features-to-specs + proto + specs) → test → build
 # Time: ~5 seconds
-# Result: All 280 tests pass ✓
+# Result: All 290+ tests pass
 
 # 2. Run the rule engine demo
 make run
@@ -116,7 +116,7 @@ CREATE TABLE users (
     username VARCHAR(100) NOT NULL,
     email VARCHAR(255) NOT NULL,
     is_verified BOOLEAN NOT NULL,
-    is_suspended BOOLEAN NOT NULL
+    is_active BOOLEAN NOT NULL
 );
 
 -- social domain
@@ -129,18 +129,25 @@ CREATE TABLE posts (
 );
 
 -- admin domain
-CREATE TABLE moderation_flags (
+CREATE TABLE moderation_actions (
     id VARCHAR(50) NOT NULL,
     reason VARCHAR(255) NOT NULL,
-    severity_level INT NOT NULL,
-    is_resolved BOOLEAN NOT NULL
+    is_active BOOLEAN NOT NULL
 );
 ```
 
 **Domains assigned from SQL comments (`-- <domain> domain` before each table group):**
 - `users` → `dev.appget.auth.model.Users`
 - `posts` → `dev.appget.social.model.Posts`
-- `moderation_flags` → `dev.appget.admin.model.ModerationFlags`
+- `moderation_actions` → `dev.appget.admin.model.ModerationActions`
+
+**Current domain breakdown** (14 models + 10 views across 3 domains):
+
+| Domain | Models | Views |
+|--------|--------|-------|
+| **admin** | roles, user_roles, moderation_actions, company_settings | user_role_view, moderation_queue_view, company_health_view |
+| **auth** | users, oauth_providers, oauth_tokens, api_keys, sessions | user_oauth_view, api_key_stats_view |
+| **social** | posts, comments, likes, follows, feeds | post_detail_view, comment_detail_view, user_feed_view, user_stats_view, trending_posts_view |
 
 ### Step 2: Define Read Models (`views.sql` - Optional)
 
@@ -179,7 +186,7 @@ make generate-proto
 # OUTPUT: .proto files → protoc → build/generated/
 #         ├── dev/appget/auth/model/Users.java (protobuf)
 #         ├── dev/appget/social/model/Posts.java (protobuf)
-#         ├── dev/appget/admin/model/ModerationFlags.java (protobuf)
+#         ├── dev/appget/admin/model/ModerationActions.java (protobuf)
 #         ├── dev/appget/social/view/PostDetailView.java (protobuf)
 #         └── gRPC service stubs (8 services)
 ```
@@ -196,35 +203,35 @@ Edit `features/auth.feature`:
 @domain:auth
 Feature: Auth Domain Business Rules
 
-  @target:users @blocking @rule:UserEmailValidation
-  Scenario: User email must be valid format
-    When email does not equal ""
-    Then status is "VALID_EMAIL"
-    But otherwise status is "INVALID_EMAIL"
+  @target:users @blocking @rule:UserActivationCheck
+  Scenario: User account must be active
+    When is_active equals true
+    Then status is "ACCOUNT_ACTIVE"
+    But otherwise status is "ACCOUNT_INACTIVE"
 
-  @target:users @blocking @rule:UsernamePresence
-  Scenario: Username must exist
-    When username does not equal ""
-    Then status is "USERNAME_PRESENT"
-    But otherwise status is "NO_USERNAME"
+  @target:users @rule:UserVerificationStatus
+  Scenario: User can be verified badge holder
+    When is_verified equals true
+    Then status is "VERIFIED_USER"
+    But otherwise status is "UNVERIFIED_USER"
 
-  @target:users @rule:UserAccountStatus
-  Scenario: Overall user account is in good standing
-    When all conditions are met:
-      | field        | operator | value |
-      | is_suspended | ==       | false |
-      | is_verified  | ==       | true  |
-    Then status is "GOOD_STANDING"
-    But otherwise status is "ACCOUNT_RESTRICTED"
-
-  @target:moderation_flags @blocking @rule:AdminAuthorizationRequired
-  Scenario: Only admins can resolve moderation flags
+  @target:users @blocking @rule:AdminAuthenticationRequired
+  Scenario: User with admin role can manage system
     Given roles context requires:
-      | field   | operator | value |
-      | isAdmin | ==       | true  |
-    When is_resolved equals true
-    Then status is "ADMIN_APPROVED"
-    But otherwise status is "UNAUTHORIZED"
+      | field     | operator | value |
+      | roleLevel | >=       | 3     |
+    And sso context requires:
+      | field         | operator | value |
+      | authenticated | ==       | true  |
+    When is_active equals true
+    Then status is "ADMIN_AUTHENTICATED"
+    But otherwise status is "ADMIN_DENIED"
+
+  @target:sessions @blocking @rule:SessionActivityCheck
+  Scenario: Session must be active
+    When is_active equals true
+    Then status is "SESSION_ACTIVE"
+    But otherwise status is "SESSION_EXPIRED"
 ```
 
 **Gherkin Tags**:
@@ -263,10 +270,10 @@ make all
 #   1. clean (remove old builds)
 #   2. features-to-specs (.feature + metadata → specs.yaml)
 #   3. generate (proto + specs + registry + openapi)
-#   4. test (run 280 tests)
+#   4. test (run 290+ tests)
 #   5. build (compile & package)
 #
-# Result: ✓ All 280 tests passing
+# Result: All 290+ tests passing
 ```
 
 ### Step 8: Run the Demo Rule Engine
@@ -287,9 +294,9 @@ make run
 #   Rule: UserAccountStatus             | Result: GOOD_STANDING
 #   ...
 #
-# Model: ModerationFlags (5 rule(s))
-#   Rule: SeverityLevelValidation       | Result: VALID_SEVERITY
-#   Rule: ReasonPresence                | Result: REASON_PROVIDED
+# Model: ModerationActions (2 rule(s))
+#   Rule: ModerationActionActive        | Result: ACTION_ENFORCED
+#   Rule: ModerationAuthorizationCheck  | Result: MODERATION_AUTHORIZED
 ```
 
 ---
@@ -309,7 +316,7 @@ views.sql   ──→  (automatic in parse-schema)
 
 (all above) ──→  make generate     ──→  protobuf classes + specs
 
-All updated ──→  make test         ──→  280 tests pass ✓
+All updated ──→  make test         ──→  290+ tests pass
 ```
 
 ### Quick Reference
@@ -403,7 +410,7 @@ GET    /users/{id}        - Get specific user
 PUT    /users/{id}        - Update user (validates rules)
 DELETE /users/{id}        - Delete user
 
-Same for: /sessions, /posts, /comments, /follows, /moderation-flags, etc.
+Same for: /sessions, /posts, /comments, /follows, /moderation-actions, /roles, /api-keys, etc.
 ```
 
 ### Start the Server
@@ -416,14 +423,14 @@ make run-server        # Start server on http://localhost:8080
 ### Test an Endpoint
 
 ```bash
-# Create user (will validate UserEmailValidation, UsernamePresence, etc.)
+# Create user (will validate UserActivationCheck, UserVerificationStatus, etc.)
 curl -X POST http://localhost:8080/users \
   -H "Content-Type: application/json" \
   -d '{
     "username": "alice",
     "email": "alice@example.com",
     "isVerified": true,
-    "isSuspended": false
+    "isActive": true
   }'
 
 # Response:
@@ -432,8 +439,8 @@ curl -X POST http://localhost:8080/users \
 #   "data": { ... },
 #   "ruleResults": {
 #     "outcomes": [
-#       { "ruleName": "UserEmailValidation", "status": "VALID_EMAIL" },
-#       { "ruleName": "UserAccountStatus", "status": "GOOD_STANDING" },
+#       { "ruleName": "UserActivationCheck", "status": "ACCOUNT_ACTIVE" },
+#       { "ruleName": "UserVerificationStatus", "status": "VERIFIED_USER" },
 #       ...
 #     ],
 #     "hasFailures": false
@@ -447,19 +454,18 @@ Rules that check metadata (the `requires:` block) extract data from HTTP headers
 Headers follow the convention `X-{Category}-{Field-Name}`:
 
 ```bash
-curl -X POST http://localhost:8080/moderation-flags \
+curl -X POST http://localhost:8080/moderation-actions \
   -H "Content-Type: application/json" \
   -H "X-Sso-Authenticated: true" \
   -H "X-Roles-Is-Admin: true" \
-  -H "X-User-User-Id: user456" \
+  -H "X-Roles-Role-Level: 5" \
   -d '{
     "reason": "Spam content",
-    "severityLevel": 5,
-    "isResolved": true
+    "isActive": true
   }'
 
 # MetadataExtractor reads X-{Category}-{Field} headers
-# Builds typed context POJOs (SsoContext, RolesContext, UserContext)
+# Builds typed context POJOs (SsoContext, RolesContext, UserContext, OauthContext, ApiContext)
 # Rules check both metadata AND model fields
 ```
 
@@ -471,22 +477,19 @@ Rules can be marked `@blocking` in `.feature` files. This affects HTTP responses
 - **Informational rules** (default): Always reported in outcomes but never block the request
 
 ```gherkin
-  # Blocking: causes 422 if email is empty
-  @target:users @blocking @rule:UserEmailValidation
-  Scenario: User email must be valid format
-    When email does not equal ""
-    Then status is "VALID_EMAIL"
-    But otherwise status is "INVALID_EMAIL"
+  # Blocking: causes 422 if user is inactive
+  @target:users @blocking @rule:UserActivationCheck
+  Scenario: User account must be active
+    When is_active equals true
+    Then status is "ACCOUNT_ACTIVE"
+    But otherwise status is "ACCOUNT_INACTIVE"
 
   # Informational: reported but doesn't block
-  @target:users @rule:UserAccountStatus
-  Scenario: Overall user account is in good standing
-    When all conditions are met:
-      | field        | operator | value |
-      | is_suspended | ==       | false |
-      | is_verified  | ==       | true  |
-    Then status is "GOOD_STANDING"
-    But otherwise status is "ACCOUNT_RESTRICTED"
+  @target:users @rule:UserVerificationStatus
+  Scenario: User can be verified badge holder
+    When is_verified equals true
+    Then status is "VERIFIED_USER"
+    But otherwise status is "UNVERIFIED_USER"
 ```
 
 ---
@@ -515,8 +518,8 @@ Rules can be marked `@blocking` in `.feature` files. This affects HTTP responses
    - All models with fields + types
    - All views with fields + types
    ↓
-4. ModelsToProtoConverter reads models.yaml + specs.yaml
-   - Creates .proto files per domain (with rules as custom options)
+4. ModelsToProtoConverter reads models.yaml
+   - Creates .proto files per domain (schema only — no rules in proto)
    - protoc compiles .proto → Java protobuf classes + gRPC stubs
    - Output in build/generated/
    ↓
@@ -593,16 +596,16 @@ Every time you change `schema.sql` or `specs.yaml`, the system regenerates Java 
 - ✓ Views resolved properly
 - ✓ REST endpoint specs are valid
 
-### 280 Comprehensive Tests
+### Over 290 Comprehensive Tests
 
-The system includes 280 unit tests across 16 test suites:
+The system includes over 290 unit tests across 16 test suites:
 
 | Suite | Count | What It Tests |
 |-------|-------|---|
 | Java Type Registry | 44 | Type mappings: SQL → Java, Proto, OpenAPI; nullability rules |
 | Code Gen Utils | 28 | Shared code generation utilities |
 | Java Utils | 28 | Java-specific utility functions, name conversions |
-| Feature To Specs Converter | 24 | Gherkin parsing, condition extraction, YAML generation |
+| Feature To Specs Converter | 28 | Gherkin parsing, condition extraction, YAML generation, metadata validation |
 | Proto-First OpenAPI Generator | 23 | Proto-first OpenAPI, CRUD, security, type mapping |
 | Specification Patterns | 21 | All comparison operators, edge cases |
 | Schema To Proto Converter | 18 | Proto generation, field mapping, services |
@@ -619,7 +622,7 @@ The system includes 280 unit tests across 16 test suites:
 ### Run Tests
 
 ```bash
-make test                # Run all 280 tests (expect ~2s)
+make test                # Run all 290+ tests (expect ~2s)
 make all                 # Full pipeline (features → generate → test → build)
 make clean && make test  # Fresh run
 ```
@@ -643,7 +646,7 @@ Shows:
 
 | Task | Time |
 |------|------|
-| `make test` | ~2s (280 tests) |
+| `make test` | ~2s (290+ tests) |
 | `make all` | ~5-6s (full pipeline) |
 | `make run` | ~1s (demo execution) |
 | `make generate-server` | ~1s (server generation) |
@@ -655,7 +658,7 @@ Shows:
 | Command | When to Use | What It Does |
 |---------|---|---|
 | `make all` | After editing ANY file | Full pipeline: clean → generate → test → build |
-| `make test` | To verify your changes | Run all 280 tests (takes ~2s) |
+| `make test` | To verify your changes | Run all 290+ tests (takes ~2s) |
 | `make run` | To see rules in action | Build + execute demo rule engine |
 
 ### Code Generation Commands
@@ -694,7 +697,7 @@ vim features/auth.feature
 
 # 2. Regenerate + test
 make all
-# Output: Runs all steps, all 280 tests should pass
+# Output: Runs all steps, all 290+ tests should pass
 
 # 3. See rules in action
 make run
@@ -720,10 +723,11 @@ curl -X POST http://localhost:8080/users \
 ```sql
 -- auth domain
 CREATE TABLE users (
-    id VARCHAR(50) NOT NULL,       -- ✓ Auto-becomes String id
-    username VARCHAR(100) NOT NULL, -- ✓ Auto-becomes String username
-    follower_count INT NOT NULL,    -- ✓ Auto-becomes int followerCount (camelCase)
-    is_verified BOOLEAN NOT NULL    -- ✓ Auto-becomes boolean isVerified
+    id VARCHAR(50) NOT NULL,       -- String id
+    username VARCHAR(100) NOT NULL, -- String username
+    email VARCHAR(255) NOT NULL,    -- String email
+    is_verified BOOLEAN NOT NULL,   -- boolean isVerified
+    is_active BOOLEAN NOT NULL      -- boolean isActive
 );
 ```
 
@@ -780,39 +784,134 @@ public boolean getAuthorVerified()// ✓ Type resolved from users.is_verified
 
 ### 4. Metadata-Aware Authorization
 
-**Rules can check HTTP headers for authentication/authorization.**
+**Rules can require caller context (roles, SSO, etc.) before evaluating model fields.**
 
-```yaml
-- name: AdminAuthorizationRequired
-  requires:                      # Check these headers first
-    roles:
-      - field: isAdmin == true
-  conditions:                    # Then check model fields
-    - field: is_resolved == true
-  then:
-    status: "ADMIN_APPROVED"
+Metadata categories are **cross-cutting concerns** — they represent "who is making this request?" context, not database tables. They have no corresponding tables in `schema.sql`.
+
+**In a `.feature` file:**
+```gherkin
+@target:users @blocking @rule:AdminAuthenticationRequired
+Scenario: User with admin role can manage system
+  Given roles context requires:
+    | field     | operator | value |
+    | roleLevel | >=       | 3     |
+  And sso context requires:
+    | field         | operator | value |
+    | authenticated | ==       | true  |
+  When is_active equals true
+  Then status is "ADMIN_AUTHENTICATED"
+  But otherwise status is "ADMIN_DENIED"
 ```
 
-✓ Extract metadata from HTTP headers
-✓ Rules can require metadata before checking data
-✓ Authorization logic defined in YAML, enforced automatically
+**What happens at runtime:**
+1. `MetadataExtractor` reads HTTP headers (`X-Roles-Role-Level`, `X-Sso-Authenticated`) into typed POJOs
+2. Rule checks `roles.roleLevel >= 3` and `sso.authenticated == true` first
+3. Only if metadata passes, evaluates `users.is_active == true` on the model
+4. Returns `"ADMIN_AUTHENTICATED"` or `"ADMIN_DENIED"`
 
-### 5. Multi-Domain Organization
+**HTTP headers follow the convention** `X-{Category}-{Field-Name}`:
+```bash
+curl -X POST http://localhost:8080/users \
+  -H "X-Sso-Authenticated: true" \
+  -H "X-Roles-Role-Level: 5" \
+  -H "X-Roles-Is-Admin: true" \
+  -d '{"username":"alice","email":"alice@example.com","isActive":true}'
+```
+
+### 5. Metadata Registry (Toggle Model)
+
+`metadata.yaml` is a **curated registry** of 14 built-in categories, each with an `enabled: true/false` toggle. Only enabled categories flow through the pipeline. Categories are independent of `schema.sql` — they represent request-scoped context.
+
+**Current categories** (3 pre-enabled by default, 2 additionally enabled for this project):
+
+| Category | Enabled | Purpose | Fields |
+|----------|---------|---------|--------|
+| **sso** | yes (default) | Single sign-on session state | authenticated, sessionId, provider |
+| **user** | yes (default) | Authenticated user identity | userId, email, username |
+| **roles** | yes (default) | Role-based access control | roleName, roleLevel, isAdmin |
+| **oauth** | yes (project) | OAuth 2.0 token context | accessToken, scope, expiresIn, provider |
+| **api** | yes (project) | API key authentication | apiKey, rateLimitTier, isActive |
+| jwt | no | JWT token claims | subject, issuer, audience, expiresAt |
+| mfa | no | Multi-factor auth state | verified, method |
+| permissions | no | Fine-grained permissions | permissionName, resourceType, canRead, canWrite |
+| tenant | no | Multi-tenant isolation | tenantId, tenantName, plan, isActive |
+| billing | no | Billing/subscription | customerId, plan, isActive, billingCycle |
+| payments | no | Payment processing | paymentMethodId, provider, currency, isVerified |
+| invoice | no | Invoice records | invoiceId, status, amount, isPaid |
+| audit | no | Request audit trail | requestId, sourceIp, userAgent |
+| geo | no | Geolocation context | country, region, timezone |
+
+**To enable a built-in category**: Set `enabled: true` in `metadata.yaml`.
+
+**To add a custom category**: Add a new entry at the bottom of `metadata.yaml`:
+```yaml
+  bitcoin:
+    enabled: true
+    description: "Bitcoin node and wallet context"
+    fields:
+      - name: address
+        type: String
+      - name: wallet
+        type: String
+```
+
+**Build-time validation**: The pipeline validates all `Given <category> context requires:` references:
+- Unknown category → build error
+- Disabled category → build error with guidance to enable
+- Unknown field in enabled category → build error
+
+**How metadata flows through the pipeline:**
+
+```
+metadata.yaml                    features/*.feature
+(14 categories,                  (Given roles context requires:)
+ 5 enabled)                      (And sso context requires:)
+    │                                  │
+    └──────────┬───────────────────────┘
+               ▼
+    FeatureToSpecsConverter
+    (filters enabled-only, validates references)
+               │
+               ▼
+           specs.yaml
+    (metadata section: 5 categories)
+    (rules with requires: blocks)
+               │
+       ┌───────┴───────────┐
+       ▼                   ▼
+SpecificationGenerator  AppServerGenerator
+       │                   │
+       ▼                   ▼
+  5 Context POJOs     MetadataExtractor
+  (SsoContext.java,   (reads X-{Category}-{Field}
+   RolesContext.java,  HTTP headers into POJOs)
+   UserContext.java,        │
+   OauthContext.java,       ▼
+   ApiContext.java)    RuleService
+       │              (evaluates specs with
+       ▼               metadata context)
+  33 Spec classes
+  (AdminAuthenticationRequired
+   checks roles + sso before
+   evaluating users.is_active)
+```
+
+### 6. Multi-Domain Organization
 
 **Organize models by business domain. System auto-creates packages.**
 
 ```
 schema.sql (with -- <domain> domain comments):
-  users, sessions       → dev.appget.auth.model.Users, Sessions
-  posts, comments, ...  → dev.appget.social.model.Posts, Comments, ...
-  moderation_flags      → dev.appget.admin.model.ModerationFlags
+  admin:  roles, user_roles, moderation_actions, company_settings
+  auth:   users, oauth_providers, oauth_tokens, api_keys, sessions
+  social: posts, comments, likes, follows, feeds
 ```
 
 ✓ Logical separation of concerns
 ✓ Prevents naming conflicts
 ✓ Each domain gets own package namespace
 
-### 6. Full REST API Generation
+### 7. Full REST API Generation
 
 **Generate complete Spring Boot REST server from your schema.**
 
@@ -831,7 +930,7 @@ make generate-server
 ✓ Metadata extracted from HTTP headers
 ✓ Proper HTTP status codes (201 Created, 422 Unprocessable Entity, etc)
 
-### 7. Type Safety Everywhere
+### 8. Type Safety Everywhere
 
 **Every type maps consistently from SQL → Java → REST → TypeScript.**
 
@@ -850,7 +949,7 @@ DATE               LocalDate         string(date)     Date
 
 ### Comprehensive Testing
 
-All 280 tests pass automatically:
+All 290+ tests pass automatically:
 ```
 ✓ Gherkin .feature file parsing and specs.yaml generation
 ✓ Proto generation correctness (schema → .proto → Java)
@@ -876,7 +975,7 @@ appget.dev/java/
 │   ├── admin.feature       🖊️  Admin domain business rules (Gherkin)
 │   ├── auth.feature        🖊️  Auth domain business rules (Gherkin)
 │   └── social.feature      🖊️  Social domain business rules (Gherkin)
-├── metadata.yaml           🖊️  Context POJO definitions (sso, roles, user, location)
+├── metadata.yaml           🖊️  Curated metadata registry (14 categories, toggle model)
 ├── schema.sql              🖊️  Your database schema (tables)
 ├── views.sql               🖊️  Your read models (views)
 ├── build.gradle            🖊️  Java build configuration
@@ -899,10 +998,10 @@ appget.dev/java/
 ├── openapi.yaml            ✨  Auto-generated REST spec
 ├── src/main/java-generated/✨  All generated Java models, specs
 │   └── dev/appget/
-│       ├── auth/model/     (Users, Sessions)
-│       ├── social/model/   (Posts, Comments, Likes, Follows, Reposts)
-│       ├── social/view/    (PostDetailView, FeedPostView, etc)
-│       └── admin/model/    (ModerationFlags)
+│       ├── auth/model/     (Users, Sessions, OauthProviders, OauthTokens, ApiKeys)
+│       ├── social/model/   (Posts, Comments, Likes, Follows, Feeds)
+│       ├── social/view/    (PostDetailView, UserFeedView, TrendingPostsView, etc)
+│       ├── admin/model/    (Roles, UserRoles, ModerationActions, CompanySettings)
 │       └── specification/
 │           ├── generated/  (Specification classes)
 │           └── context/    (Metadata POJOs)
@@ -1010,7 +1109,7 @@ conditions:
 **Solution**: Create `schema.sql` at project root with table definitions
 
 ### "Tests are failing"
-**Problem**: Some of the 280 tests failed
+**Problem**: Some of the 290+ tests failed
 **Solution**:
 ```bash
 # 1. Check the error message
@@ -1115,7 +1214,7 @@ java -version
 
 # Run a quick test
 make test
-# Should show 280 tests passing
+# Should show 290+ tests passing
 ```
 
 ---
@@ -1140,8 +1239,9 @@ For more details on implementation and architecture:
 
 ---
 
-**Last Updated**: 2026-02-24
+**Last Updated**: 2026-02-27
 **Status**: Production Ready
-**Test Coverage**: 280 tests, 100% passing (16 suites)
+**Test Coverage**: 290+ tests, 100% passing (16 suites)
 **Pipeline**: Gherkin → specs.yaml → Schema → Proto → Protoc → Specs → REST API → gRPC → Fully Typed
+**Metadata**: 14 built-in categories with toggle model (5 enabled for this project)
 **Java Version**: 25+ required

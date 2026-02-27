@@ -728,9 +728,27 @@ When refactoring across multiple files (e.g., updating patterns, simplifying cod
 
 ### Adding New Metadata Categories
 
-1. Edit `metadata.yaml` - add entry under `metadata:` section
-2. Run: `make features-to-specs && make generate-specs && make test`
-3. Generated POJO appears in `specification/context/`
+`metadata.yaml` is a curated registry with an `enabled: true/false` toggle per category. It ships with 14 built-in categories (3 pre-enabled: `sso`, `user`, `roles`).
+
+**To enable a built-in category**: Set `enabled: true` on the category in `metadata.yaml`.
+
+**To add a custom category**: Add a new entry at the bottom of `metadata.yaml` with the same format:
+```yaml
+  my_category:
+    enabled: true
+    description: "What this category provides"
+    fields:
+      - name: myField
+        type: String
+```
+
+**Validation**: The pipeline validates all `Given <category> context requires:` references at build time:
+- Unknown category → error
+- Disabled category → error with guidance to enable
+- Unknown field in enabled category → error
+
+Run: `make features-to-specs && make generate-specs && make test`
+Generated POJO appears in `specification/context/`
 
 ### Full Development Cycle
 
@@ -988,6 +1006,11 @@ src/test/java/dev/appget/
 - `@TempDir`: Temporary directories for generated code output
 - `@BeforeEach`: Setup with protobuf `newBuilder()` for fluent test object creation
 - `@DisplayName`: Descriptive test names in test runner output
+
+### Conformance Test Fixture
+
+`src/test/resources/conformance/inputs/metadata.yaml` mirrors the project's `metadata.yaml` format.
+When changing metadata.yaml structure (e.g., adding `enabled` field), update this fixture too or the conformance test fails.
 
 ### Test Execution
 

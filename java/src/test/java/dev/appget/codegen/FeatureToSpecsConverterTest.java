@@ -8,6 +8,7 @@ import org.yaml.snakeyaml.Yaml;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -337,6 +338,165 @@ class FeatureToSpecsConverterTest {
             // Verify first rule from auth.feature (after admin's 10 rules)
             assertEquals("UserActivationCheck", rules.get(10).get("name"));
         }
+    }
+
+    // ---- Metadata toggle model validation tests ----
+
+    @Test
+    @DisplayName("Referencing unknown metadata category produces error")
+    void testUnknownMetadataCategoryError(@TempDir Path tempDir) throws Exception {
+        Path featuresDir = tempDir.resolve("features");
+        Files.createDirectories(featuresDir);
+        Files.writeString(featuresDir.resolve("test.feature"),
+                "@domain:test\n" +
+                "Feature: Test Rules\n" +
+                "\n" +
+                "  @target:users @blocking @rule:TestRule\n" +
+                "  Scenario: Test rule with unknown metadata\n" +
+                "    Given unknown_category context requires:\n" +
+                "      | field | operator | value |\n" +
+                "      | foo   | ==       | true  |\n" +
+                "    When is_active equals true\n" +
+                "    Then status is \"PASS\"\n" +
+                "    But otherwise status is \"FAIL\"\n");
+
+        Path metadataFile = tempDir.resolve("metadata.yaml");
+        Files.writeString(metadataFile,
+                "metadata:\n" +
+                "  sso:\n" +
+                "    enabled: true\n" +
+                "    fields:\n" +
+                "      - name: authenticated\n" +
+                "        type: boolean\n");
+
+        Path outputPath = tempDir.resolve("specs.yaml");
+        IOException ex = assertThrows(IOException.class, () ->
+                converter.convert(featuresDir.toString(), metadataFile.toString(), outputPath.toString()));
+        assertTrue(ex.getMessage().contains("does not exist"),
+                "Error should mention category does not exist: " + ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("Referencing disabled metadata category produces error")
+    void testDisabledMetadataCategoryError(@TempDir Path tempDir) throws Exception {
+        Path featuresDir = tempDir.resolve("features");
+        Files.createDirectories(featuresDir);
+        Files.writeString(featuresDir.resolve("test.feature"),
+                "@domain:test\n" +
+                "Feature: Test Rules\n" +
+                "\n" +
+                "  @target:users @blocking @rule:TestRule\n" +
+                "  Scenario: Test rule with disabled metadata\n" +
+                "    Given oauth context requires:\n" +
+                "      | field       | operator | value |\n" +
+                "      | accessToken | !=       | \"\"    |\n" +
+                "    When is_active equals true\n" +
+                "    Then status is \"PASS\"\n" +
+                "    But otherwise status is \"FAIL\"\n");
+
+        Path metadataFile = tempDir.resolve("metadata.yaml");
+        Files.writeString(metadataFile,
+                "metadata:\n" +
+                "  oauth:\n" +
+                "    enabled: false\n" +
+                "    fields:\n" +
+                "      - name: accessToken\n" +
+                "        type: String\n");
+
+        Path outputPath = tempDir.resolve("specs.yaml");
+        IOException ex = assertThrows(IOException.class, () ->
+                converter.convert(featuresDir.toString(), metadataFile.toString(), outputPath.toString()));
+        assertTrue(ex.getMessage().contains("disabled"),
+                "Error should mention category is disabled: " + ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("Referencing unknown field in enabled metadata category produces error")
+    void testUnknownMetadataFieldError(@TempDir Path tempDir) throws Exception {
+        Path featuresDir = tempDir.resolve("features");
+        Files.createDirectories(featuresDir);
+        Files.writeString(featuresDir.resolve("test.feature"),
+                "@domain:test\n" +
+                "Feature: Test Rules\n" +
+                "\n" +
+                "  @target:users @blocking @rule:TestRule\n" +
+                "  Scenario: Test rule with unknown metadata field\n" +
+                "    Given sso context requires:\n" +
+                "      | field            | operator | value |\n" +
+                "      | nonExistentField | ==       | true  |\n" +
+                "    When is_active equals true\n" +
+                "    Then status is \"PASS\"\n" +
+                "    But otherwise status is \"FAIL\"\n");
+
+        Path metadataFile = tempDir.resolve("metadata.yaml");
+        Files.writeString(metadataFile,
+                "metadata:\n" +
+                "  sso:\n" +
+                "    enabled: true\n" +
+                "    fields:\n" +
+                "      - name: authenticated\n" +
+                "        type: boolean\n");
+
+        Path outputPath = tempDir.resolve("specs.yaml");
+        IOException ex = assertThrows(IOException.class, () ->
+                converter.convert(featuresDir.toString(), metadataFile.toString(), outputPath.toString()));
+        assertTrue(ex.getMessage().contains("not found in metadata category"),
+                "Error should mention field not found: " + ex.getMessage());
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    @DisplayName("Only enabled categories appear in specs.yaml output")
+    void testOnlyEnabledCategoriesInOutput(@TempDir Path tempDir) throws Exception {
+        Path featuresDir = tempDir.resolve("features");
+        Files.createDirectories(featuresDir);
+        Files.writeString(featuresDir.resolve("test.feature"),
+                "@domain:test\n" +
+                "Feature: Test Rules\n" +
+                "\n" +
+                "  @target:users @blocking @rule:SimpleRule\n" +
+                "  Scenario: Simple rule without metadata\n" +
+                "    When is_active equals true\n" +
+                "    Then status is \"ACTIVE\"\n" +
+                "    But otherwise status is \"INACTIVE\"\n");
+
+        Path metadataFile = tempDir.resolve("metadata.yaml");
+        Files.writeString(metadataFile,
+                "metadata:\n" +
+                "  sso:\n" +
+                "    enabled: true\n" +
+                "    description: \"Single sign-on\"\n" +
+                "    fields:\n" +
+                "      - name: authenticated\n" +
+                "        type: boolean\n" +
+                "  oauth:\n" +
+                "    enabled: false\n" +
+                "    description: \"OAuth 2.0\"\n" +
+                "    fields:\n" +
+                "      - name: accessToken\n" +
+                "        type: String\n" +
+                "  roles:\n" +
+                "    enabled: true\n" +
+                "    description: \"Role-based access\"\n" +
+                "    fields:\n" +
+                "      - name: isAdmin\n" +
+                "        type: boolean\n");
+
+        Path outputPath = tempDir.resolve("specs.yaml");
+        converter.convert(featuresDir.toString(), metadataFile.toString(), outputPath.toString());
+
+        // Parse the output and verify metadata section
+        Yaml yaml = new Yaml();
+        Map<String, Object> data;
+        try (InputStream in = new FileInputStream(outputPath.toFile())) {
+            data = yaml.load(in);
+        }
+
+        Map<String, Object> metadata = (Map<String, Object>) data.get("metadata");
+        assertNotNull(metadata, "Output should have metadata section");
+        assertTrue(metadata.containsKey("sso"), "Enabled category 'sso' should be in output");
+        assertTrue(metadata.containsKey("roles"), "Enabled category 'roles' should be in output");
+        assertFalse(metadata.containsKey("oauth"), "Disabled category 'oauth' should NOT be in output");
     }
 
     @SuppressWarnings("unchecked")
