@@ -125,7 +125,7 @@ make generate-server     # Generate Spring Boot REST API
 ### Adding Features
 
 1. **New models**: Edit `schema.sql` in java/
-2. **New rules**: Edit `features/*.feature` in java/
+2. **New rules**: Edit `features/*.feature` in java/ (see [docs/GHERKIN_GUIDE.md](docs/GHERKIN_GUIDE.md) for the complete DSL reference)
 3. **New authorization**: Edit `metadata.yaml` in java/
 4. **Run pipeline**: `make all` in java/
 
@@ -137,6 +137,7 @@ make generate-server     # Generate Spring Boot REST API
 |----------|---------|
 | **docs/README.md** | Index of all platform docs with status indicators |
 | **docs/ROADMAP.md** | Phase-by-phase plan for multi-language rollout |
+| **docs/GHERKIN_GUIDE.md** | Complete Gherkin DSL reference — keywords, operators, patterns, and full University domain examples for writing `.feature` files |
 | **java/README.md** | User guide, quickstart, examples |
 | **java/CLAUDE.md** | Technical implementation, build system, generators |
 | **java/PIPELINE.md** | Detailed pipeline architecture, type mappings |

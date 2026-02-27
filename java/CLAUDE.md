@@ -8,7 +8,7 @@ This file provides Claude Code with Java-specific guidance for the appget.dev/ja
 
 **appget.dev/java** is a production-ready code generation system within the DevixLabs platform. It converts Gherkin business rules and database schemas into fully typed, tested Java domain models with business rule specifications, compound conditions, and metadata-aware authorization.
 
-**Key Responsibility**: Gherkin-first business rules, schema-first Java model generation with protobuf descriptor-based specifications, compound AND/OR logic, metadata authorization, blocking/informational rule enforcement, and comprehensive test coverage (280 tests).
+**Key Responsibility**: Gherkin-first business rules, schema-first Java model generation with protobuf descriptor-based specifications, compound AND/OR logic, metadata authorization, blocking/informational rule enforcement, and comprehensive test coverage (0 failures, 0 errors expected).
 
 ---
 
@@ -118,7 +118,7 @@ Step 5: compileJava (depends on generateSpecs, generateDescriptorRegistry)
         └─ Output: build/classes/main/*.class
 
 Step 6: test (depends on compileJava)
-        ├─ Runs: 280 JUnit 5 tests
+        ├─ Runs: JUnit 5 tests (0 failures, 0 errors expected)
         └─ Result: 280/280 passing
 
 Step 7: build (depends on test)
@@ -785,7 +785,7 @@ make run                      # 6. Execute
 - Note: Requires Spring Boot dependencies installed
 
 ### make test
-- Runs: `gradle test` (280 tests)
+- Runs: `gradle test` (0 failures, 0 errors expected)
 
 ### make build
 - Full pipeline: parse → generate → compile → package
@@ -868,9 +868,9 @@ These are created once and reused efficiently across all invocations.
 
 ### Test Suite Overview
 
-**280 comprehensive unit tests** in 16 suites covering all components:
+**Comprehensive unit tests** in 16 suites covering all components (0 failures, 0 errors expected):
 
-#### 1. Feature To Specs Converter Tests (24 tests)
+#### Feature To Specs Converter Tests
 - Gherkin `.feature` file parsing
 - Simple condition extraction (6 operators)
 - Value coercion (integer, boolean, string)
@@ -880,28 +880,28 @@ These are created once and reused efficiently across all invocations.
 - Full conversion with metadata + rules
 - Structural equivalence with original specs.yaml
 
-#### 3. Models To Proto Converter Tests (14 tests)
+#### Models To Proto Converter Tests
 - Proto file generation from models.yaml
 - Field type mapping (Java type → proto type)
 - No rule options embedded in generated proto
 - Service CRUD operations
 - View proto generation
 
-#### 4. Proto-First OpenAPI Generator Tests (23 tests)
+#### Proto-First OpenAPI Generator Tests
 - Proto-first OpenAPI 3.0.0 specification generation
 - Schema definitions for all models
 - Full CRUD endpoint generation (GET, POST, PUT, DELETE)
 - Type mapping validation (proto → OpenAPI)
 - Security (Bearer auth) and operationId/tags
 
-#### 5. Specification Generator Tests (13 tests)
+#### Specification Generator Tests
 - YAML rule parsing and Java class generation
 - Compound specification generation (AND/OR)
 - Metadata context POJO generation (SsoContext, RolesContext, UserContext)
 - View-targeting specification generation
 - Proper package structure and imports
 
-#### 6. App Server Generator Tests (17 tests)
+#### App Server Generator Tests
 - RuleService has no TODO stubs
 - MetadataExtractor has no TODO stubs
 - RuleService imports and instantiates pre-compiled spec classes
@@ -914,11 +914,11 @@ These are created once and reused efficiently across all invocations.
 - MetadataExtractor reads correct X-{Category}-{Field} headers
 - MetadataExtractor uses builder pattern with context.with()
 
-#### 7. gRPC Service Stub Tests (7 tests)
+#### gRPC Service Stub Tests
 - Service stub existence and CRUD method descriptors
 - All 5 domain services verified
 
-#### 8. Rule Engine Tests (15 tests)
+#### Rule Engine Tests
 - RuleEngine loads rules from specs.yaml (not from proto custom options)
 - Generic rule evaluation with any model/view
 - Compound specification evaluation
@@ -928,29 +928,29 @@ These are created once and reused efficiently across all invocations.
 - View field evaluated against wrong model type returns failure (type mismatch guard)
 - View field evaluated against correct view type succeeds
 
-#### 9. Compound Specification Tests (6 tests)
+#### Compound Specification Tests
 - AND logic (all conditions must be true)
 - OR logic (at least one condition true)
 - Single condition edge cases
 
-#### 10. Metadata Context Tests (5 tests)
+#### Metadata Context Tests
 - Category storage and retrieval
 - Reflection-based POJO evaluation (metadata contexts are Lombok)
 - Missing category handling
 
-#### 11. Specification Pattern Tests (21 tests)
+#### Specification Pattern Tests
 - Comparison operators: >, <, >=, <=, ==, !=
 - Type handling: Number, BigDecimal, Boolean, String
 - Edge cases and boundary values
 - Invalid field/operator handling
 
-#### 12. Descriptor Registry Tests (9 tests)
+#### Descriptor Registry Tests
 - Registry contains all 7 models and views
 - Lookup by name for each model/view
 - Unknown model returns null
 - Field descriptors accessible
 
-#### 13. Test Data Builder Tests (6 tests)
+#### Test Data Builder Tests
 - Build Employees/Salaries/View with generic defaults
 - String fields get "Sample_" prefix
 - Int fields default to 42, double to 42.0
@@ -960,27 +960,27 @@ These are created once and reused efficiently across all invocations.
 ```
 src/test/java/dev/appget/
 ├── codegen/
-│   ├── AppServerGeneratorTest.java          (17 tests)
-│   ├── CodeGenUtilsTest.java                (28 tests)
-│   ├── FeatureToSpecsConverterTest.java     (24 tests)
-│   ├── JavaTypeRegistryTest.java            (44 tests)
-│   ├── JavaUtilsTest.java                   (28 tests)
-│   ├── ModelsToProtoConverterTest.java      (18 tests)
-│   ├── ProtoOpenAPIGeneratorTest.java       (23 tests)
-│   └── SpecificationGeneratorTest.java      (13 tests)
+│   ├── AppServerGeneratorTest.java
+│   ├── CodeGenUtilsTest.java
+│   ├── FeatureToSpecsConverterTest.java
+│   ├── JavaTypeRegistryTest.java
+│   ├── JavaUtilsTest.java
+│   ├── ModelsToProtoConverterTest.java
+│   ├── ProtoOpenAPIGeneratorTest.java
+│   └── SpecificationGeneratorTest.java
 ├── conformance/
-│   └── ConformanceTest.java                 (16 tests)
+│   └── ConformanceTest.java
 ├── model/
-│   └── RuleTest.java                        (15 tests)
+│   └── RuleTest.java
 ├── service/
-│   └── GrpcServiceTest.java                 (7 tests)
+│   └── GrpcServiceTest.java
 ├── specification/
-│   ├── CompoundSpecificationTest.java        (6 tests)
-│   ├── MetadataContextTest.java              (5 tests)
-│   └── SpecificationTest.java               (21 tests)
+│   ├── CompoundSpecificationTest.java
+│   ├── MetadataContextTest.java
+│   └── SpecificationTest.java
 └── util/
-    ├── DescriptorRegistryTest.java           (9 tests)
-    └── DefaultDataBuilderTest.java           (6 tests)
+    ├── DescriptorRegistryTest.java
+    └── DefaultDataBuilderTest.java
 ```
 
 ### Test Fixtures
@@ -1051,7 +1051,7 @@ build/
 - `make clean`: ~0.7s
 - `make parse-schema`: ~0.9s
 - `make generate`: ~1s
-- `make test`: ~2s (280 tests)
+- `make test`: ~2s (0 failures expected)
 - `make build`: ~1s
 - `make all`: ~5-6s total
 
@@ -1149,7 +1149,7 @@ DON'T commit (all auto-generated):
 | `src/main/java/dev/appget/util/DefaultDataBuilder.java` | DynamicMessage-based sample data builder |
 | `src/main/java/dev/appget/RuleEngine.java` | Descriptor-driven rule evaluation engine |
 | `generated-server/` | Auto-generated Spring Boot REST API (git-ignored) |
-| `src/test/java/dev/appget/...` | 280 unit tests (16 suites) |
+| `src/test/java/dev/appget/...` | Unit tests across 16 suites (0 failures expected) |
 
 ---
 
@@ -1183,7 +1183,7 @@ DON'T commit (all auto-generated):
 9. **Spring Boot REST API**: Complete server with Controllers/Services/Repositories
 
 ### Quality & Operations
-10. **Comprehensive testing**: 280 tests verify entire pipeline (16 test suites)
+10. **Comprehensive testing**: 16 test suites verify entire pipeline (0 failures, 0 errors expected)
 11. **Reproducible builds**: Same schema + features → same code, always
 12. **Logging**: Log4j2 integrated in all non-generated classes
 13. **Isolated generation**: Independent compilation breaks circular dependencies
@@ -1198,6 +1198,6 @@ DON'T commit (all auto-generated):
 
 **Last Updated**: 2026-02-24
 **Status**: Production Ready
-**Test Coverage**: 280 tests, 100% passing
+**Test Coverage**: 0 failures, 0 errors expected across 16 suites
 **Logging**: Log4j2 integrated in all non-generated classes
 **Testing**: 16 test suites, comprehensive pipeline coverage

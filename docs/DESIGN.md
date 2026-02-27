@@ -61,6 +61,8 @@ YAML rules (e.g., `operator: >`, `value: 18`) are precise but opaque — a produ
 
 Keeps rule sets bounded and ownership clear. A domain expert for HR does not need to read finance rules. It also mirrors the domain isolation used throughout the pipeline — one output module per domain per layer.
 
+**Human-facing authoring guide**: [GHERKIN_GUIDE.md](GHERKIN_GUIDE.md) provides the complete keyword reference, operator phrase table, all six rule patterns, and five fully worked `.feature` files using a University application domain. Read it to write or review `.feature` files by hand.
+
 ---
 
 ### Step 1C — User writes `metadata.yaml` (authorization context models)

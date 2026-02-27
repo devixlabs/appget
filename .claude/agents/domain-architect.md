@@ -135,8 +135,7 @@ token VARCHAR(500) NOT NULL              -- ✅ Check token existence instead
 
 - **Table names**: plural, snake_case (e.g., `users`, `blog_posts`, `order_items`)
 - **Column names**: snake_case (e.g., `user_id`, `created_at`, `is_active`)
-- Table names are automatically singularized for model class names: `users` -> `User`, `blog_posts` -> `BlogPost`, `follows` -> `Follow` (NOT `Follows`)
-- **`@target` values MUST use the singularized form**: `@target:User`, `@target:Follow`, `@target:BlogPost` — never the plural table name
+- **`@target` values use the exact SQL table name (snake_case plural)**: `@target:users`, `@target:follows`, `@target:blog_posts` — the pipeline applies `snakeToPascal` automatically
 
 ### Domain Mapping
 
@@ -298,7 +297,7 @@ The complete Gherkin DSL reference — tags, operators, conditions, metadata, ou
 
 **Quick reminder** (see skill for full reference):
 - One `.feature` file per domain, file name matches domain
-- Tags: `@domain`, `@target` (singularized PascalCase), `@rule` (PascalCase), `@blocking`, `@view`
+- Tags: `@domain`, `@target` (snake_case plural matching SQL table name), `@rule` (PascalCase), `@blocking`, `@view`
 - Operators: `equals`, `does not equal`, `is greater than`, `is less than`, `is at least`, `is at most`
 - Non-comparable types: `DATE`/`TIMESTAMP`/`DATETIME` CANNOT be in `When` conditions
 - Values must be literals (never field references)

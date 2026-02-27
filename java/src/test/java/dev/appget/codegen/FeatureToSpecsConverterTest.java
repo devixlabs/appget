@@ -188,7 +188,7 @@ class FeatureToSpecsConverterTest {
             assertEquals("UserActivationCheck", rule.get("name"));
             Map<String, Object> target = (Map<String, Object>) rule.get("target");
             assertEquals("model", target.get("type"));
-            assertEquals("Users", target.get("name"));
+            assertEquals("users", target.get("name"));
             assertEquals("auth", target.get("domain"));
             assertEquals(true, rule.get("blocking"));
 
@@ -252,7 +252,7 @@ class FeatureToSpecsConverterTest {
 
             Map<String, Object> target = (Map<String, Object>) rule.get("target");
             assertEquals("view", target.get("type"));
-            assertEquals("PostDetailView", target.get("name"));
+            assertEquals("post_detail_view", target.get("name"));
         }
     }
 
@@ -300,7 +300,7 @@ class FeatureToSpecsConverterTest {
 
             Map<String, Object> target = (Map<String, Object>) rule.get("target");
             assertEquals("model", target.get("type"));
-            assertEquals("Roles", target.get("name"));
+            assertEquals("roles", target.get("name"));
             assertEquals("admin", target.get("domain"));
         }
     }

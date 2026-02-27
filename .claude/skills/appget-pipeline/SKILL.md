@@ -49,7 +49,7 @@ All generated files are git-ignored. Regenerate with `make all` — never hand-e
 | `make generate-openapi` | .proto files → openapi.yaml |
 | `make generate-server` | models.yaml + specs.yaml → complete Spring Boot server |
 | `make generate` | All of the above (features-to-specs through generate-server) |
-| `make test` | Run 274 JUnit 5 tests |
+| `make test` | Run JUnit 5 tests (expect 0 failures, 0 errors) |
 | `make build` | Full build: parse schema → generate → compile → package |
 | `make clean` | Remove build/, src/main/java-generated/, specs.yaml |
 | `make run` | Build and execute the rule engine demo |
@@ -193,26 +193,26 @@ curl -X POST http://localhost:8080/employees \
 
 ---
 
-## Test Suite (274 Tests, 16 Suites)
+## Test Suite (0 failures, 0 errors expected — 16 Suites)
 
-| Suite | Tests | Coverage |
-|-------|-------|---------|
-| CodeGenUtilsTest | 28 | Code generation utilities |
-| JavaTypeRegistryTest | 44 | Java type mappings (SQL → proto → OpenAPI → Java) |
-| JavaUtilsTest | 22 | Java-specific utility functions |
-| FeatureToSpecsConverterTest | 24 | Gherkin parsing, condition extraction, value coercion |
-| ModelsToProtoConverterTest | 18 | Proto generation from models.yaml, type mapping |
-| ProtoOpenAPIGeneratorTest | 23 | OpenAPI 3.0 generation, CRUD endpoints, security |
-| SpecificationGeneratorTest | 13 | YAML → Java spec classes, metadata POJOs |
-| AppServerGeneratorTest | 17 | RuleService, MetadataExtractor, blocking rules |
-| ConformanceTest | 16 | Cross-language output conformance |
-| RuleTest | 15 | Rule evaluation, compound specs, metadata requirements |
-| GrpcServiceTest | 7 | gRPC service stubs, 5 domain services |
-| SpecificationTest | 21 | Comparison operators, type handling, edge cases |
-| CompoundSpecificationTest | 6 | AND/OR logic |
-| MetadataContextTest | 5 | POJO evaluation via reflection |
-| DescriptorRegistryTest | 9 | Models/views registered, field descriptor access |
-| TestDataBuilderTest | 6 | DynamicMessage sample data generation |
+| Suite | Coverage |
+|-------|---------|
+| CodeGenUtilsTest | Code generation utilities |
+| JavaTypeRegistryTest | Java type mappings (SQL → proto → OpenAPI → Java) |
+| JavaUtilsTest | Java-specific utility functions |
+| FeatureToSpecsConverterTest | Gherkin parsing, condition extraction, value coercion |
+| ModelsToProtoConverterTest | Proto generation from models.yaml, type mapping |
+| ProtoOpenAPIGeneratorTest | OpenAPI 3.0 generation, CRUD endpoints, security |
+| SpecificationGeneratorTest | YAML → Java spec classes, metadata POJOs |
+| AppServerGeneratorTest | RuleService, MetadataExtractor, blocking rules |
+| ConformanceTest | Cross-language output conformance |
+| RuleTest | Rule evaluation, compound specs, metadata requirements |
+| GrpcServiceTest | gRPC service stubs, 5 domain services |
+| SpecificationTest | Comparison operators, type handling, edge cases |
+| CompoundSpecificationTest | AND/OR logic |
+| MetadataContextTest | POJO evaluation via reflection |
+| DescriptorRegistryTest | Models/views registered, field descriptor access |
+| TestDataBuilderTest | DynamicMessage sample data generation |
 
 Run specific test: `gradle test --tests "dev.appget.<package>.<ClassName>"`
 

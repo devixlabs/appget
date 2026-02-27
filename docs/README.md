@@ -13,6 +13,7 @@ Platform-level documentation for appget.dev, applicable across all language impl
 | [DESIGN.md](DESIGN.md) | Active | Architecture rationale — the "why" behind every pipeline decision |
 | [PIPELINE.md](PIPELINE.md) | Active | Language-agnostic pipeline overview — entry point for new language implementations |
 | [ROADMAP.md](ROADMAP.md) | Active | Phase-by-phase plan for multi-language rollout |
+| [GHERKIN_GUIDE.md](GHERKIN_GUIDE.md) | Active | Gherkin DSL reference — keywords, operators, patterns, and complete University domain examples for writing `.feature` business rule files |
 
 ## Cross-Language Contracts
 

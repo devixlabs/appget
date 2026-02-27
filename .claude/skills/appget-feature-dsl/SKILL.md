@@ -20,7 +20,7 @@ The appget Gherkin DSL defines business rules that drive the code generation pip
 
 2. **No field-to-field comparisons**: `<value>` must ALWAYS be a literal (string, number, or boolean) — NEVER another field name. `When field_a does not equal field_b` parses `field_b` as the literal string `"field_b"`, creating a no-op rule.
 
-3. **@target uses singularized model name**: Table `follows` → `@target:Follow` (not `@target:Follows`). Table `blog_posts` → `@target:BlogPost`.
+3. **@target uses the SQL table name directly**: Table `follows` → `@target:follows`. Table `blog_posts` → `@target:blog_posts`. Use the exact snake_case plural table name — the pipeline applies `snakeToPascal` automatically.
 
 4. **Metadata fields use camelCase**: Model fields use `snake_case` (`is_active`, `like_count`), but metadata fields use `camelCase` (`roleLevel`, `isAdmin`, `sessionId`) — matching Java getter conventions.
 
@@ -56,13 +56,13 @@ Every scenario MUST have these tags on the line before `Scenario:`:
 
 | Tag | Required | Purpose | Example |
 |-----|----------|---------|---------|
-| `@target:<ModelName>` | Yes | Target model or view (singularized PascalCase) | `@target:User` |
+| `@target:<table_name>` | Yes | Target model or view (snake_case plural matching SQL table name) | `@target:users` |
 | `@rule:<RuleName>` | Yes | Unique rule name (PascalCase) | `@rule:UserAgeCheck` |
 | `@blocking` | No | Rule causes 422 rejection if unsatisfied | `@blocking` |
 | `@view` | No | Target is a view (not a model) | `@view` |
 
 **Tag placement**: All tags go on a single line immediately before `Scenario:`.
-**@target naming**: Use the singularized model class name, not the plural table name.
+**@target naming**: Use the exact SQL table name (snake_case plural, e.g., table `follows` → `@target:follows`, table `blog_posts` → `@target:blog_posts`). The pipeline applies `snakeToPascal` automatically.
 **@rule naming**: PascalCase, descriptive of what the rule checks.
 
 ---
@@ -167,7 +167,7 @@ But otherwise status is "REJECTED"
 
 **Simple blocking rule**:
 ```gherkin
-  @target:User @blocking @rule:UserAgeVerification
+  @target:users @blocking @rule:UserAgeVerification
   Scenario: User must be at least 13 years old
     When age is at least 13
     Then status is "VERIFIED"
@@ -176,7 +176,7 @@ But otherwise status is "REJECTED"
 
 **Compound rule (non-blocking, informational)**:
 ```gherkin
-  @target:Post @rule:ViralPostCheck
+  @target:posts @rule:ViralPostCheck
   Scenario: Post is considered viral with high engagement
     When all conditions are met:
       | field      | operator | value |
@@ -188,7 +188,7 @@ But otherwise status is "REJECTED"
 
 **View-targeting rule**:
 ```gherkin
-  @view @target:PostDetailView @rule:VerifiedAuthorCheck
+  @view @target:post_detail_view @rule:VerifiedAuthorCheck
   Scenario: Post by verified author gets priority
     When author_verified equals true
     Then status is "PRIORITY"
@@ -197,7 +197,7 @@ But otherwise status is "REJECTED"
 
 **Metadata-aware authorization rule**:
 ```gherkin
-  @target:Post @blocking @rule:AuthenticatedPostCreation
+  @target:posts @blocking @rule:AuthenticatedPostCreation
   Scenario: Only authenticated users with sufficient role can create posts
     Given sso context requires:
       | field         | operator | value |
@@ -219,12 +219,12 @@ But otherwise status is "REJECTED"
 ```gherkin
   # WRONG: user_roles table has: id, user_id, role_id, assigned_at
   # role_name does NOT exist on user_roles -- it exists on user_role_view
-  @target:UserRole @rule:DeveloperCheck
+  @target:user_roles @rule:DeveloperCheck
   Scenario: Check developer role
     When role_name equals "developer"
 
   # CORRECT: target the VIEW where role_name actually exists
-  @view @target:UserRoleView @rule:DeveloperCheck
+  @view @target:user_role_view @rule:DeveloperCheck
   Scenario: Check developer role
     When role_name equals "developer"
     Then status is "DEVELOPER"
@@ -235,27 +235,27 @@ But otherwise status is "REJECTED"
 
 ```gherkin
   # WRONG: expires_at is TIMESTAMP, not comparable
-  @target:Session @rule:SessionCheck
+  @target:sessions @rule:SessionCheck
   Scenario: Session not expired
     When expires_at is greater than 0
 
   # CORRECT: use a comparable field instead
-  @target:Session @rule:SessionCheck
+  @target:sessions @rule:SessionCheck
   Scenario: Session has valid token
     When token does not equal ""
     Then status is "ACTIVE"
     But otherwise status is "INVALID"
 ```
 
-### Mistake: Plural table name in @target
+### Mistake: PascalCase in @target instead of snake_case
 
 ```gherkin
-  # WRONG: table is "follows" but @target needs singularized name
+  # WRONG: @target must use the exact SQL table name (snake_case), not PascalCase
   @target:Follows @rule:ActiveFollow
   Scenario: Follow is active
 
-  # CORRECT: singularize: follows -> Follow
-  @target:Follow @rule:ActiveFollow
+  # CORRECT: table is "follows" → @target:follows
+  @target:follows @rule:ActiveFollow
   Scenario: Follow is active
     When is_active equals true
     Then status is "ACTIVE"
@@ -266,7 +266,7 @@ But otherwise status is "REJECTED"
 
 ```gherkin
   # WRONG: DSL only compares fields to LITERAL values, not to other fields
-  @target:Follow @rule:SelfFollowPrevention
+  @target:follows @rule:SelfFollowPrevention
   Scenario: User cannot follow themselves
     When follower_id does not equal following_id
 
@@ -274,7 +274,7 @@ But otherwise status is "REJECTED"
   # NOT as a reference to the following_id column. This rule is a no-op.
 
   # CORRECT: use a boolean/string/int field with a literal value
-  @target:Follow @rule:ActiveFollowValidation
+  @target:follows @rule:ActiveFollowValidation
   Scenario: Follow relationship must be active
     When is_active equals true
     Then status is "VALID"
@@ -284,14 +284,14 @@ But otherwise status is "REJECTED"
 ### Mistake: View column not in SELECT clause
 
 ```gherkin
-  # WRONG: feed_post_view uses WHERE u.is_suspended = false
+  # WRONG: user_feed_view uses WHERE u.is_suspended = false
   # but does NOT include author_suspended in its SELECT clause
-  @view @target:FeedPostView @rule:FeedCheck
+  @view @target:user_feed_view @rule:FeedCheck
   Scenario: Feed post check
     When author_suspended equals false
 
   # CORRECT: only reference columns in the view's SELECT clause
-  @view @target:FeedPostView @rule:FeedCheck
+  @view @target:user_feed_view @rule:FeedCheck
   Scenario: Feed post check
     When is_public equals true
     Then status is "ELIGIBLE"
@@ -320,7 +320,7 @@ But otherwise status is "REJECTED"
 Before finalizing any feature file, verify:
 
 - [ ] Every `@target` references a model in `schema.sql` or view in `views.sql`
-- [ ] `@target` uses the singularized PascalCase model name (not plural table name)
+- [ ] `@target` uses the exact SQL table name (snake_case plural, e.g., `users`, `blog_posts`)
 - [ ] Every field in `When` conditions exists on the EXACT target model/view
 - [ ] For `@view` targets: field exists in the view's `SELECT` clause (not just WHERE/JOIN)
 - [ ] No `When` conditions reference `DATE`, `TIMESTAMP`, or `DATETIME` columns
