@@ -368,31 +368,97 @@ class AppServerGeneratorTest {
         if (new File("models.yaml").exists() && new File("specs.yaml").exists()) {
             generator.generateServer("models.yaml", "specs.yaml", outputDir);
 
-            // Count Controller files (one per model, views excluded)
+            // Count model Controller files (exclude view controllers which contain "View" in name)
             Path controllerDir = Paths.get(outputDir, "dev", "appget", "server", "controller");
             long controllerCount;
             try (Stream<Path> walk = Files.list(controllerDir)) {
-                controllerCount = walk.filter(p -> p.toString().endsWith("Controller.java")).count();
+                controllerCount = walk.filter(p -> {
+                    String name = p.getFileName().toString();
+                    return name.endsWith("Controller.java") && !name.contains("View");
+                }).count();
             }
 
-            // Count Service files (minus RuleService and SpecificationRegistry which are infrastructure)
+            // Count model Service files (exclude RuleService, SpecificationRegistry, and view services)
             Path serviceDir = Paths.get(outputDir, "dev", "appget", "server", "service");
             long modelServiceCount;
             try (Stream<Path> walk = Files.list(serviceDir)) {
                 modelServiceCount = walk.filter(p -> {
                     String name = p.getFileName().toString();
                     return name.endsWith("Service.java")
-                        && !name.equals("RuleService.java");
+                        && !name.equals("RuleService.java")
+                        && !name.contains("View");
                 }).count();
             }
 
-            // Controllers and model services should match 1:1 (each model gets exactly one of each)
+            // Model controllers and model services should match 1:1 (each model gets exactly one of each)
             assertEquals(controllerCount, modelServiceCount,
-                "Controller count should equal model service count (no duplicates from dual-keying)");
+                "Model controller count should equal model service count (no duplicates from dual-keying)");
 
-            // With 14 models (3 domains, views excluded), expect exactly 14 controllers
+            // With 14 models (3 domains), expect exactly 14 model controllers
             assertEquals(14, controllerCount,
-                "Should generate exactly 14 controllers (one per model, no duplicates)");
+                "Should generate exactly 14 model controllers (one per model, no duplicates)");
         }
+    }
+
+    // ---- View component tests ----
+
+    @Test
+    @DisplayName("View controller file exists in controller directory")
+    void testViewControllerExists(@TempDir Path tempDir) throws Exception {
+        String content = generateAndReadFile(tempDir,
+            "dev", "appget", "server", "controller", "PostDetailViewController.java");
+        assertNotNull(content, "PostDetailViewController.java should be generated");
+        assertTrue(content.contains("public class PostDetailViewController"),
+            "Should declare PostDetailViewController class");
+    }
+
+    @Test
+    @DisplayName("View controller has GET mappings only (no POST, PUT, DELETE)")
+    void testViewControllerGetOnly(@TempDir Path tempDir) throws Exception {
+        String content = generateAndReadFile(tempDir,
+            "dev", "appget", "server", "controller", "PostDetailViewController.java");
+        assertTrue(content.contains("@GetMapping"), "View controller should have @GetMapping");
+        assertFalse(content.contains("@PostMapping"), "View controller should NOT have @PostMapping");
+        assertFalse(content.contains("@PutMapping"), "View controller should NOT have @PutMapping");
+        assertFalse(content.contains("@DeleteMapping"), "View controller should NOT have @DeleteMapping");
+    }
+
+    @Test
+    @DisplayName("View controller does not reference ruleService (views have no rule evaluation)")
+    void testViewControllerNoRuleService(@TempDir Path tempDir) throws Exception {
+        String controllerContent = generateAndReadFile(tempDir,
+            "dev", "appget", "server", "controller", "PostDetailViewController.java");
+        assertFalse(controllerContent.contains("ruleService"),
+            "View controller should not reference ruleService");
+
+        String serviceContent = generateAndReadFile(tempDir,
+            "dev", "appget", "server", "service", "PostDetailViewService.java");
+        assertFalse(serviceContent.contains("ruleService"),
+            "View service should not reference ruleService");
+    }
+
+    @Test
+    @DisplayName("View repository file exists in repository directory")
+    void testViewRepositoryExists(@TempDir Path tempDir) throws Exception {
+        String content = generateAndReadFile(tempDir,
+            "dev", "appget", "server", "repository", "PostDetailViewRepository.java");
+        assertNotNull(content, "PostDetailViewRepository.java should be generated");
+        assertTrue(content.contains("interface PostDetailViewRepository"),
+            "Should declare PostDetailViewRepository interface");
+    }
+
+    @Test
+    @DisplayName("View repository is read-only (no deleteById)")
+    void testViewRepositoryReadOnly(@TempDir Path tempDir) throws Exception {
+        String content = generateAndReadFile(tempDir,
+            "dev", "appget", "server", "repository", "PostDetailViewRepository.java");
+        assertFalse(content.contains("deleteById"),
+            "View repository should not have deleteById");
+        assertFalse(content.contains("existsById"),
+            "View repository should not have existsById");
+        assertTrue(content.contains("findById"),
+            "View repository should have findById");
+        assertTrue(content.contains("findAll"),
+            "View repository should have findAll");
     }
 }

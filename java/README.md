@@ -411,6 +411,14 @@ PUT    /users/{id}        - Update user (validates rules)
 DELETE /users/{id}        - Delete user
 
 Same for: /sessions, /posts, /comments, /follows, /moderation-actions, /roles, /api-keys, etc.
+
+# Views are read-only (GET only, no create/update/delete):
+GET    /views/post-detail        - List post detail view entries
+GET    /views/post-detail/{id}   - Get specific post detail view entry
+
+Same for: /views/user-feed, /views/user-stats, /views/comment-detail,
+          /views/trending-posts, /views/user-oauth, /views/api-key-stats,
+          /views/user-role, /views/moderation-queue, /views/company-health
 ```
 
 ### Start the Server

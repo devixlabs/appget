@@ -284,6 +284,93 @@ class ProtoOpenAPIGeneratorTest {
     }
 
     @Test
+    @DisplayName("View collection paths exist under /views/")
+    void testViewCollectionPaths(@TempDir Path tempDir) throws Exception {
+        Map<String, Object> spec = generateAndLoad(tempDir);
+        if (spec == null) return;
+
+        Map<String, Object> paths = (Map<String, Object>) spec.get("paths");
+        // PostDetailView → strip View → PostDetail → camelToKebab → post-detail → /views/post-detail
+        assertNotNull(paths.get("/views/post-detail"), "/views/post-detail should exist");
+        assertNotNull(paths.get("/views/user-feed"), "/views/user-feed should exist");
+    }
+
+    @Test
+    @DisplayName("View item paths with {id} exist under /views/")
+    void testViewItemPaths(@TempDir Path tempDir) throws Exception {
+        Map<String, Object> spec = generateAndLoad(tempDir);
+        if (spec == null) return;
+
+        Map<String, Object> paths = (Map<String, Object>) spec.get("paths");
+        assertNotNull(paths.get("/views/post-detail/{id}"), "/views/post-detail/{id} should exist");
+        assertNotNull(paths.get("/views/user-feed/{id}"), "/views/user-feed/{id} should exist");
+    }
+
+    @Test
+    @DisplayName("View collection paths have GET only (no POST)")
+    void testViewCollectionGetOnly(@TempDir Path tempDir) throws Exception {
+        Map<String, Object> spec = generateAndLoad(tempDir);
+        if (spec == null) return;
+
+        Map<String, Object> paths = (Map<String, Object>) spec.get("paths");
+        Map<String, Object> postDetailCollection = (Map<String, Object>) paths.get("/views/post-detail");
+        assertNotNull(postDetailCollection, "/views/post-detail should exist");
+        assertNotNull(postDetailCollection.get("get"), "/views/post-detail should have GET");
+        assertNull(postDetailCollection.get("post"), "/views/post-detail should NOT have POST");
+    }
+
+    @Test
+    @DisplayName("View item paths have GET only (no PUT or DELETE)")
+    void testViewItemGetOnly(@TempDir Path tempDir) throws Exception {
+        Map<String, Object> spec = generateAndLoad(tempDir);
+        if (spec == null) return;
+
+        Map<String, Object> paths = (Map<String, Object>) spec.get("paths");
+        Map<String, Object> postDetailItem = (Map<String, Object>) paths.get("/views/post-detail/{id}");
+        assertNotNull(postDetailItem, "/views/post-detail/{id} should exist");
+        assertNotNull(postDetailItem.get("get"), "/views/post-detail/{id} should have GET");
+        assertNull(postDetailItem.get("put"), "/views/post-detail/{id} should NOT have PUT");
+        assertNull(postDetailItem.get("delete"), "/views/post-detail/{id} should NOT have DELETE");
+    }
+
+    @Test
+    @DisplayName("View GET list returns 200 response with array schema ref")
+    void testViewGetListResponse(@TempDir Path tempDir) throws Exception {
+        Map<String, Object> spec = generateAndLoad(tempDir);
+        if (spec == null) return;
+
+        Map<String, Object> paths = (Map<String, Object>) spec.get("paths");
+        Map<String, Object> collection = (Map<String, Object>) paths.get("/views/post-detail");
+        Map<String, Object> get = (Map<String, Object>) collection.get("get");
+        Map<String, Object> responses = (Map<String, Object>) get.get("responses");
+        Map<String, Object> response200 = (Map<String, Object>) responses.get("200");
+
+        assertNotNull(response200, "GET list should have 200 response");
+        Map<String, Object> content = (Map<String, Object>) response200.get("content");
+        Map<String, Object> json = (Map<String, Object>) content.get("application/json");
+        Map<String, Object> schema = (Map<String, Object>) json.get("schema");
+        assertEquals("array", schema.get("type"), "GET list response schema should be array");
+        Map<String, Object> items = (Map<String, Object>) schema.get("items");
+        assertEquals("#/components/schemas/PostDetailView", items.get("$ref"),
+                "Array items should reference PostDetailView schema");
+    }
+
+    @Test
+    @DisplayName("View GET by ID returns 200 and 404 responses")
+    void testViewGetByIdResponse(@TempDir Path tempDir) throws Exception {
+        Map<String, Object> spec = generateAndLoad(tempDir);
+        if (spec == null) return;
+
+        Map<String, Object> paths = (Map<String, Object>) spec.get("paths");
+        Map<String, Object> item = (Map<String, Object>) paths.get("/views/post-detail/{id}");
+        Map<String, Object> get = (Map<String, Object>) item.get("get");
+        Map<String, Object> responses = (Map<String, Object>) get.get("responses");
+
+        assertNotNull(responses.get("200"), "GET by ID should have 200 response");
+        assertNotNull(responses.get("404"), "GET by ID should have 404 response");
+    }
+
+    @Test
     @DisplayName("snake_case to camelCase conversion works correctly")
     void testSnakeToCamelConversion() {
         assertEquals("roleId", JavaUtils.snakeToCamel("role_id"));

@@ -29,6 +29,7 @@ public class AppServerGenerator {
     private static final Logger logger = LogManager.getLogger(AppServerGenerator.class);
     private static final String BASE_PACKAGE = "dev.appget.server";
     private Map<String, ModelInfo> modelIndex = new HashMap<>();
+    private Map<String, ModelInfo> viewIndex = new LinkedHashMap<>();
     private List<RuleInfo> rules = new ArrayList<>();
     private Set<String> metadataCategories = new LinkedHashSet<>();
     private Map<String, List<Map<String, Object>>> metadataFieldDefinitions = new LinkedHashMap<>();
@@ -99,6 +100,14 @@ public class AppServerGenerator {
             generateController(model, outputDir);
         }
 
+        // Generate per-view components (read-only GET endpoints, no POST/PUT/DELETE)
+        Set<ModelInfo> uniqueViews = new LinkedHashSet<>(viewIndex.values());
+        for (ModelInfo view : uniqueViews) {
+            generateViewRepository(view, outputDir);
+            generateViewService(view, outputDir);
+            generateViewController(view, outputDir);
+        }
+
         System.out.println("  Generated: build.gradle");
         System.out.println("  Generated: Application.java");
         System.out.println("  Generated: application.yaml");
@@ -106,6 +115,7 @@ public class AppServerGenerator {
         System.out.println("  Generated: SpecificationRegistry");
         System.out.println("  Generated: RuleService (with SpecificationRegistry injection)");
         System.out.println("  Generated: " + uniqueModels.size() + " model endpoints (Controller/Service/Interface/InMemoryRepository)");
+        System.out.println("  Generated: " + uniqueViews.size() + " view endpoints (Controller/Service/Repository, GET only)");
     }
 
     @SuppressWarnings("unchecked")
@@ -142,6 +152,24 @@ public class AppServerGenerator {
 
                     modelIndex.put(modelName, info);
                     modelIndex.put(JavaUtils.snakeToPascal(modelName), info);
+                }
+            }
+
+            List<Map<String, Object>> viewList = (List<Map<String, Object>>) domainConfig.get("views");
+            if (viewList != null) {
+                for (Map<String, Object> view : viewList) {
+                    String viewName = (String) view.get("name");
+                    List<Map<String, Object>> fields = (List<Map<String, Object>>) view.get("fields");
+
+                    ModelInfo info = new ModelInfo();
+                    info.name = viewName;
+                    info.isView = true;
+                    info.domain = domainName;
+                    info.namespace = namespace;
+                    info.fields = fields != null ? new ArrayList<>(fields) : new ArrayList<>();
+
+                    viewIndex.put(viewName, info);
+                    viewIndex.put(JavaUtils.snakeToPascal(viewName), info);
                 }
             }
         }
@@ -1258,12 +1286,169 @@ public class AppServerGenerator {
         writefile(outputDir, packageName, className, code.toString());
     }
 
+    private void generateViewRepository(ModelInfo view, String outputDir) throws IOException {
+        String interfaceName = pascalName(view) + "Repository";
+        String className = "InMemory" + pascalName(view) + "Repository";
+        String packageName = BASE_PACKAGE + ".repository";
+        String viewImport = view.namespace + ".view." + pascalName(view);
+
+        // Interface (read-only: save for seeding, findById, findAll — no deleteById, no existsById)
+        StringBuilder iface = new StringBuilder();
+        iface.append("package ").append(packageName).append(";\n\n");
+        iface.append("import ").append(viewImport).append(";\n");
+        iface.append("import java.util.List;\n");
+        iface.append("import java.util.Optional;\n\n");
+        iface.append("/**\n");
+        iface.append(" * Read-only repository interface for ").append(view.name).append(" view\n");
+        iface.append(" * Views expose GET only — no create/update/delete operations\n");
+        iface.append(" * DO NOT EDIT MANUALLY - Generated from models.yaml\n");
+        iface.append(" */\n");
+        iface.append("public interface ").append(interfaceName).append(" {\n\n");
+        iface.append("    ").append(pascalName(view)).append(" save(").append(pascalName(view)).append(" entity);\n\n");
+        iface.append("    Optional<").append(pascalName(view)).append("> findById(String id);\n\n");
+        iface.append("    List<").append(pascalName(view)).append("> findAll();\n");
+        iface.append("}\n");
+        writefile(outputDir, packageName, interfaceName, iface.toString());
+
+        // In-memory implementation
+        StringBuilder impl = new StringBuilder();
+        impl.append("package ").append(packageName).append(";\n\n");
+        impl.append("import ").append(viewImport).append(";\n");
+        impl.append("import org.springframework.stereotype.Component;\n");
+        impl.append("import lombok.extern.log4j.Log4j2;\n");
+        impl.append("import java.util.List;\n");
+        impl.append("import java.util.Map;\n");
+        impl.append("import java.util.Optional;\n");
+        impl.append("import java.util.concurrent.ConcurrentHashMap;\n");
+        impl.append("import java.util.concurrent.atomic.AtomicLong;\n\n");
+        impl.append("/**\n");
+        impl.append(" * Default in-memory repository for ").append(view.name).append(" view\n");
+        impl.append(" * DO NOT EDIT MANUALLY - Generated from models.yaml\n");
+        impl.append(" */\n");
+        impl.append("@Log4j2\n");
+        impl.append("@Component\n");
+        impl.append("public class ").append(className).append(" implements ").append(interfaceName).append(" {\n\n");
+        impl.append("    private final Map<String, ").append(pascalName(view)).append("> store = new ConcurrentHashMap<>();\n");
+        impl.append("    private final AtomicLong idGenerator = new AtomicLong();\n\n");
+        impl.append("    @Override\n");
+        impl.append("    public ").append(pascalName(view)).append(" save(").append(pascalName(view)).append(" entity) {\n");
+        impl.append("        String id = String.valueOf(idGenerator.incrementAndGet());\n");
+        impl.append("        log.debug(\"Saving ").append(view.name).append(" view entry with id: {}\", id);\n");
+        impl.append("        store.put(id, entity);\n");
+        impl.append("        return entity;\n");
+        impl.append("    }\n\n");
+        impl.append("    @Override\n");
+        impl.append("    public Optional<").append(pascalName(view)).append("> findById(String id) {\n");
+        impl.append("        log.debug(\"Looking up ").append(view.name).append(" with id: {}\", id);\n");
+        impl.append("        return Optional.ofNullable(store.get(id));\n");
+        impl.append("    }\n\n");
+        impl.append("    @Override\n");
+        impl.append("    public List<").append(pascalName(view)).append("> findAll() {\n");
+        impl.append("        log.debug(\"Retrieving all ").append(view.name).append(" entries\");\n");
+        impl.append("        return new java.util.ArrayList<>(store.values());\n");
+        impl.append("    }\n");
+        impl.append("}\n");
+        writefile(outputDir, packageName, className, impl.toString());
+    }
+
+    private void generateViewService(ModelInfo view, String outputDir) throws IOException {
+        String className = pascalName(view) + "Service";
+        String repositoryClass = pascalName(view) + "Repository";
+        String packageName = BASE_PACKAGE + ".service";
+        String viewImport = view.namespace + ".view." + pascalName(view);
+
+        StringBuilder code = new StringBuilder();
+        code.append("package ").append(packageName).append(";\n\n");
+        code.append("import ").append(viewImport).append(";\n");
+        code.append("import ").append(BASE_PACKAGE).append(".repository.").append(repositoryClass).append(";\n");
+        code.append("import ").append(BASE_PACKAGE).append(".exception.ResourceNotFoundException;\n");
+        code.append("import lombok.extern.log4j.Log4j2;\n");
+        code.append("import org.springframework.stereotype.Service;\n");
+        code.append("import java.util.List;\n\n");
+        code.append("/**\n");
+        code.append(" * Read-only service for ").append(view.name).append(" view\n");
+        code.append(" * Views expose GET only — no rule evaluation, no write operations\n");
+        code.append(" * DO NOT EDIT MANUALLY - Generated from models.yaml\n");
+        code.append(" */\n");
+        code.append("@Log4j2\n");
+        code.append("@Service\n");
+        code.append("public class ").append(className).append(" {\n\n");
+        code.append("    private final ").append(repositoryClass).append(" repository;\n\n");
+        code.append("    public ").append(className).append("(").append(repositoryClass).append(" repository) {\n");
+        code.append("        this.repository = repository;\n");
+        code.append("    }\n\n");
+        code.append("    public ").append(pascalName(view)).append(" findById(String id) {\n");
+        code.append("        log.debug(\"Fetching ").append(view.name).append(" by id: {}\", id);\n");
+        code.append("        return repository.findById(id)\n");
+        code.append("            .orElseThrow(() -> {\n");
+        code.append("                log.warn(\"").append(view.name).append(" not found with id: {}\", id);\n");
+        code.append("                return new ResourceNotFoundException(\"").append(view.name).append(" not found: \" + id);\n");
+        code.append("            });\n");
+        code.append("    }\n\n");
+        code.append("    public List<").append(pascalName(view)).append("> findAll() {\n");
+        code.append("        log.debug(\"Fetching all ").append(view.name).append(" entries\");\n");
+        code.append("        return repository.findAll();\n");
+        code.append("    }\n");
+        code.append("}\n");
+
+        writefile(outputDir, packageName, className, code.toString());
+    }
+
+    private void generateViewController(ModelInfo view, String outputDir) throws IOException {
+        String className = pascalName(view) + "Controller";
+        String serviceClass = pascalName(view) + "Service";
+        String packageName = BASE_PACKAGE + ".controller";
+        String viewImport = view.namespace + ".view." + pascalName(view);
+        String resourcePath = "/views/" + toViewResourceName(view.name);
+
+        StringBuilder code = new StringBuilder();
+        code.append("package ").append(packageName).append(";\n\n");
+        code.append("import ").append(viewImport).append(";\n");
+        code.append("import ").append(BASE_PACKAGE).append(".service.").append(serviceClass).append(";\n");
+        code.append("import lombok.extern.log4j.Log4j2;\n");
+        code.append("import org.springframework.http.ResponseEntity;\n");
+        code.append("import org.springframework.web.bind.annotation.*;\n");
+        code.append("import java.util.List;\n\n");
+        code.append("/**\n");
+        code.append(" * Read-only REST endpoints for ").append(view.name).append(" view\n");
+        code.append(" * Views expose GET only (list + by ID) — no create/update/delete\n");
+        code.append(" * DO NOT EDIT MANUALLY - Generated from models.yaml\n");
+        code.append(" */\n");
+        code.append("@Log4j2\n");
+        code.append("@RestController\n");
+        code.append("@RequestMapping(\"").append(resourcePath).append("\")\n");
+        code.append("public class ").append(className).append(" {\n\n");
+        code.append("    private final ").append(serviceClass).append(" service;\n\n");
+        code.append("    public ").append(className).append("(").append(serviceClass).append(" service) {\n");
+        code.append("        this.service = service;\n");
+        code.append("    }\n\n");
+        code.append("    @GetMapping\n");
+        code.append("    public ResponseEntity<List<").append(pascalName(view)).append(">> list() {\n");
+        code.append("        log.info(\"GET ").append(resourcePath).append(" - Retrieving all ").append(view.name).append(" entries\");\n");
+        code.append("        return ResponseEntity.ok(service.findAll());\n");
+        code.append("    }\n\n");
+        code.append("    @GetMapping(\"/{id}\")\n");
+        code.append("    public ResponseEntity<").append(pascalName(view)).append("> get(@PathVariable String id) {\n");
+        code.append("        log.info(\"GET ").append(resourcePath).append("/{id} - Retrieving ").append(view.name).append(" with id: {}\", id);\n");
+        code.append("        return ResponseEntity.ok(service.findById(id));\n");
+        code.append("    }\n");
+        code.append("}\n");
+
+        writefile(outputDir, packageName, className, code.toString());
+    }
+
     private String pascalName(ModelInfo model) {
         return JavaUtils.snakeToPascal(model.name);
     }
 
     private String toResourceName(String snakeName) {
         return snakeName.replace('_', '-');
+    }
+
+    private String toViewResourceName(String snakeName) {
+        // post_detail_view → strip _view → post_detail → replace _ with - → post-detail
+        String base = snakeName.endsWith("_view") ? snakeName.substring(0, snakeName.length() - 5) : snakeName;
+        return base.replace('_', '-');
     }
 
     private String camelToHeaderCase(String camelCase) {
@@ -1318,6 +1503,7 @@ public class AppServerGenerator {
         String domain;
         String namespace;
         List<Map<String, Object>> fields;
+        boolean isView;
     }
 
     static class RuleInfo {

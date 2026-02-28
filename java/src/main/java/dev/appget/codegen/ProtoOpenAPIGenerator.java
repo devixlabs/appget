@@ -326,6 +326,22 @@ public class ProtoOpenAPIGenerator {
             if (!itemOps.isEmpty()) paths.put(resourcePath + "/{id}", itemOps);
         }
 
+        // Generate read-only GET paths for views (no POST/PUT/DELETE)
+        // URL pattern: /views/{name-without-View-suffix-in-kebab-case}
+        for (ProtoMessage view : views) {
+            String viewName = view.name();
+            String baseName = viewName.endsWith("View") ? viewName.substring(0, viewName.length() - 4) : viewName;
+            String viewPath = "/views/" + camelToKebab(baseName);
+
+            Map<String, Object> viewCollectionOps = new LinkedHashMap<>();
+            viewCollectionOps.put("get", buildListOp(viewName));
+            paths.put(viewPath, viewCollectionOps);
+
+            Map<String, Object> viewItemOps = new LinkedHashMap<>();
+            viewItemOps.put("get", buildGetOp(viewName));
+            paths.put(viewPath + "/{id}", viewItemOps);
+        }
+
         // Components
         Map<String, Object> components = new LinkedHashMap<>();
         components.put("schemas", schemas);
