@@ -327,4 +327,126 @@ class RuleTest {
         assertEquals("HIGH_ENGAGEMENT", result,
                 "Rule should pass when evaluated against the correct view type with matching field");
     }
+
+    // ---- Missing metadata category (present metadata but missing one required category) ----
+
+    @Test
+    @DisplayName("Rule fails when metadata provided but required category is missing")
+    void testRuleFailsWhenMetadataCategoryMissing() {
+        Map<String, List<Specification>> metaReqs = Map.of(
+                "sso", List.of(new Specification("authenticated", "==", true)),
+                "roles", List.of(new Specification("roleLevel", ">=", 5))
+        );
+
+        Rule authRule = Rule.builder()
+                .name("MultiMetaRule")
+                .spec(new Specification("follower_count", ">=", 0))
+                .successStatus("ALLOWED")
+                .failureStatus("DENIED")
+                .metadataRequirements(metaReqs)
+                .build();
+
+        // Only provide sso, not roles
+        SsoContext sso = SsoContext.builder().authenticated(true).sessionId("s1").build();
+        MetadataContext metadata = new MetadataContext().with("sso", sso);
+
+        assertEquals("DENIED", authRule.evaluate(user, metadata),
+                "Should fail when one required metadata category is missing");
+    }
+
+    // ---- Metadata spec fails (authenticated == false when rule requires true) ----
+
+    @Test
+    @DisplayName("Rule fails when metadata provided but spec condition is not satisfied")
+    void testRuleFailsWhenMetadataSpecFails() {
+        Map<String, List<Specification>> metaReqs = Map.of(
+                "sso", List.of(new Specification("authenticated", "==", true))
+        );
+
+        Rule authRule = Rule.builder()
+                .name("AuthRequired")
+                .spec(new Specification("follower_count", ">=", 0))
+                .successStatus("ALLOWED")
+                .failureStatus("DENIED")
+                .metadataRequirements(metaReqs)
+                .build();
+
+        SsoContext sso = SsoContext.builder().authenticated(false).sessionId("s1").build();
+        MetadataContext metadata = new MetadataContext().with("sso", sso);
+
+        assertEquals("DENIED", authRule.evaluate(user, metadata),
+                "Should fail when metadata spec condition is unsatisfied");
+    }
+
+    // ---- Rule with OR compound ----
+
+    @Test
+    @DisplayName("Rule with OR compound specification passes when one condition is true")
+    void testRuleWithOrCompound() {
+        CompoundSpecification orCompound = new CompoundSpecification(
+                CompoundSpecification.Logic.OR,
+                List.of(
+                        new Specification("follower_count", ">", 500),
+                        new Specification("is_verified", "==", true)
+                )
+        );
+
+        Rule orRule = Rule.builder()
+                .name("FlexibleCheck")
+                .spec(orCompound)
+                .successStatus("PASS")
+                .failureStatus("FAIL")
+                .build();
+
+        assertEquals("PASS", orRule.evaluate(user),
+                "OR rule should pass when at least one condition is true");
+    }
+
+    // ---- Rule accessors ----
+
+    @Test
+    @DisplayName("Rule.getSpec() returns the specification")
+    void testRuleGetSpec() {
+        Specification spec = new Specification("follower_count", ">", 100);
+        Rule r = Rule.builder().name("Test").spec(spec)
+                .successStatus("S").failureStatus("F").build();
+        assertNotNull(r.getSpec());
+    }
+
+    @Test
+    @DisplayName("Rule.getTargetType() returns the target type")
+    void testRuleGetTargetType() {
+        Rule r = Rule.builder().name("Test")
+                .spec(new Specification("follower_count", ">", 0))
+                .successStatus("S").failureStatus("F")
+                .targetType("Users")
+                .build();
+        assertEquals("Users", r.getTargetType());
+    }
+
+    // ---- Multiple metadata categories ----
+
+    @Test
+    @DisplayName("Rule with two metadata categories passes when both are satisfied")
+    void testRuleWithMultipleMetadataCategories() {
+        Map<String, List<Specification>> metaReqs = Map.of(
+                "sso", List.of(new Specification("authenticated", "==", true)),
+                "roles", List.of(new Specification("roleLevel", ">=", 3))
+        );
+
+        Rule multiMetaRule = Rule.builder()
+                .name("AdminOnlyRule")
+                .spec(new Specification("follower_count", ">=", 0))
+                .successStatus("ALLOWED")
+                .failureStatus("DENIED")
+                .metadataRequirements(metaReqs)
+                .build();
+
+        SsoContext sso = SsoContext.builder().authenticated(true).sessionId("s1").build();
+        RolesContext roles = RolesContext.builder().roleName("Admin").roleLevel(5).isAdmin(true).build();
+        MetadataContext metadata = new MetadataContext().with("sso", sso).with("roles", roles);
+
+        assertEquals("ALLOWED", multiMetaRule.evaluate(user, metadata),
+                "Should pass when all metadata categories are present and satisfied");
+    }
 }

@@ -400,6 +400,64 @@ class AppServerGeneratorTest {
         }
     }
 
+    // ---- Error handling and timestamp tests (GAP-R2, GAP-R3) ----
+
+    @Test
+    @DisplayName("MetadataExtractor uses safe parsing helpers for numeric headers")
+    void testMetadataExtractorSafeParsing(@TempDir Path tempDir) throws Exception {
+        String content = readMetadataExtractor(tempDir);
+        assertTrue(content.contains("safeParseInt("),
+            "Should use safeParseInt for integer header parsing");
+        assertTrue(content.contains("MetadataParsingException"),
+            "Should import MetadataParsingException");
+        assertTrue(content.contains("private int safeParseInt(String value, String headerName)"),
+            "Should generate safeParseInt helper method");
+    }
+
+    @Test
+    @DisplayName("GlobalExceptionHandler handles MetadataParsingException with 400")
+    void testGlobalExceptionHandlerMetadataParsing(@TempDir Path tempDir) throws Exception {
+        String content = generateAndReadFile(tempDir,
+            "dev", "appget", "server", "exception", "GlobalExceptionHandler.java");
+        assertTrue(content.contains("@ExceptionHandler(MetadataParsingException.class)"),
+            "Should handle MetadataParsingException");
+        assertTrue(content.contains("HttpStatus.BAD_REQUEST"),
+            "MetadataParsingException should return 400 BAD_REQUEST");
+        assertTrue(content.contains("INVALID_METADATA"),
+            "Error code should be INVALID_METADATA");
+    }
+
+    @Test
+    @DisplayName("MetadataParsingException class is generated")
+    void testMetadataParsingExceptionExists(@TempDir Path tempDir) throws Exception {
+        String content = generateAndReadFile(tempDir,
+            "dev", "appget", "server", "exception", "MetadataParsingException.java");
+        assertTrue(content.contains("public class MetadataParsingException extends RuntimeException"),
+            "MetadataParsingException should extend RuntimeException");
+    }
+
+    @Test
+    @DisplayName("ErrorResponse uses OffsetDateTime for RFC 3339 compliance")
+    void testErrorResponseUsesOffsetDateTime(@TempDir Path tempDir) throws Exception {
+        String content = generateAndReadFile(tempDir,
+            "dev", "appget", "server", "dto", "ErrorResponse.java");
+        assertTrue(content.contains("OffsetDateTime"),
+            "ErrorResponse should use OffsetDateTime");
+        assertFalse(content.contains("LocalDateTime"),
+            "ErrorResponse should NOT use LocalDateTime");
+    }
+
+    @Test
+    @DisplayName("GlobalExceptionHandler uses OffsetDateTime.now()")
+    void testGlobalExceptionHandlerUsesOffsetDateTime(@TempDir Path tempDir) throws Exception {
+        String content = generateAndReadFile(tempDir,
+            "dev", "appget", "server", "exception", "GlobalExceptionHandler.java");
+        assertTrue(content.contains("OffsetDateTime.now()"),
+            "Exception handler should use OffsetDateTime.now()");
+        assertFalse(content.contains("LocalDateTime"),
+            "Exception handler should NOT reference LocalDateTime");
+    }
+
     // ---- View component tests ----
 
     @Test
@@ -411,6 +469,129 @@ class AppServerGeneratorTest {
         assertTrue(content.contains("public class PostDetailViewController"),
             "Should declare PostDetailViewController class");
     }
+
+    // ---- Generated infrastructure file tests ----
+
+    @Test
+    @DisplayName("Application.java has @SpringBootApplication")
+    void testApplicationExists(@TempDir Path tempDir) throws Exception {
+        String content = generateAndReadFile(tempDir,
+            "dev", "appget", "server", "Application.java");
+        assertTrue(content.contains("@SpringBootApplication"),
+            "Application.java should have @SpringBootApplication annotation");
+        assertTrue(content.contains("public static void main"),
+            "Application.java should have main method");
+    }
+
+    @Test
+    @DisplayName("RuleViolationException is generated correctly")
+    void testRuleViolationExceptionExists(@TempDir Path tempDir) throws Exception {
+        String content = generateAndReadFile(tempDir,
+            "dev", "appget", "server", "exception", "RuleViolationException.java");
+        assertTrue(content.contains("extends RuntimeException"),
+            "Should extend RuntimeException");
+        assertTrue(content.contains("RuleEvaluationResult"),
+            "Should hold RuleEvaluationResult");
+    }
+
+    @Test
+    @DisplayName("ResourceNotFoundException is generated correctly")
+    void testResourceNotFoundExceptionExists(@TempDir Path tempDir) throws Exception {
+        String content = generateAndReadFile(tempDir,
+            "dev", "appget", "server", "exception", "ResourceNotFoundException.java");
+        assertTrue(content.contains("extends RuntimeException"),
+            "Should extend RuntimeException");
+    }
+
+    @Test
+    @DisplayName("GlobalExceptionHandler handles all three exception types")
+    void testGlobalExceptionHandlerAllHandlers(@TempDir Path tempDir) throws Exception {
+        String content = generateAndReadFile(tempDir,
+            "dev", "appget", "server", "exception", "GlobalExceptionHandler.java");
+        assertTrue(content.contains("@ExceptionHandler(RuleViolationException.class)"),
+            "Should handle RuleViolationException");
+        assertTrue(content.contains("@ExceptionHandler(ResourceNotFoundException.class)"),
+            "Should handle ResourceNotFoundException");
+        assertTrue(content.contains("@ExceptionHandler(MetadataParsingException.class)"),
+            "Should handle MetadataParsingException");
+        assertTrue(content.contains("HttpStatus.UNPROCESSABLE_ENTITY"),
+            "RuleViolation should map to 422");
+        assertTrue(content.contains("HttpStatus.NOT_FOUND"),
+            "ResourceNotFound should map to 404");
+        assertTrue(content.contains("HttpStatus.BAD_REQUEST"),
+            "MetadataParsing should map to 400");
+    }
+
+    @Test
+    @DisplayName("Model controller has all CRUD method annotations")
+    void testModelControllerCrudAnnotations(@TempDir Path tempDir) throws Exception {
+        String content = generateAndReadFile(tempDir,
+            "dev", "appget", "server", "controller", "UsersController.java");
+        assertTrue(content.contains("@PostMapping"), "Model controller should have @PostMapping");
+        assertTrue(content.contains("@GetMapping"), "Model controller should have @GetMapping");
+        assertTrue(content.contains("@PutMapping"), "Model controller should have @PutMapping");
+        assertTrue(content.contains("@DeleteMapping"), "Model controller should have @DeleteMapping");
+    }
+
+    @Test
+    @DisplayName("Repository interface exists alongside InMemory implementation")
+    void testRepositoryInterfaceAndImpl(@TempDir Path tempDir) throws Exception {
+        String iface = generateAndReadFile(tempDir,
+            "dev", "appget", "server", "repository", "UsersRepository.java");
+        assertTrue(iface.contains("interface UsersRepository"),
+            "Should generate UsersRepository interface");
+
+        String impl = generateAndReadFile(tempDir,
+            "dev", "appget", "server", "repository", "InMemoryUsersRepository.java");
+        assertTrue(impl.contains("implements UsersRepository"),
+            "InMemory implementation should implement the interface");
+        assertTrue(impl.contains("@Component"),
+            "InMemory implementation should be a @Component");
+    }
+
+    @Test
+    @DisplayName("MetadataExtractor generates all safe parse helpers")
+    void testMetadataExtractorAllSafeParseHelpers(@TempDir Path tempDir) throws Exception {
+        String content = readMetadataExtractor(tempDir);
+        assertTrue(content.contains("private int safeParseInt(String value, String headerName)"),
+            "Should generate safeParseInt helper");
+        assertTrue(content.contains("private long safeParseLong(String value, String headerName)"),
+            "Should generate safeParseLong helper");
+        assertTrue(content.contains("private double safeParseDouble(String value, String headerName)"),
+            "Should generate safeParseDouble helper");
+    }
+
+    @Test
+    @DisplayName("RuleEvaluationResult DTO has outcomes and hasFailures fields")
+    void testRuleEvaluationResultDto(@TempDir Path tempDir) throws Exception {
+        String content = generateAndReadFile(tempDir,
+            "dev", "appget", "server", "dto", "RuleEvaluationResult.java");
+        assertTrue(content.contains("List<RuleOutcome> outcomes"),
+            "Should have outcomes field");
+        assertTrue(content.contains("boolean hasFailures"),
+            "Should have hasFailures field");
+    }
+
+    @Test
+    @DisplayName("RuleOutcome DTO has ruleName, status, and satisfied fields")
+    void testRuleOutcomeDto(@TempDir Path tempDir) throws Exception {
+        String content = generateAndReadFile(tempDir,
+            "dev", "appget", "server", "dto", "RuleOutcome.java");
+        assertTrue(content.contains("String ruleName"), "Should have ruleName field");
+        assertTrue(content.contains("String status"), "Should have status field");
+        assertTrue(content.contains("boolean satisfied"), "Should have satisfied field");
+    }
+
+    @Test
+    @DisplayName("RuleAwareResponse DTO wraps data and ruleResults")
+    void testRuleAwareResponseDto(@TempDir Path tempDir) throws Exception {
+        String content = generateAndReadFile(tempDir,
+            "dev", "appget", "server", "dto", "RuleAwareResponse.java");
+        assertTrue(content.contains("ruleResults"), "Should have ruleResults field");
+        assertTrue(content.contains("data"), "Should have data field");
+    }
+
+    // ---- View component tests (existing) ----
 
     @Test
     @DisplayName("View controller has GET mappings only (no POST, PUT, DELETE)")

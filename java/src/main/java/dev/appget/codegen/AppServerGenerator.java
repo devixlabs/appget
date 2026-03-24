@@ -509,6 +509,7 @@ public class AppServerGenerator {
         for (String category : metadataCategories) {
             code.append("import dev.appget.specification.context.").append(CodeGenUtils.capitalize(category)).append("Context;\n");
         }
+        code.append("import ").append(BASE_PACKAGE).append(".exception.MetadataParsingException;\n");
         code.append("import org.springframework.stereotype.Component;\n");
         code.append("import jakarta.servlet.http.HttpServletRequest;\n\n");
 
@@ -556,8 +557,9 @@ public class AppServerGenerator {
                 String fieldName = (String) field.get("name");
                 String fieldType = (String) field.get("type");
                 String varName = category + CodeGenUtils.capitalize(fieldName);
+                String headerName = headerPrefix + camelToHeaderCase(fieldName);
                 code.append("                .").append(fieldName).append("(")
-                    .append(parseHeaderValue(varName, fieldType)).append(")\n");
+                    .append(parseHeaderValue(varName, fieldType, headerName)).append(")\n");
             }
 
             code.append("                .build();\n");
@@ -566,6 +568,47 @@ public class AppServerGenerator {
         }
 
         code.append("        return context;\n");
+        code.append("    }\n\n");
+
+        // Generate safe parsing helper methods
+        code.append("    private int safeParseInt(String value, String headerName) {\n");
+        code.append("        if (value == null) return 0;\n");
+        code.append("        try {\n");
+        code.append("            return Integer.parseInt(value);\n");
+        code.append("        } catch (NumberFormatException e) {\n");
+        code.append("            throw new MetadataParsingException(\n");
+        code.append("                \"Invalid integer value for header \" + headerName + \": \" + value);\n");
+        code.append("        }\n");
+        code.append("    }\n\n");
+
+        code.append("    private long safeParseLong(String value, String headerName) {\n");
+        code.append("        if (value == null) return 0L;\n");
+        code.append("        try {\n");
+        code.append("            return Long.parseLong(value);\n");
+        code.append("        } catch (NumberFormatException e) {\n");
+        code.append("            throw new MetadataParsingException(\n");
+        code.append("                \"Invalid long value for header \" + headerName + \": \" + value);\n");
+        code.append("        }\n");
+        code.append("    }\n\n");
+
+        code.append("    private float safeParseFloat(String value, String headerName) {\n");
+        code.append("        if (value == null) return 0.0f;\n");
+        code.append("        try {\n");
+        code.append("            return Float.parseFloat(value);\n");
+        code.append("        } catch (NumberFormatException e) {\n");
+        code.append("            throw new MetadataParsingException(\n");
+        code.append("                \"Invalid float value for header \" + headerName + \": \" + value);\n");
+        code.append("        }\n");
+        code.append("    }\n\n");
+
+        code.append("    private double safeParseDouble(String value, String headerName) {\n");
+        code.append("        if (value == null) return 0.0;\n");
+        code.append("        try {\n");
+        code.append("            return Double.parseDouble(value);\n");
+        code.append("        } catch (NumberFormatException e) {\n");
+        code.append("            throw new MetadataParsingException(\n");
+        code.append("                \"Invalid double value for header \" + headerName + \": \" + value);\n");
+        code.append("        }\n");
         code.append("    }\n");
         code.append("}\n");
 
@@ -861,7 +904,7 @@ public class AppServerGenerator {
             code.append("import lombok.Builder;\n");
             code.append("import lombok.Data;\n");
             code.append("import lombok.NoArgsConstructor;\n");
-            code.append("import java.time.LocalDateTime;\n\n");
+            code.append("import java.time.OffsetDateTime;\n\n");
 
             code.append("/**\n");
             code.append(" * Standard error response format\n");
@@ -875,7 +918,7 @@ public class AppServerGenerator {
             code.append("    private String errorCode;\n");
             code.append("    private String message;\n");
             code.append("    private RuleEvaluationResult ruleResults;\n");
-            code.append("    private LocalDateTime timestamp;\n");
+            code.append("    private OffsetDateTime timestamp;\n");
             code.append("}\n");
 
             writefile(outputDir, BASE_PACKAGE + ".dto", "ErrorResponse", code.toString());
@@ -927,6 +970,24 @@ public class AppServerGenerator {
 
             writefile(outputDir, BASE_PACKAGE + ".exception", "ResourceNotFoundException", code.toString());
         }
+
+        // MetadataParsingException
+        {
+            StringBuilder code = new StringBuilder();
+            code.append("package ").append(BASE_PACKAGE).append(".exception;\n\n");
+
+            code.append("/**\n");
+            code.append(" * Thrown when a metadata header value cannot be parsed to the expected type\n");
+            code.append(" * DO NOT EDIT MANUALLY - Generated from specs.yaml\n");
+            code.append(" */\n");
+            code.append("public class MetadataParsingException extends RuntimeException {\n");
+            code.append("    public MetadataParsingException(String message) {\n");
+            code.append("        super(message);\n");
+            code.append("    }\n");
+            code.append("}\n");
+
+            writefile(outputDir, BASE_PACKAGE + ".exception", "MetadataParsingException", code.toString());
+        }
     }
 
     private void generateGlobalExceptionHandler(String outputDir) throws IOException {
@@ -938,7 +999,7 @@ public class AppServerGenerator {
         code.append("import org.springframework.http.ResponseEntity;\n");
         code.append("import org.springframework.web.bind.annotation.ControllerAdvice;\n");
         code.append("import org.springframework.web.bind.annotation.ExceptionHandler;\n");
-        code.append("import java.time.LocalDateTime;\n\n");
+        code.append("import java.time.OffsetDateTime;\n\n");
 
         code.append("/**\n");
         code.append(" * Global exception handler for REST API\n");
@@ -953,7 +1014,7 @@ public class AppServerGenerator {
         code.append("            .errorCode(\"RULE_VIOLATION\")\n");
         code.append("            .message(ex.getMessage())\n");
         code.append("            .ruleResults(ex.getResults())\n");
-        code.append("            .timestamp(LocalDateTime.now())\n");
+        code.append("            .timestamp(OffsetDateTime.now())\n");
         code.append("            .build();\n");
         code.append("        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(response);\n");
         code.append("    }\n\n");
@@ -963,9 +1024,19 @@ public class AppServerGenerator {
         code.append("        ErrorResponse response = ErrorResponse.builder()\n");
         code.append("            .errorCode(\"NOT_FOUND\")\n");
         code.append("            .message(ex.getMessage())\n");
-        code.append("            .timestamp(LocalDateTime.now())\n");
+        code.append("            .timestamp(OffsetDateTime.now())\n");
         code.append("            .build();\n");
         code.append("        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);\n");
+        code.append("    }\n\n");
+
+        code.append("    @ExceptionHandler(MetadataParsingException.class)\n");
+        code.append("    public ResponseEntity<ErrorResponse> handleMetadataParsing(MetadataParsingException ex) {\n");
+        code.append("        ErrorResponse response = ErrorResponse.builder()\n");
+        code.append("            .errorCode(\"INVALID_METADATA\")\n");
+        code.append("            .message(ex.getMessage())\n");
+        code.append("            .timestamp(OffsetDateTime.now())\n");
+        code.append("            .build();\n");
+        code.append("        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);\n");
         code.append("    }\n");
         code.append("}\n");
 
@@ -1466,18 +1537,19 @@ public class AppServerGenerator {
         return result.toString();
     }
 
-    private String parseHeaderValue(String varName, String type) {
+    private String parseHeaderValue(String varName, String type, String headerName) {
         // Support both neutral types (bool, int32, int64, float64) and legacy Java types
+        // Boolean.parseBoolean never throws, so no safe wrapper needed
         if ("boolean".equals(type) || "bool".equals(type)) {
             return varName + " != null ? Boolean.parseBoolean(" + varName + ") : false";
         } else if ("int".equals(type) || "int32".equals(type)) {
-            return varName + " != null ? Integer.parseInt(" + varName + ") : 0";
+            return "safeParseInt(" + varName + ", \"" + headerName + "\")";
         } else if ("long".equals(type) || "int64".equals(type)) {
-            return varName + " != null ? Long.parseLong(" + varName + ") : 0L";
+            return "safeParseLong(" + varName + ", \"" + headerName + "\")";
         } else if ("float".equals(type)) {
-            return varName + " != null ? Float.parseFloat(" + varName + ") : 0.0f";
+            return "safeParseFloat(" + varName + ", \"" + headerName + "\")";
         } else if ("double".equals(type) || "float64".equals(type)) {
-            return varName + " != null ? Double.parseDouble(" + varName + ") : 0.0";
+            return "safeParseDouble(" + varName + ", \"" + headerName + "\")";
         } else {
             return varName + " != null ? " + varName + " : \"\"";
         }

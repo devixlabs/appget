@@ -39,17 +39,12 @@ Tracked gaps in the cross-language contract docs that live in `docs/`. Each gap 
 - **Fix location**: `AppServerGenerator.generateController()` — use `primary_key_position` from models.yaml
 - **Effort**: Medium
 
-### GAP-R2: 400 for metadata type parsing errors
-- **Spec**: "Invalid metadata or type parsing returns 400"
-- **Current**: `MetadataExtractor` has no error handling; `Integer.parseInt()` would throw unhandled `NumberFormatException`
-- **Fix location**: `AppServerGenerator.generateMetadataExtractor()` + `generateExceptionHandler()`
-- **Effort**: Low
+### ~~GAP-R2: 400 for metadata type parsing errors~~ — RESOLVED 2026-03-24
+- MetadataExtractor now generates safeParseInt/Long/Float/Double helpers that catch NumberFormatException and throw MetadataParsingException
+- GlobalExceptionHandler handles MetadataParsingException → 400 BAD_REQUEST with INVALID_METADATA error code
 
-### GAP-R3: RFC 3339 timestamp format
-- **Spec**: ErrorResponse timestamp should be RFC 3339
-- **Current**: Uses `LocalDateTime` (ISO-8601 via Jackson, close but not identical)
-- **Fix location**: `AppServerGenerator.generateErrorResponse()` — use `OffsetDateTime` or explicit formatter
-- **Effort**: Low
+### ~~GAP-R3: RFC 3339 timestamp format~~ — RESOLVED 2026-03-24
+- ErrorResponse uses `OffsetDateTime` (not `LocalDateTime`), GlobalExceptionHandler uses `OffsetDateTime.now()`
 
 ---
 
@@ -80,7 +75,7 @@ Tracked gaps in the cross-language contract docs that live in `docs/`. Each gap 
 | GAP-M2 | MODELS_YAML | Low | Low | No |
 | GAP-S1 | SPECS_YAML | Medium | Medium | No |
 | GAP-R1 | REST_CONTRACT | Medium | Medium | No |
-| GAP-R2 | REST_CONTRACT | Medium | Low | No |
-| GAP-R3 | REST_CONTRACT | Low | Low | No |
+| ~~GAP-R2~~ | REST_CONTRACT | ~~Medium~~ | ~~Low~~ | Resolved 2026-03-24 |
+| ~~GAP-R3~~ | REST_CONTRACT | ~~Low~~ | ~~Low~~ | Resolved 2026-03-24 |
 | GAP-D1 | DECIMAL | Low | Low | No |
 | GAP-P1 | PROTO_CONVENTIONS | N/A | N/A | Phase 5 |

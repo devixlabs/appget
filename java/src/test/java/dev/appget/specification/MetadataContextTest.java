@@ -62,4 +62,72 @@ class MetadataContextTest {
         Specification spec = new Specification("roleLevel", ">=", 3);
         assertTrue(spec.isSatisfiedBy(roles), "RoleLevel 5 >= 3 should be true");
     }
+
+    // ---- Overwriting a category ----
+
+    @Test
+    @DisplayName("Overwriting a category replaces the previous value")
+    void testOverwriteCategory() {
+        SsoContext sso1 = SsoContext.builder().authenticated(true).sessionId("old").build();
+        SsoContext sso2 = SsoContext.builder().authenticated(false).sessionId("new").build();
+
+        MetadataContext ctx = new MetadataContext().with("sso", sso1).with("sso", sso2);
+        assertEquals(sso2, ctx.get("sso"), "Second with() should overwrite first");
+    }
+
+    // ---- Multiple categories ----
+
+    @Test
+    @DisplayName("Multiple categories coexist in context")
+    void testMultipleCategories() {
+        SsoContext sso = SsoContext.builder().authenticated(true).sessionId("s1").build();
+        RolesContext roles = RolesContext.builder().roleName("Admin").roleLevel(5).build();
+
+        MetadataContext ctx = new MetadataContext().with("sso", sso).with("roles", roles);
+
+        assertTrue(ctx.has("sso"));
+        assertTrue(ctx.has("roles"));
+        assertEquals(sso, ctx.get("sso"));
+        assertEquals(roles, ctx.get("roles"));
+    }
+
+    // ---- String field via reflection ----
+
+    @Test
+    @DisplayName("Specification works with string field via reflection (roleName)")
+    void testSpecificationWithStringFieldReflection() {
+        RolesContext roles = RolesContext.builder()
+                .roleName("Admin")
+                .roleLevel(5)
+                .build();
+
+        Specification spec = new Specification("roleName", "==", "Admin");
+        assertTrue(spec.isSatisfiedBy(roles), "roleName 'Admin' == 'Admin' should be true");
+    }
+
+    // ---- Invalid field via reflection ----
+
+    @Test
+    @DisplayName("Specification with non-existent field on POJO returns false")
+    void testSpecificationInvalidFieldReflection() {
+        SsoContext sso = SsoContext.builder().authenticated(true).sessionId("s1").build();
+
+        Specification spec = new Specification("nonexistent", "==", true);
+        assertFalse(spec.isSatisfiedBy(sso), "Non-existent field should return false, not throw");
+    }
+
+    // ---- isAdmin-style boolean field (Lombok "is" prefix handling) ----
+
+    @Test
+    @DisplayName("Specification handles isAdmin-style boolean field via reflection")
+    void testIsAdminStyleBooleanField() {
+        RolesContext roles = RolesContext.builder()
+                .roleName("Admin")
+                .roleLevel(5)
+                .isAdmin(true)
+                .build();
+
+        Specification spec = new Specification("isAdmin", "==", true);
+        assertTrue(spec.isSatisfiedBy(roles), "isAdmin true == true should be true via reflection");
+    }
 }
