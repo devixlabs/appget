@@ -136,8 +136,7 @@ make generate-server     # Generate Spring Boot REST API
 
 | Document | Purpose |
 |----------|---------|
-| **docs/README.md** | Index of all platform docs with status indicators |
-| **docs/ROADMAP.md** | Phase-by-phase plan for multi-language rollout |
+| **docs/README.md** | Index of all platform docs — active reference and pending work |
 | **docs/GHERKIN_GUIDE.md** | Complete Gherkin DSL reference — keywords, operators, patterns, and full University domain examples for writing `.feature` files |
 | **java/README.md** | User guide, quickstart, examples |
 | **java/CLAUDE.md** | Technical implementation, build system, generators |
@@ -146,15 +145,67 @@ make generate-server     # Generate Spring Boot REST API
 
 ---
 
-## docs/ Status Convention
+## docs/ Document Lifecycle
 
-Every `.md` file in `docs/` that describes **not-yet-implemented** behavior must begin with this exact banner on **line 1**, before the title heading:
+### Two-Tier Structure
 
 ```
-> **Status: Not Yet Implemented** — Phase N+. See [ROADMAP.md](ROADMAP.md).
+docs/
+  *.md              Active — implemented, authoritative reference
+  todos/
+    *.md            Pending — specs not yet implemented, future work, tracked gaps
 ```
 
-Adjust "Phase N" to match the relevant phase from `ROADMAP.md`. No banner = currently implemented. Do not create TODO.md or similar tracking files — use this banner instead.
+**Rule**: `docs/` root contains only docs that describe **currently implemented behavior**. Everything else lives in `docs/todos/`.
+
+### Lifecycle States
+
+A doc progresses through these states:
+
+| State | Location | Meaning |
+|-------|----------|---------|
+| **Pending** | `docs/todos/` | Spec or plan for future work. May be a full spec draft, a gap tracker, or a roadmap. Not yet implemented in any subproject. |
+| **Active** | `docs/` | Describes behavior that is implemented and verified in at least one subproject (currently Java). Authoritative reference for all implementations. |
+| **Archived** | `docs/archive/` | Superseded or no longer relevant. Kept for historical context only. Create this directory when the first doc is archived. |
+
+### Promotion Rules (Pending -> Active)
+
+A doc moves from `docs/todos/` to `docs/` when **all** of these are true:
+
+1. The behavior it describes is **implemented in at least one subproject** and verified by tests
+2. The doc has been **reviewed against the source code** (not just written speculatively)
+3. Any remaining gaps are **extracted to `docs/todos/CONTRACT_GAPS.md`** with a GAP-ID
+
+### Demotion Rules (Active -> Pending)
+
+A doc moves back to `docs/todos/` when:
+- A source-code audit reveals that the majority of described behavior is **not implemented**
+- The doc was promoted prematurely
+
+### Gap Tracking
+
+Minor gaps in Active docs (missing fields, unimplemented operators, etc.) are tracked in `docs/todos/CONTRACT_GAPS.md` rather than demoting the entire doc. Each gap has:
+- A stable ID (e.g., `GAP-R1`)
+- The source doc it belongs to
+- The fix location in source code
+- Effort estimate
+
+When a gap is resolved: delete the entry from `CONTRACT_GAPS.md`. When all gaps for a doc are resolved, note it in the commit message.
+
+### When Adding a New Doc
+
+1. **Is the behavior implemented?** Write it in `docs/`, verify against source code
+2. **Is it a spec for future work?** Write it in `docs/todos/`
+3. **Is it a plan or roadmap?** Write it in `docs/todos/`
+4. **Update `docs/README.md`** — add the doc to the correct section (Active or Pending)
+
+### When Auditing Docs
+
+Periodic audits should verify that Active docs still match source code. Run this checklist:
+1. For each Active doc, confirm the described behavior exists in source
+2. New gaps go into `CONTRACT_GAPS.md`
+3. Docs that are >50% unimplemented move to `docs/todos/`
+4. Resolved gaps get deleted from `CONTRACT_GAPS.md`
 
 ---
 
@@ -176,5 +227,5 @@ Adjust "Phase N" to match the relevant phase from `ROADMAP.md`. No banner = curr
 
 ---
 
-**Last Updated**: 2026-02-27
+**Last Updated**: 2026-03-24
 **Status**: Language-agnostic guidance (Java details in java/CLAUDE.md)
