@@ -248,6 +248,7 @@ public class SQLSchemaParser {
             Map<String, Object> model = new LinkedHashMap<>();
             model.put("name", modelName);
             model.put("source_table", sourceTable);
+            model.put("resource", modelName.replace('_', '-'));
             model.put("fields", parseColumns(columnDefs, domain, modelName, primaryKeys));
 
             Map<String, Object> domainData = domains.get(domain);
@@ -325,6 +326,7 @@ public class SQLSchemaParser {
             Map<String, Object> viewModel = new LinkedHashMap<>();
             viewModel.put("name", viewModelName);
             viewModel.put("source_view", viewName.toLowerCase());
+            viewModel.put("resource", viewModelName.replace('_', '-'));
             viewModel.put("fields", viewFields);
 
             Map<String, Object> domainData = domains.get(domain);
@@ -394,6 +396,7 @@ public class SQLSchemaParser {
 
             // Resolve neutral type from expression
             String neutralType = resolveExpressionType(expression, aliases);
+            String originalSqlType = resolveExpressionOriginalSqlType(expression, aliases);
             boolean nullable = resolveExpressionNullable(expression, aliases);
             Integer precision = resolveExpressionPrecision(expression, aliases);
             Integer scale = resolveExpressionScale(expression, aliases);
@@ -403,6 +406,9 @@ public class SQLSchemaParser {
             Map<String, Object> field = new LinkedHashMap<>();
             field.put("name", outputName.toLowerCase());
             field.put("type", neutralType);
+            if (originalSqlType != null) {
+                field.put("original_sql_type", originalSqlType);
+            }
             field.put("nullable", nullable);
             field.put("field_number", fieldNumber);
             if ("decimal".equals(neutralType) && precision != null) {
@@ -447,6 +453,36 @@ public class SQLSchemaParser {
         }
 
         return "string"; // fallback
+    }
+
+    private String resolveExpressionOriginalSqlType(String expression, Map<String, String> aliases) {
+        // Aggregate functions don't have a direct original SQL type
+        String upper = expression.toUpperCase().trim();
+        if (upper.startsWith("COUNT(") || upper.startsWith("SUM(") || upper.startsWith("AVG(")
+            || upper.startsWith("MIN(") || upper.startsWith("MAX(")) {
+            return null;
+        }
+
+        // Check for alias.column pattern
+        if (expression.contains(".")) {
+            String[] parts = expression.split("\\.");
+            String alias = parts[0].trim().toLowerCase();
+            String colName = parts[1].trim().toLowerCase();
+
+            String tableName = aliases.get(alias);
+            if (tableName != null) {
+                List<ColumnInfo> cols = tableColumns.get(tableName);
+                if (cols != null) {
+                    for (ColumnInfo ci : cols) {
+                        if (ci.name.equalsIgnoreCase(colName)) {
+                            return ci.originalSqlType;
+                        }
+                    }
+                }
+            }
+        }
+
+        return null;
     }
 
     private boolean resolveExpressionNullable(String expression, Map<String, String> aliases) {
@@ -595,7 +631,8 @@ public class SQLSchemaParser {
                 typeTokenEnd = i + 1;
             }
 
-            String typePart = typeBuilder.toString().toUpperCase();
+            String originalSqlType = typeBuilder.toString().toUpperCase();
+            String typePart = originalSqlType;
             if (typePart.isEmpty()) continue;
 
             String baseType = extractBaseType(typePart);
@@ -622,7 +659,7 @@ public class SQLSchemaParser {
                 }
             }
 
-            columns.add(new ColumnInfo(columnName.toLowerCase(), neutralType, isNullable, precision, scale));
+            columns.add(new ColumnInfo(columnName.toLowerCase(), neutralType, originalSqlType, isNullable, precision, scale));
         }
 
         return columns;
@@ -658,7 +695,8 @@ public class SQLSchemaParser {
             typeTokenEnd = i + 1;
         }
 
-        String typePart = typeBuilder.toString().toUpperCase();
+        String originalSqlType = typeBuilder.toString().toUpperCase();
+        String typePart = originalSqlType;
         if (typePart.isEmpty()) {
             return null;
         }
@@ -697,6 +735,7 @@ public class SQLSchemaParser {
         Map<String, Object> field = new LinkedHashMap<>();
         field.put("name", fieldNameLower);
         field.put("type", neutralType);
+        field.put("original_sql_type", originalSqlType);
         field.put("nullable", isNullable);
         field.put("field_number", fieldNumber);
         if (isPrimaryKey) {
@@ -761,12 +800,16 @@ public class SQLSchemaParser {
                 for (Map<String, Object> model : models) {
                     yaml.append("      - name: ").append(model.get("name")).append("\n");
                     yaml.append("        source_table: ").append(model.get("source_table")).append("\n");
+                    yaml.append("        resource: ").append(model.get("resource")).append("\n");
                     yaml.append("        fields:\n");
 
                     List<Map<String, Object>> fields = (List<Map<String, Object>>) model.get("fields");
                     for (Map<String, Object> field : fields) {
                         yaml.append("          - name: ").append(field.get("name")).append("\n");
                         yaml.append("            type: ").append(field.get("type")).append("\n");
+                        if (field.get("original_sql_type") != null) {
+                            yaml.append("            original_sql_type: \"").append(field.get("original_sql_type")).append("\"\n");
+                        }
                         yaml.append("            nullable: ").append(field.get("nullable")).append("\n");
                         yaml.append("            field_number: ").append(field.get("field_number")).append("\n");
                         if (Boolean.TRUE.equals(field.get("primary_key"))) {
@@ -789,12 +832,16 @@ public class SQLSchemaParser {
                 for (Map<String, Object> view : views) {
                     yaml.append("      - name: ").append(view.get("name")).append("\n");
                     yaml.append("        source_view: ").append(view.get("source_view")).append("\n");
+                    yaml.append("        resource: ").append(view.get("resource")).append("\n");
                     yaml.append("        fields:\n");
 
                     List<Map<String, Object>> fields = (List<Map<String, Object>>) view.get("fields");
                     for (Map<String, Object> field : fields) {
                         yaml.append("          - name: ").append(field.get("name")).append("\n");
                         yaml.append("            type: ").append(field.get("type")).append("\n");
+                        if (field.get("original_sql_type") != null) {
+                            yaml.append("            original_sql_type: \"").append(field.get("original_sql_type")).append("\"\n");
+                        }
                         yaml.append("            nullable: ").append(field.get("nullable")).append("\n");
                         yaml.append("            field_number: ").append(field.get("field_number")).append("\n");
                         if ("decimal".equals(field.get("type")) && field.get("precision") != null) {
@@ -814,13 +861,15 @@ public class SQLSchemaParser {
     private static class ColumnInfo {
         final String name;
         final String neutralType;
+        final String originalSqlType;
         final boolean nullable;
         final Integer precision;
         final Integer scale;
 
-        ColumnInfo(String name, String neutralType, boolean nullable, Integer precision, Integer scale) {
+        ColumnInfo(String name, String neutralType, String originalSqlType, boolean nullable, Integer precision, Integer scale) {
             this.name = name;
             this.neutralType = neutralType;
+            this.originalSqlType = originalSqlType;
             this.nullable = nullable;
             this.precision = precision;
             this.scale = scale;

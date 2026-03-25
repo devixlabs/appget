@@ -93,6 +93,28 @@ class FeatureToSpecsConverterTest {
         assertEquals("REJECTED", conditions.get(0).get("value"));
     }
 
+    @Test
+    @DisplayName("Simple condition: field is null (no value)")
+    void testSimpleConditionIsNull() {
+        List<Map<String, Object>> conditions = converter.parseSimpleCondition("middle_name is null");
+        assertEquals(1, conditions.size());
+        Map<String, Object> cond = conditions.get(0);
+        assertEquals("middle_name", cond.get("field"));
+        assertEquals("IS_NULL", cond.get("operator"));
+        assertNull(cond.get("value"), "IS_NULL condition should have null value");
+    }
+
+    @Test
+    @DisplayName("Simple condition: field is not null (no value)")
+    void testSimpleConditionIsNotNull() {
+        List<Map<String, Object>> conditions = converter.parseSimpleCondition("email is not null");
+        assertEquals(1, conditions.size());
+        Map<String, Object> cond = conditions.get(0);
+        assertEquals("email", cond.get("field"));
+        assertEquals("IS_NOT_NULL", cond.get("operator"));
+        assertNull(cond.get("value"), "IS_NOT_NULL condition should have null value");
+    }
+
     // ---- Value coercion ----
 
     @Test

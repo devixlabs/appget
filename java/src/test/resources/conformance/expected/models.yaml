@@ -7,68 +7,84 @@ domains:
     models:
       - name: roles
         source_table: roles
+        resource: roles
         fields:
           - name: name
             type: string
+            original_sql_type: "VARCHAR(100)"
             nullable: false
             field_number: 1
 
       - name: employees
         source_table: employees
+        resource: employees
         fields:
           - name: name
             type: string
+            original_sql_type: "VARCHAR(100)"
             nullable: false
             field_number: 1
           - name: age
             type: int32
+            original_sql_type: "INT"
             nullable: false
             field_number: 2
           - name: role_id
             type: string
+            original_sql_type: "VARCHAR(100)"
             nullable: false
             field_number: 3
           - name: country_of_origin
             type: string
+            original_sql_type: "VARCHAR(100)"
             nullable: true
             field_number: 4
 
       - name: vendors
         source_table: vendors
+        resource: vendors
         fields:
           - name: name
             type: string
+            original_sql_type: "VARCHAR(100)"
             nullable: false
             field_number: 1
           - name: location_id
             type: int32
+            original_sql_type: "INT"
             nullable: false
             field_number: 2
 
     views:
       - name: employee_salary_view
         source_view: employee_salary_view
+        resource: employee-salary-view
         fields:
           - name: employee_name
             type: string
+            original_sql_type: "VARCHAR(100)"
             nullable: false
             field_number: 1
           - name: employee_age
             type: int32
+            original_sql_type: "INT"
             nullable: false
             field_number: 2
           - name: role_id
             type: string
+            original_sql_type: "VARCHAR(100)"
             nullable: false
             field_number: 3
           - name: salary_amount
             type: decimal
+            original_sql_type: "DECIMAL(15, 2)"
             nullable: false
             field_number: 4
             precision: 15
             scale: 2
           - name: years_of_service
             type: int32
+            original_sql_type: "INT"
             nullable: true
             field_number: 5
 
@@ -77,39 +93,48 @@ domains:
     models:
       - name: invoices
         source_table: invoices
+        resource: invoices
         fields:
           - name: invoice_number
             type: string
+            original_sql_type: "VARCHAR(50)"
             nullable: false
             field_number: 1
           - name: amount
             type: decimal
+            original_sql_type: "DECIMAL(15, 2)"
             nullable: false
             field_number: 2
             precision: 15
             scale: 2
           - name: issue_date
             type: date
+            original_sql_type: "DATE"
             nullable: false
             field_number: 3
 
       - name: locations
         source_table: locations
+        resource: locations
         fields:
           - name: locationid
             type: string
+            original_sql_type: "VARCHAR(50)"
             nullable: false
             field_number: 1
           - name: locationname
             type: string
+            original_sql_type: "VARCHAR(100)"
             nullable: false
             field_number: 2
           - name: longitude
             type: float64
+            original_sql_type: "FLOAT"
             nullable: false
             field_number: 3
           - name: latitude
             type: float64
+            original_sql_type: "FLOAT"
             nullable: false
             field_number: 4
 
@@ -118,17 +143,21 @@ domains:
     models:
       - name: departments
         source_table: departments
+        resource: departments
         fields:
           - name: id
             type: string
+            original_sql_type: "VARCHAR(50)"
             nullable: false
             field_number: 1
           - name: name
             type: string
+            original_sql_type: "VARCHAR(100)"
             nullable: false
             field_number: 2
           - name: budget
             type: decimal
+            original_sql_type: "DECIMAL(15, 2)"
             nullable: false
             field_number: 3
             precision: 15
@@ -136,36 +165,44 @@ domains:
 
       - name: salaries
         source_table: salaries
+        resource: salaries
         fields:
           - name: employee_id
             type: string
+            original_sql_type: "VARCHAR(50)"
             nullable: false
             field_number: 1
           - name: amount
             type: decimal
+            original_sql_type: "DECIMAL(15, 2)"
             nullable: false
             field_number: 2
             precision: 15
             scale: 2
           - name: years_of_service
             type: int32
+            original_sql_type: "INT"
             nullable: true
             field_number: 3
 
     views:
       - name: department_budget_view
         source_view: department_budget_view
+        resource: department-budget-view
         fields:
           - name: department_id
             type: string
+            original_sql_type: "VARCHAR(50)"
             nullable: false
             field_number: 1
           - name: department_name
             type: string
+            original_sql_type: "VARCHAR(100)"
             nullable: false
             field_number: 2
           - name: department_budget
             type: decimal
+            original_sql_type: "DECIMAL(15, 2)"
             nullable: false
             field_number: 3
             precision: 15

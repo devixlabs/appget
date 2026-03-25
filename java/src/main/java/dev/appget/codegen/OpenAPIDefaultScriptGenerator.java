@@ -228,6 +228,9 @@ public class OpenAPIDefaultScriptGenerator {
             script.append("\n");
         }
 
+        // Error-path tests (metadata parsing, timestamp format)
+        generateErrorPathTests(script);
+
         // Footer with conditional exit code
         script.append("if [ \"$FAILURES\" -gt 0 ]; then\n");
         script.append("  echo -e \"${RED}========================================${NC}\"\n");
@@ -357,6 +360,83 @@ public class OpenAPIDefaultScriptGenerator {
         script.append("  fi\n");
         script.append("  echo \"\"\n");
         script.append("fi\n\n");
+    }
+
+    private void generateErrorPathTests(StringBuilder script) {
+        // Find the first POST endpoint to use for error testing
+        EndpointInfo postEndpoint = endpoints.stream()
+            .filter(e -> "POST".equals(e.method))
+            .findFirst()
+            .orElse(null);
+
+        if (postEndpoint == null) return;
+
+        String sampleJson = generateSampleJson(postEndpoint.schemaRef);
+
+        script.append("# ").append("=".repeat(60)).append("\n");
+        script.append("# Error Path Tests\n");
+        script.append("# ").append("=".repeat(60)).append("\n\n");
+
+        // Test: Invalid metadata header type → 400 Bad Request
+        script.append("echo -e \"${BLUE}Testing: Invalid metadata header returns 400${NC}\"\n");
+        script.append("RESPONSE=$(curl -s -w \"\\n%{http_code}\" -X POST \"$BASE_URL").append(postEndpoint.path).append("\" \\\n");
+        script.append("  -H 'Content-Type: application/json' \\\n");
+        script.append("  -H 'X-Sso-Authenticated: true' \\\n");
+        script.append("  -H 'X-Roles-Role-Level: not-a-number' \\\n");
+        script.append("  -d '").append(sampleJson).append("')\n");
+        script.append("HTTP_CODE=$(echo \"$RESPONSE\" | tail -n1)\n");
+        script.append("BODY=$(echo \"$RESPONSE\" | sed '$d')\n");
+        script.append("if [ \"$HTTP_CODE\" -eq 400 ]; then\n");
+        script.append("  echo -e \"${GREEN}✓ Invalid metadata header - Bad Request (400)${NC}\"\n");
+        script.append("  # Verify error code is INVALID_METADATA\n");
+        script.append("  if echo \"$BODY\" | python3 -c \"import sys, json; d=json.load(sys.stdin); assert d['errorCode'] == 'INVALID_METADATA'\" 2>/dev/null; then\n");
+        script.append("    echo -e \"${GREEN}✓ Error code is INVALID_METADATA${NC}\"\n");
+        script.append("  else\n");
+        script.append("    echo -e \"${RED}✗ Error code is not INVALID_METADATA${NC}\"\n");
+        script.append("    echo \"$BODY\" | python3 -m json.tool 2>/dev/null || echo \"$BODY\"\n");
+        script.append("    FAILURES=$((FAILURES + 1))\n");
+        script.append("  fi\n");
+        script.append("else\n");
+        script.append("  echo -e \"${RED}✗ Invalid metadata header - Expected 400, got $HTTP_CODE${NC}\"\n");
+        script.append("  echo \"$BODY\"\n");
+        script.append("  FAILURES=$((FAILURES + 1))\n");
+        script.append("fi\n");
+        script.append("echo \"\"\n\n");
+
+        // Test: Error response timestamp is RFC 3339 (has timezone offset)
+        script.append("echo -e \"${BLUE}Testing: Error response timestamp is RFC 3339${NC}\"\n");
+        script.append("# Reuse the 400 response from above\n");
+        script.append("RESPONSE=$(curl -s -X POST \"$BASE_URL").append(postEndpoint.path).append("\" \\\n");
+        script.append("  -H 'Content-Type: application/json' \\\n");
+        script.append("  -H 'X-Roles-Role-Level: bad-value' \\\n");
+        script.append("  -d '").append(sampleJson).append("')\n");
+        script.append("if echo \"$RESPONSE\" | python3 -c \"\n");
+        script.append("import sys, json, re\n");
+        script.append("d = json.load(sys.stdin)\n");
+        script.append("ts = d.get('timestamp', '')\n");
+        script.append("# RFC 3339 requires timezone offset like +00:00 or Z\n");
+        script.append("assert re.search(r'[+-]\\\\d{2}:\\\\d{2}$|Z$', ts), f'Not RFC 3339: {ts}'\n");
+        script.append("\" 2>/dev/null; then\n");
+        script.append("  echo -e \"${GREEN}✓ Timestamp is RFC 3339 compliant${NC}\"\n");
+        script.append("else\n");
+        script.append("  echo -e \"${RED}✗ Timestamp is not RFC 3339 compliant${NC}\"\n");
+        script.append("  echo \"$RESPONSE\" | python3 -m json.tool 2>/dev/null || echo \"$RESPONSE\"\n");
+        script.append("  FAILURES=$((FAILURES + 1))\n");
+        script.append("fi\n");
+        script.append("echo \"\"\n\n");
+
+        // Test: 404 for non-existent resource
+        script.append("echo -e \"${BLUE}Testing: Non-existent resource returns 404${NC}\"\n");
+        String getPath = postEndpoint.path + "/non-existent-id-12345";
+        script.append("RESPONSE=$(curl -s -w \"\\n%{http_code}\" -X GET \"$BASE_URL").append(getPath).append("\")\n");
+        script.append("HTTP_CODE=$(echo \"$RESPONSE\" | tail -n1)\n");
+        script.append("if [ \"$HTTP_CODE\" -eq 404 ]; then\n");
+        script.append("  echo -e \"${GREEN}✓ Non-existent resource - Not Found (404)${NC}\"\n");
+        script.append("else\n");
+        script.append("  echo -e \"${RED}✗ Non-existent resource - Expected 404, got $HTTP_CODE${NC}\"\n");
+        script.append("  FAILURES=$((FAILURES + 1))\n");
+        script.append("fi\n");
+        script.append("echo \"\"\n\n");
     }
 
     @SuppressWarnings("unchecked")

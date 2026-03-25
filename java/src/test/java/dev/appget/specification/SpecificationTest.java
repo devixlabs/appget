@@ -3,6 +3,7 @@ package dev.appget.specification;
 import dev.appget.auth.model.Users;
 import dev.appget.admin.model.Roles;
 import dev.appget.social.view.PostDetailView;
+import dev.appget.specification.context.SsoContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -396,5 +397,40 @@ class SpecificationTest {
     void testEqualsAliasStrings() {
         Specification spec = new Specification("username", "equals", "alice");
         assertTrue(spec.isSatisfiedBy(user), "'equals' should work for strings");
+    }
+
+    // ---- IS_NULL / IS_NOT_NULL operators ----
+
+    @Test
+    @DisplayName("IS_NULL returns true when field is null (reflection path)")
+    void testIsNullTrueWhenFieldIsNull() {
+        // SsoContext built without setting sessionId → sessionId is null (Lombok POJO)
+        SsoContext sso = SsoContext.builder().authenticated(true).build();
+        Specification spec = new Specification("sessionId", "IS_NULL", null);
+        assertTrue(spec.isSatisfiedBy(sso), "IS_NULL should return true when field is null");
+    }
+
+    @Test
+    @DisplayName("IS_NULL returns false when field has a value (reflection path)")
+    void testIsNullFalseWhenFieldHasValue() {
+        SsoContext sso = SsoContext.builder().authenticated(true).sessionId("abc123").build();
+        Specification spec = new Specification("sessionId", "IS_NULL", null);
+        assertFalse(spec.isSatisfiedBy(sso), "IS_NULL should return false when field has a value");
+    }
+
+    @Test
+    @DisplayName("IS_NOT_NULL returns true when field has a value (reflection path)")
+    void testIsNotNullTrueWhenFieldHasValue() {
+        SsoContext sso = SsoContext.builder().authenticated(true).sessionId("abc123").build();
+        Specification spec = new Specification("sessionId", "IS_NOT_NULL", null);
+        assertTrue(spec.isSatisfiedBy(sso), "IS_NOT_NULL should return true when field has a value");
+    }
+
+    @Test
+    @DisplayName("IS_NOT_NULL returns false when field is null (reflection path)")
+    void testIsNotNullFalseWhenFieldIsNull() {
+        SsoContext sso = SsoContext.builder().authenticated(true).build();
+        Specification spec = new Specification("sessionId", "IS_NOT_NULL", null);
+        assertFalse(spec.isSatisfiedBy(sso), "IS_NOT_NULL should return false when field is null");
     }
 }

@@ -84,6 +84,12 @@ public class Specification {
     }
 
     private boolean compare(Object actual, Object expected, String operator) {
+        if (operator.equals("IS_NULL")) {
+            return actual == null;
+        } else if (operator.equals("IS_NOT_NULL")) {
+            return actual != null;
+        }
+
         if (actual == null || expected == null) {
             return compareNulls(actual, expected, operator);
         }
@@ -146,7 +152,11 @@ public class Specification {
     }
 
     private boolean compareNulls(Object actual, Object expected, String operator) {
-        if (operator.equals("==") || operator.equals("equals")) {
+        if (operator.equals("IS_NULL")) {
+            return actual == null;
+        } else if (operator.equals("IS_NOT_NULL")) {
+            return actual != null;
+        } else if (operator.equals("==") || operator.equals("equals")) {
             return actual == expected;
         } else if (operator.equals("!=")) {
             return actual != expected;

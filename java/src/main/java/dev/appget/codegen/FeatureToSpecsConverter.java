@@ -42,6 +42,8 @@ public class FeatureToSpecsConverter {
         OPERATOR_MAP.put("is at least", ">=");
         OPERATOR_MAP.put("is at most", "<=");
         OPERATOR_MAP.put("equals", "==");
+        OPERATOR_MAP.put("is not null", "IS_NOT_NULL");
+        OPERATOR_MAP.put("is null", "IS_NULL");
     }
 
     // Build regex alternation from operator phrases
@@ -56,6 +58,10 @@ public class FeatureToSpecsConverter {
     // Regex: field_name <operator_phrase> unquoted_value
     private static final Pattern SIMPLE_CONDITION_UNQUOTED = Pattern.compile(
             "(\\w+)\\s+(" + OPERATOR_ALTERNATION + ")\\s+(\\S+)$");
+
+    // Regex: field_name is null / field_name is not null (no value part)
+    private static final Pattern NULL_CHECK_CONDITION = Pattern.compile(
+            "(\\w+)\\s+(is not null|is null)$");
 
     // Regex: <category> context requires:
     private static final Pattern METADATA_PATTERN = Pattern.compile(
@@ -264,6 +270,14 @@ public class FeatureToSpecsConverter {
 
     // Parse simple condition from step text like: age is greater than 18
     List<Map<String, Object>> parseSimpleCondition(String text) {
+        // Try null-check conditions first (no value part)
+        Matcher nm = NULL_CHECK_CONDITION.matcher(text);
+        if (nm.matches()) {
+            String field = nm.group(1);
+            String operatorPhrase = nm.group(2);
+            return List.of(buildCondition(field, OPERATOR_MAP.get(operatorPhrase), null));
+        }
+
         // Try quoted value first
         Matcher m = SIMPLE_CONDITION_QUOTED.matcher(text);
         if (m.matches()) {
@@ -573,8 +587,10 @@ public class FeatureToSpecsConverter {
             for (Map<String, Object> cond : condList) {
                 sb.append("      - field: ").append(cond.get("field")).append("\n");
                 sb.append("        operator: ").append(formatYamlValue(cond.get("operator"))).append("\n");
-                sb.append("        value: ").append(formatYamlValue(cond.get("value"))).append("\n");
-                sb.append("        value_type: ").append(inferValueType(cond.get("value"))).append("\n");
+                if (cond.get("value") != null) {
+                    sb.append("        value: ").append(formatYamlValue(cond.get("value"))).append("\n");
+                    sb.append("        value_type: ").append(inferValueType(cond.get("value"))).append("\n");
+                }
             }
         } else if (conditions instanceof Map) {
             Map<String, Object> compound = (Map<String, Object>) conditions;
@@ -584,8 +600,10 @@ public class FeatureToSpecsConverter {
             for (Map<String, Object> clause : clauses) {
                 sb.append("        - field: ").append(clause.get("field")).append("\n");
                 sb.append("          operator: ").append(formatYamlValue(clause.get("operator"))).append("\n");
-                sb.append("          value: ").append(formatYamlValue(clause.get("value"))).append("\n");
-                sb.append("          value_type: ").append(inferValueType(clause.get("value"))).append("\n");
+                if (clause.get("value") != null) {
+                    sb.append("          value: ").append(formatYamlValue(clause.get("value"))).append("\n");
+                    sb.append("          value_type: ").append(inferValueType(clause.get("value"))).append("\n");
+                }
             }
         }
 

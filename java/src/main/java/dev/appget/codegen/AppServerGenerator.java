@@ -232,8 +232,9 @@ public class AppServerGenerator {
         code.append("import org.springframework.boot.SpringApplication;\n");
         code.append("import org.springframework.boot.autoconfigure.SpringBootApplication;\n");
         code.append("import org.springframework.context.annotation.Bean;\n");
-        code.append("import org.springframework.http.converter.json.Jackson2ObjectMapperBuilder;\n");
         code.append("import com.fasterxml.jackson.databind.ObjectMapper;\n");
+        code.append("import com.fasterxml.jackson.databind.SerializationFeature;\n");
+        code.append("import com.fasterxml.jackson.databind.DeserializationFeature;\n");
         code.append("import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;\n");
         code.append("import com.hubspot.jackson.datatype.protobuf.ProtobufModule;\n");
         code.append("import dev.appget.server.config.DecimalJacksonModule;\n\n");
@@ -249,9 +250,13 @@ public class AppServerGenerator {
         code.append("    }\n\n");
         code.append("    @Bean\n");
         code.append("    public ObjectMapper objectMapper() {\n");
-        code.append("        return Jackson2ObjectMapperBuilder.json()\n");
-        code.append("            .modules(new ProtobufModule(), new JavaTimeModule(), new DecimalJacksonModule())\n");
-        code.append("            .build();\n");
+        code.append("        ObjectMapper mapper = new ObjectMapper();\n");
+        code.append("        mapper.registerModule(new ProtobufModule());\n");
+        code.append("        mapper.registerModule(new JavaTimeModule());\n");
+        code.append("        mapper.registerModule(new DecimalJacksonModule());\n");
+        code.append("        mapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);\n");
+        code.append("        mapper.disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);\n");
+        code.append("        return mapper;\n");
         code.append("    }\n");
         code.append("}\n");
 
@@ -997,6 +1002,7 @@ public class AppServerGenerator {
         code.append("import ").append(BASE_PACKAGE).append(".dto.ErrorResponse;\n");
         code.append("import org.springframework.http.HttpStatus;\n");
         code.append("import org.springframework.http.ResponseEntity;\n");
+        code.append("import org.springframework.http.converter.HttpMessageNotReadableException;\n");
         code.append("import org.springframework.web.bind.annotation.ControllerAdvice;\n");
         code.append("import org.springframework.web.bind.annotation.ExceptionHandler;\n");
         code.append("import java.time.OffsetDateTime;\n\n");
@@ -1037,6 +1043,26 @@ public class AppServerGenerator {
         code.append("            .timestamp(OffsetDateTime.now())\n");
         code.append("            .build();\n");
         code.append("        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);\n");
+        code.append("    }\n\n");
+
+        code.append("    @ExceptionHandler(HttpMessageNotReadableException.class)\n");
+        code.append("    public ResponseEntity<ErrorResponse> handleBadRequest(HttpMessageNotReadableException ex) {\n");
+        code.append("        ErrorResponse response = ErrorResponse.builder()\n");
+        code.append("            .errorCode(\"BAD_REQUEST\")\n");
+        code.append("            .message(\"Invalid request body: \" + ex.getMostSpecificCause().getMessage())\n");
+        code.append("            .timestamp(OffsetDateTime.now())\n");
+        code.append("            .build();\n");
+        code.append("        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);\n");
+        code.append("    }\n\n");
+
+        code.append("    @ExceptionHandler(Exception.class)\n");
+        code.append("    public ResponseEntity<ErrorResponse> handleGeneral(Exception ex) {\n");
+        code.append("        ErrorResponse response = ErrorResponse.builder()\n");
+        code.append("            .errorCode(\"INTERNAL_ERROR\")\n");
+        code.append("            .message(ex.getMessage())\n");
+        code.append("            .timestamp(OffsetDateTime.now())\n");
+        code.append("            .build();\n");
+        code.append("        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);\n");
         code.append("    }\n");
         code.append("}\n");
 
@@ -1046,6 +1072,7 @@ public class AppServerGenerator {
     private void generateRepositoryInterface(ModelInfo model, String outputDir) throws IOException {
         String interfaceName = pascalName(model) + "Repository";
         String packageName = BASE_PACKAGE + ".repository";
+        String idParams = buildIdParams(model);
 
         StringBuilder code = new StringBuilder();
         code.append("package ").append(packageName).append(";\n\n");
@@ -1062,10 +1089,10 @@ public class AppServerGenerator {
         code.append("public interface ").append(interfaceName).append(" {\n\n");
 
         code.append("    ").append(pascalName(model)).append(" save(").append(pascalName(model)).append(" entity);\n\n");
-        code.append("    Optional<").append(pascalName(model)).append("> findById(String id);\n\n");
+        code.append("    Optional<").append(pascalName(model)).append("> findById(").append(idParams).append(");\n\n");
         code.append("    List<").append(pascalName(model)).append("> findAll();\n\n");
-        code.append("    void deleteById(String id);\n\n");
-        code.append("    boolean existsById(String id);\n");
+        code.append("    void deleteById(").append(idParams).append(");\n\n");
+        code.append("    boolean existsById(").append(idParams).append(");\n");
         code.append("}\n");
 
         writefile(outputDir, packageName, interfaceName, code.toString());
@@ -1075,6 +1102,12 @@ public class AppServerGenerator {
         String className = "InMemory" + pascalName(model) + "Repository";
         String interfaceName = pascalName(model) + "Repository";
         String packageName = BASE_PACKAGE + ".repository";
+        boolean compositeKey = isCompositeKey(model);
+        String idParams = buildIdParams(model);
+        String compositeKeyExpr = buildCompositeKeyExpr(model);
+        String entityKeyExpr = buildEntityCompositeKeyExpr(model);
+        String logPattern = buildLogPattern(model);
+        String logArgs = buildLogArgs(model);
 
         StringBuilder code = new StringBuilder();
         code.append("package ").append(packageName).append(";\n\n");
@@ -1098,41 +1131,58 @@ public class AppServerGenerator {
         code.append("@Component\n");
         code.append("public class ").append(className).append(" implements ").append(interfaceName).append(" {\n\n");
 
-        // Check if model has an 'id' field
+        // Check if model has an 'id' field (only relevant for non-composite keys)
         boolean hasIdField = model.fields.stream()
             .anyMatch(f -> "id".equals(f.get("name")));
 
         code.append("    private final Map<String, ").append(pascalName(model)).append("> store = new ConcurrentHashMap<>();\n");
-        if (!hasIdField) {
+        if (!hasIdField && !compositeKey) {
             code.append("    private final AtomicLong idGenerator = new AtomicLong();\n");
         }
         code.append("\n");
 
+        // save method
         code.append("    @Override\n");
         code.append("    public ").append(pascalName(model)).append(" save(").append(pascalName(model)).append(" entity) {\n");
-        if (hasIdField) {
+        if (compositeKey) {
+            code.append("        String key = ").append(entityKeyExpr).append(";\n");
+            code.append("        log.debug(\"Saving ").append(model.name).append(" with key: {}\", key);\n");
+            code.append("        store.put(key, entity);\n");
+            code.append("        log.info(\"Successfully saved ").append(model.name).append(" with key: {}\", key);\n");
+        } else if (hasIdField) {
             code.append("        String id = entity.getId();\n");
+            code.append("        log.debug(\"Saving ").append(model.name).append(" with id: {}\", id);\n");
+            code.append("        store.put(id, entity);\n");
+            code.append("        log.info(\"Successfully saved ").append(model.name).append(" with id: {}\", id);\n");
         } else {
             code.append("        String id = String.valueOf(idGenerator.incrementAndGet());\n");
+            code.append("        log.debug(\"Saving ").append(model.name).append(" with id: {}\", id);\n");
+            code.append("        store.put(id, entity);\n");
+            code.append("        log.info(\"Successfully saved ").append(model.name).append(" with id: {}\", id);\n");
         }
-        code.append("        log.debug(\"Saving ").append(model.name).append(" with id: {}\", id);\n");
-        code.append("        store.put(id, entity);\n");
-        code.append("        log.info(\"Successfully saved ").append(model.name).append(" with id: {}\", id);\n");
         code.append("        return entity;\n");
         code.append("    }\n\n");
 
+        // findById method
         code.append("    @Override\n");
-        code.append("    public Optional<").append(pascalName(model)).append("> findById(String id) {\n");
-        code.append("        log.debug(\"Looking up ").append(model.name).append(" with id: {}\", id);\n");
-        code.append("        Optional<").append(pascalName(model)).append("> result = Optional.ofNullable(store.get(id));\n");
+        code.append("    public Optional<").append(pascalName(model)).append("> findById(").append(idParams).append(") {\n");
+        if (compositeKey) {
+            code.append("        String key = ").append(compositeKeyExpr).append(";\n");
+            code.append("        log.debug(\"Looking up ").append(model.name).append(" with ").append(logPattern).append("\", ").append(logArgs).append(");\n");
+            code.append("        Optional<").append(pascalName(model)).append("> result = Optional.ofNullable(store.get(key));\n");
+        } else {
+            code.append("        log.debug(\"Looking up ").append(model.name).append(" with id: {}\", id);\n");
+            code.append("        Optional<").append(pascalName(model)).append("> result = Optional.ofNullable(store.get(id));\n");
+        }
         code.append("        if (result.isPresent()) {\n");
-        code.append("            log.debug(\"Found ").append(model.name).append(" with id: {}\", id);\n");
+        code.append("            log.debug(\"Found ").append(model.name).append(" with ").append(logPattern).append("\", ").append(logArgs).append(");\n");
         code.append("        } else {\n");
-        code.append("            log.debug(\"").append(model.name).append(" not found with id: {}\", id);\n");
+        code.append("            log.debug(\"").append(model.name).append(" not found with ").append(logPattern).append("\", ").append(logArgs).append(");\n");
         code.append("        }\n");
         code.append("        return result;\n");
         code.append("    }\n\n");
 
+        // findAll method
         code.append("    @Override\n");
         code.append("    public List<").append(pascalName(model)).append("> findAll() {\n");
         code.append("        log.debug(\"Retrieving all ").append(model.name).append(" entities\");\n");
@@ -1141,17 +1191,32 @@ public class AppServerGenerator {
         code.append("        return results;\n");
         code.append("    }\n\n");
 
+        // deleteById method
         code.append("    @Override\n");
-        code.append("    public void deleteById(String id) {\n");
-        code.append("        log.debug(\"Deleting ").append(model.name).append(" with id: {}\", id);\n");
-        code.append("        store.remove(id);\n");
-        code.append("        log.info(\"Successfully deleted ").append(model.name).append(" with id: {}\", id);\n");
+        code.append("    public void deleteById(").append(idParams).append(") {\n");
+        if (compositeKey) {
+            code.append("        String key = ").append(compositeKeyExpr).append(";\n");
+            code.append("        log.debug(\"Deleting ").append(model.name).append(" with ").append(logPattern).append("\", ").append(logArgs).append(");\n");
+            code.append("        store.remove(key);\n");
+            code.append("        log.info(\"Successfully deleted ").append(model.name).append(" with ").append(logPattern).append("\", ").append(logArgs).append(");\n");
+        } else {
+            code.append("        log.debug(\"Deleting ").append(model.name).append(" with id: {}\", id);\n");
+            code.append("        store.remove(id);\n");
+            code.append("        log.info(\"Successfully deleted ").append(model.name).append(" with id: {}\", id);\n");
+        }
         code.append("    }\n\n");
 
+        // existsById method
         code.append("    @Override\n");
-        code.append("    public boolean existsById(String id) {\n");
-        code.append("        boolean exists = store.containsKey(id);\n");
-        code.append("        log.debug(\"Checking existence of ").append(model.name).append(" with id: {}, exists: {}\", id, exists);\n");
+        code.append("    public boolean existsById(").append(idParams).append(") {\n");
+        if (compositeKey) {
+            code.append("        String key = ").append(compositeKeyExpr).append(";\n");
+            code.append("        boolean exists = store.containsKey(key);\n");
+            code.append("        log.debug(\"Checking existence of ").append(model.name).append(" with ").append(logPattern).append(", exists: {}\", ").append(logArgs).append(", exists);\n");
+        } else {
+            code.append("        boolean exists = store.containsKey(id);\n");
+            code.append("        log.debug(\"Checking existence of ").append(model.name).append(" with id: {}, exists: {}\", id, exists);\n");
+        }
         code.append("        return exists;\n");
         code.append("    }\n");
         code.append("}\n");
@@ -1163,6 +1228,12 @@ public class AppServerGenerator {
         String className = pascalName(model) + "Service";
         String packageName = BASE_PACKAGE + ".service";
         String repositoryClass = pascalName(model) + "Repository";
+        boolean compositeKey = isCompositeKey(model);
+        String idParams = buildIdParams(model);
+        String idArgs = buildIdArgs(model);
+        String logPattern = buildLogPattern(model);
+        String logArgs = buildLogArgs(model);
+        String notFoundMsg = buildNotFoundMsg(model, model.name);
 
         StringBuilder code = new StringBuilder();
         code.append("package ").append(packageName).append(";\n\n");
@@ -1194,6 +1265,7 @@ public class AppServerGenerator {
         code.append("        this.ruleService = ruleService;\n");
         code.append("    }\n\n");
 
+        // create method (unchanged — always takes entity, no ID params)
         code.append("    public RuleAwareResponse<").append(pascalName(model)).append("> create(").append(pascalName(model)).append(" entity, MetadataContext metadata) {\n");
         code.append("        log.info(\"Creating new ").append(model.name).append(" entity\");\n");
         code.append("        log.debug(\"Entity data: {}\", entity);\n");
@@ -1211,49 +1283,53 @@ public class AppServerGenerator {
         code.append("            .build();\n");
         code.append("    }\n\n");
 
-        code.append("    public ").append(pascalName(model)).append(" findById(String id) {\n");
-        code.append("        log.debug(\"Fetching ").append(model.name).append(" by id: {}\", id);\n");
-        code.append("        return repository.findById(id)\n");
+        // findById method
+        code.append("    public ").append(pascalName(model)).append(" findById(").append(idParams).append(") {\n");
+        code.append("        log.debug(\"Fetching ").append(model.name).append(" by ").append(logPattern).append("\", ").append(logArgs).append(");\n");
+        code.append("        return repository.findById(").append(idArgs).append(")\n");
         code.append("            .orElseThrow(() -> {\n");
-        code.append("                log.warn(\"").append(model.name).append(" not found with id: {}\", id);\n");
-        code.append("                return new ResourceNotFoundException(\"").append(model.name).append(" not found: \" + id);\n");
+        code.append("                log.warn(\"").append(model.name).append(" not found with ").append(logPattern).append("\", ").append(logArgs).append(");\n");
+        code.append("                return new ResourceNotFoundException(").append(notFoundMsg).append(");\n");
         code.append("            });\n");
         code.append("    }\n\n");
 
+        // findAll method
         code.append("    public List<").append(pascalName(model)).append("> findAll() {\n");
         code.append("        log.debug(\"Fetching all ").append(model.name).append(" entities\");\n");
         code.append("        return repository.findAll();\n");
         code.append("    }\n\n");
 
-        code.append("    public RuleAwareResponse<").append(pascalName(model)).append("> update(String id, ").append(pascalName(model)).append(" entity, MetadataContext metadata) {\n");
-        code.append("        log.info(\"Updating ").append(model.name).append(" with id: {}\", id);\n");
-        code.append("        if (!repository.existsById(id)) {\n");
-        code.append("            log.warn(\"").append(model.name).append(" not found for update with id: {}\", id);\n");
-        code.append("            throw new ResourceNotFoundException(\"").append(model.name).append(" not found: \" + id);\n");
+        // update method
+        code.append("    public RuleAwareResponse<").append(pascalName(model)).append("> update(").append(idParams).append(", ").append(pascalName(model)).append(" entity, MetadataContext metadata) {\n");
+        code.append("        log.info(\"Updating ").append(model.name).append(" with ").append(logPattern).append("\", ").append(logArgs).append(");\n");
+        code.append("        if (!repository.existsById(").append(idArgs).append(")) {\n");
+        code.append("            log.warn(\"").append(model.name).append(" not found for update with ").append(logPattern).append("\", ").append(logArgs).append(");\n");
+        code.append("            throw new ResourceNotFoundException(").append(notFoundMsg).append(");\n");
         code.append("        }\n");
         code.append("        log.debug(\"Entity data: {}\", entity);\n");
         code.append("        RuleEvaluationResult ruleResult = ruleService.evaluateAll(entity, metadata);\n");
         code.append("        log.debug(\"Rule evaluation completed with hasFailures: {}\", ruleResult.isHasFailures());\n");
         code.append("        if (ruleResult.isHasFailures()) {\n");
-        code.append("            log.warn(\"").append(model.name).append(" update failed validation for id: {}\", id);\n");
+        code.append("            log.warn(\"").append(model.name).append(" update failed validation for ").append(logPattern).append("\", ").append(logArgs).append(");\n");
         code.append("            throw new RuleViolationException(\"Validation failed\", ruleResult);\n");
         code.append("        }\n");
         code.append("        ").append(pascalName(model)).append(" updated = repository.save(entity);\n");
-        code.append("        log.info(\"Successfully updated ").append(model.name).append(" with id: {}\", id);\n");
+        code.append("        log.info(\"Successfully updated ").append(model.name).append(" with ").append(logPattern).append("\", ").append(logArgs).append(");\n");
         code.append("        return RuleAwareResponse.<").append(pascalName(model)).append(">builder()\n");
         code.append("            .data(updated)\n");
         code.append("            .ruleResults(ruleResult)\n");
         code.append("            .build();\n");
         code.append("    }\n\n");
 
-        code.append("    public void deleteById(String id) {\n");
-        code.append("        log.info(\"Deleting ").append(model.name).append(" with id: {}\", id);\n");
-        code.append("        if (!repository.existsById(id)) {\n");
-        code.append("            log.warn(\"").append(model.name).append(" not found for deletion with id: {}\", id);\n");
-        code.append("            throw new ResourceNotFoundException(\"").append(model.name).append(" not found: \" + id);\n");
+        // deleteById method
+        code.append("    public void deleteById(").append(idParams).append(") {\n");
+        code.append("        log.info(\"Deleting ").append(model.name).append(" with ").append(logPattern).append("\", ").append(logArgs).append(");\n");
+        code.append("        if (!repository.existsById(").append(idArgs).append(")) {\n");
+        code.append("            log.warn(\"").append(model.name).append(" not found for deletion with ").append(logPattern).append("\", ").append(logArgs).append(");\n");
+        code.append("            throw new ResourceNotFoundException(").append(notFoundMsg).append(");\n");
         code.append("        }\n");
-        code.append("        repository.deleteById(id);\n");
-        code.append("        log.info(\"Successfully deleted ").append(model.name).append(" with id: {}\", id);\n");
+        code.append("        repository.deleteById(").append(idArgs).append(");\n");
+        code.append("        log.info(\"Successfully deleted ").append(model.name).append(" with ").append(logPattern).append("\", ").append(logArgs).append(");\n");
         code.append("    }\n");
         code.append("}\n");
 
@@ -1265,6 +1341,12 @@ public class AppServerGenerator {
         String packageName = BASE_PACKAGE + ".controller";
         String serviceClass = pascalName(model) + "Service";
         String resourcePath = "/" + toResourceName(model.name);
+        boolean compositeKey = isCompositeKey(model);
+        String pathVarSegment = buildPathVariableSegment(model);
+        String pathVarParams = buildPathVariableParams(model);
+        String idArgs = buildIdArgs(model);
+        String logPattern = buildLogPattern(model);
+        String logArgs = buildLogArgs(model);
 
         StringBuilder code = new StringBuilder();
         code.append("package ").append(packageName).append(";\n\n");
@@ -1321,35 +1403,35 @@ public class AppServerGenerator {
         code.append("        return ResponseEntity.ok(results);\n");
         code.append("    }\n\n");
 
-        // GET /entities/{id}
-        code.append("    @GetMapping(\"/{id}\")\n");
-        code.append("    public ResponseEntity<").append(pascalName(model)).append("> get(@PathVariable String id) {\n");
-        code.append("        log.info(\"GET ").append(resourcePath).append("/{id} - Retrieving ").append(model.name).append(" with id: {}\", id);\n");
-        code.append("        ").append(pascalName(model)).append(" result = service.findById(id);\n");
-        code.append("        log.info(\"Found ").append(model.name).append(" with id: {}\", id);\n");
+        // GET /entities/{id} or /entities/{pk1}/{pk2}
+        code.append("    @GetMapping(\"").append(pathVarSegment).append("\")\n");
+        code.append("    public ResponseEntity<").append(pascalName(model)).append("> get(").append(pathVarParams).append(") {\n");
+        code.append("        log.info(\"GET ").append(resourcePath).append(pathVarSegment).append(" - Retrieving ").append(model.name).append(" with ").append(logPattern).append("\", ").append(logArgs).append(");\n");
+        code.append("        ").append(pascalName(model)).append(" result = service.findById(").append(idArgs).append(");\n");
+        code.append("        log.info(\"Found ").append(model.name).append(" with ").append(logPattern).append("\", ").append(logArgs).append(");\n");
         code.append("        return ResponseEntity.ok(result);\n");
         code.append("    }\n\n");
 
-        // PUT /entities/{id}
-        code.append("    @PutMapping(\"/{id}\")\n");
+        // PUT /entities/{id} or /entities/{pk1}/{pk2}
+        code.append("    @PutMapping(\"").append(pathVarSegment).append("\")\n");
         code.append("    public ResponseEntity<RuleAwareResponse<").append(pascalName(model)).append(">> update(\n");
-        code.append("            @PathVariable String id,\n");
+        code.append("            ").append(pathVarParams).append(",\n");
         code.append("            @Valid @RequestBody ").append(pascalName(model)).append(" entity,\n");
         code.append("            HttpServletRequest request) {\n");
-        code.append("        log.info(\"PUT ").append(resourcePath).append("/{id} - Updating ").append(model.name).append(" with id: {}\", id);\n");
+        code.append("        log.info(\"PUT ").append(resourcePath).append(pathVarSegment).append(" - Updating ").append(model.name).append(" with ").append(logPattern).append("\", ").append(logArgs).append(");\n");
         code.append("        log.debug(\"Request headers: {} {}\", request.getMethod(), request.getRequestURI());\n");
         code.append("        MetadataContext metadata = metadataExtractor.extractFromHeaders(request);\n");
-        code.append("        RuleAwareResponse<").append(pascalName(model)).append("> response = service.update(id, entity, metadata);\n");
-        code.append("        log.info(\"Successfully updated ").append(model.name).append(" with id: {}\", id);\n");
+        code.append("        RuleAwareResponse<").append(pascalName(model)).append("> response = service.update(").append(idArgs).append(", entity, metadata);\n");
+        code.append("        log.info(\"Successfully updated ").append(model.name).append(" with ").append(logPattern).append("\", ").append(logArgs).append(");\n");
         code.append("        return ResponseEntity.ok(response);\n");
         code.append("    }\n\n");
 
-        // DELETE /entities/{id}
-        code.append("    @DeleteMapping(\"/{id}\")\n");
-        code.append("    public ResponseEntity<Void> delete(@PathVariable String id) {\n");
-        code.append("        log.info(\"DELETE ").append(resourcePath).append("/{id} - Deleting ").append(model.name).append(" with id: {}\", id);\n");
-        code.append("        service.deleteById(id);\n");
-        code.append("        log.info(\"Successfully deleted ").append(model.name).append(" with id: {}\", id);\n");
+        // DELETE /entities/{id} or /entities/{pk1}/{pk2}
+        code.append("    @DeleteMapping(\"").append(pathVarSegment).append("\")\n");
+        code.append("    public ResponseEntity<Void> delete(").append(pathVarParams).append(") {\n");
+        code.append("        log.info(\"DELETE ").append(resourcePath).append(pathVarSegment).append(" - Deleting ").append(model.name).append(" with ").append(logPattern).append("\", ").append(logArgs).append(");\n");
+        code.append("        service.deleteById(").append(idArgs).append(");\n");
+        code.append("        log.info(\"Successfully deleted ").append(model.name).append(" with ").append(logPattern).append("\", ").append(logArgs).append(");\n");
         code.append("        return ResponseEntity.noContent().build();\n");
         code.append("    }\n");
         code.append("}\n");
@@ -1567,6 +1649,210 @@ public class AppServerGenerator {
         Files.createDirectories(packagePath);
         Path outputFile = packagePath.resolve(className + ".java");
         Files.writeString(outputFile, javaCode);
+    }
+
+    // ---- Composite primary key helpers ----
+
+    /**
+     * Extracts primary key fields from a model, sorted by primary_key_position.
+     * Falls back to the single "id" field if no fields have primary_key: true.
+     * Returns a list of field maps, each with at least "name" and "type".
+     */
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> getPrimaryKeyFields(ModelInfo model) {
+        List<Map<String, Object>> pkFields = new ArrayList<>();
+        for (Map<String, Object> field : model.fields) {
+            Object pk = field.get("primary_key");
+            if (pk != null && Boolean.TRUE.equals(pk)) {
+                pkFields.add(field);
+            }
+        }
+        if (pkFields.isEmpty()) {
+            // Fallback: use the "id" field if present
+            for (Map<String, Object> field : model.fields) {
+                if ("id".equals(field.get("name"))) {
+                    pkFields.add(field);
+                    break;
+                }
+            }
+            return pkFields;
+        }
+        // Sort by primary_key_position
+        pkFields.sort((a, b) -> {
+            int posA = a.get("primary_key_position") != null ? ((Number) a.get("primary_key_position")).intValue() : 0;
+            int posB = b.get("primary_key_position") != null ? ((Number) b.get("primary_key_position")).intValue() : 0;
+            return Integer.compare(posA, posB);
+        });
+        return pkFields;
+    }
+
+    /** Returns true if the model has a composite primary key (more than one PK field). */
+    private boolean isCompositeKey(ModelInfo model) {
+        return getPrimaryKeyFields(model).size() > 1;
+    }
+
+    /**
+     * Builds the path variable segment for URL mappings.
+     * Single PK: "/{id}"
+     * Composite PK: "/{userId}/{roleId}"
+     */
+    private String buildPathVariableSegment(ModelInfo model) {
+        List<Map<String, Object>> pkFields = getPrimaryKeyFields(model);
+        if (pkFields.size() <= 1) {
+            return "/{id}";
+        }
+        StringBuilder path = new StringBuilder();
+        for (Map<String, Object> field : pkFields) {
+            String camelName = JavaUtils.snakeToCamel((String) field.get("name"));
+            path.append("/{").append(camelName).append("}");
+        }
+        return path.toString();
+    }
+
+    /**
+     * Builds the @PathVariable parameter list for controller method signatures.
+     * Single PK: "@PathVariable String id"
+     * Composite PK: "@PathVariable String userId, @PathVariable String roleId"
+     */
+    private String buildPathVariableParams(ModelInfo model) {
+        List<Map<String, Object>> pkFields = getPrimaryKeyFields(model);
+        if (pkFields.size() <= 1) {
+            return "@PathVariable String id";
+        }
+        StringBuilder params = new StringBuilder();
+        for (int i = 0; i < pkFields.size(); i++) {
+            if (i > 0) {
+                params.append(", ");
+            }
+            String camelName = JavaUtils.snakeToCamel((String) pkFields.get(i).get("name"));
+            params.append("@PathVariable String ").append(camelName);
+        }
+        return params.toString();
+    }
+
+    /**
+     * Builds the method parameter list for service/repository method signatures (no annotations).
+     * Single PK: "String id"
+     * Composite PK: "String userId, String roleId"
+     */
+    private String buildIdParams(ModelInfo model) {
+        List<Map<String, Object>> pkFields = getPrimaryKeyFields(model);
+        if (pkFields.size() <= 1) {
+            return "String id";
+        }
+        StringBuilder params = new StringBuilder();
+        for (int i = 0; i < pkFields.size(); i++) {
+            if (i > 0) {
+                params.append(", ");
+            }
+            String camelName = JavaUtils.snakeToCamel((String) pkFields.get(i).get("name"));
+            params.append("String ").append(camelName);
+        }
+        return params.toString();
+    }
+
+    /**
+     * Builds the argument list for passing ID values to another method.
+     * Single PK: "id"
+     * Composite PK: "userId, roleId"
+     */
+    private String buildIdArgs(ModelInfo model) {
+        List<Map<String, Object>> pkFields = getPrimaryKeyFields(model);
+        if (pkFields.size() <= 1) {
+            return "id";
+        }
+        StringBuilder args = new StringBuilder();
+        for (int i = 0; i < pkFields.size(); i++) {
+            if (i > 0) {
+                args.append(", ");
+            }
+            args.append(JavaUtils.snakeToCamel((String) pkFields.get(i).get("name")));
+        }
+        return args.toString();
+    }
+
+    /**
+     * Builds the composite key expression for in-memory storage.
+     * Single PK: "id"
+     * Composite PK: "userId + \":\" + roleId"
+     */
+    private String buildCompositeKeyExpr(ModelInfo model) {
+        List<Map<String, Object>> pkFields = getPrimaryKeyFields(model);
+        if (pkFields.size() <= 1) {
+            return "id";
+        }
+        StringBuilder expr = new StringBuilder();
+        for (int i = 0; i < pkFields.size(); i++) {
+            if (i > 0) {
+                expr.append(" + \":\" + ");
+            }
+            expr.append(JavaUtils.snakeToCamel((String) pkFields.get(i).get("name")));
+        }
+        return expr.toString();
+    }
+
+    /**
+     * Builds the composite key expression extracted from an entity (for the save method).
+     * Single PK with id field: "entity.getId()"
+     * Composite PK: "entity.getUserId() + \":\" + entity.getRoleId()"
+     */
+    private String buildEntityCompositeKeyExpr(ModelInfo model) {
+        List<Map<String, Object>> pkFields = getPrimaryKeyFields(model);
+        if (pkFields.size() <= 1) {
+            return "entity.getId()";
+        }
+        StringBuilder expr = new StringBuilder();
+        for (int i = 0; i < pkFields.size(); i++) {
+            if (i > 0) {
+                expr.append(" + \":\" + ");
+            }
+            String camelName = JavaUtils.snakeToCamel((String) pkFields.get(i).get("name"));
+            String getterName = "get" + Character.toUpperCase(camelName.charAt(0)) + camelName.substring(1);
+            expr.append("entity.").append(getterName).append("()");
+        }
+        return expr.toString();
+    }
+
+    /**
+     * Builds a log-friendly string for composite key values.
+     * Single PK: "id: {}", id
+     * Composite PK: "userId: {}, roleId: {}", userId, roleId
+     */
+    private String buildLogPattern(ModelInfo model) {
+        List<Map<String, Object>> pkFields = getPrimaryKeyFields(model);
+        if (pkFields.size() <= 1) {
+            return "id: {}";
+        }
+        StringBuilder pattern = new StringBuilder();
+        for (int i = 0; i < pkFields.size(); i++) {
+            if (i > 0) {
+                pattern.append(", ");
+            }
+            pattern.append(JavaUtils.snakeToCamel((String) pkFields.get(i).get("name")));
+            pattern.append(": {}");
+        }
+        return pattern.toString();
+    }
+
+    /**
+     * Builds the log argument list for composite key log messages.
+     * Single PK: "id"
+     * Composite PK: "userId, roleId"
+     */
+    private String buildLogArgs(ModelInfo model) {
+        return buildIdArgs(model);
+    }
+
+    /**
+     * Builds the not-found message expression for composite keys.
+     * Single PK: "\"model not found: \" + id"
+     * Composite PK: "\"model not found: \" + userId + \":\" + roleId"
+     */
+    private String buildNotFoundMsg(ModelInfo model, String label) {
+        if (!isCompositeKey(model)) {
+            return "\"" + label + " not found: \" + id";
+        }
+        return "\"" + label + " not found: \" + " + buildCompositeKeyExpr(model);
     }
 
     // Helper classes

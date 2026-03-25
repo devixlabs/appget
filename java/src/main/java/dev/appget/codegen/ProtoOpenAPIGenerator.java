@@ -18,13 +18,16 @@ import dev.appget.codegen.JavaUtils;
  *
  * Replaces the models.yaml-based OpenAPIGenerator with a proto-first approach.
  *
- * Usage: java -cp <classpath> dev.appget.codegen.ProtoOpenAPIGenerator <proto-dir> <output-file>
+ * Usage: java -cp <classpath> dev.appget.codegen.ProtoOpenAPIGenerator <proto-dir> <output-file> [models-yaml]
  */
 public class ProtoOpenAPIGenerator {
 
     private static final Logger logger = LogManager.getLogger(ProtoOpenAPIGenerator.class);
 
     private static final Map<String, String[]> PROTO_TO_OPENAPI_TYPE = createProtoToOpenApiTypeMap();
+
+    // Lookup: PascalModelName -> fieldName(snake_case) -> [precision, scale]
+    private Map<String, Map<String, int[]>> decimalPrecisionLookup = new LinkedHashMap<>();
 
     private static Map<String, String[]> createProtoToOpenApiTypeMap() {
         Map<String, String[]> map = new LinkedHashMap<>();
@@ -50,19 +53,29 @@ public class ProtoOpenAPIGenerator {
     public static void main(String[] args) throws Exception {
         logger.debug("Entering main with {} arguments", args.length);
         if (args.length < 2) {
-            logger.error("Invalid arguments. Usage: ProtoOpenAPIGenerator <proto-dir> <output-file>");
-            System.err.println("Usage: ProtoOpenAPIGenerator <proto-dir> <output-file>");
+            logger.error("Invalid arguments. Usage: ProtoOpenAPIGenerator <proto-dir> <output-file> [models-yaml]");
+            System.err.println("Usage: ProtoOpenAPIGenerator <proto-dir> <output-file> [models-yaml]");
             System.exit(1);
         }
 
-        new ProtoOpenAPIGenerator().generate(args[0], args[1]);
+        String modelsYaml = args.length >= 3 ? args[2] : null;
+        new ProtoOpenAPIGenerator().generate(args[0], args[1], modelsYaml);
         logger.info("Successfully generated OpenAPI spec to: {}", args[1]);
         System.out.println("✓ Generated OpenAPI spec to: " + args[1]);
     }
 
     public void generate(String protoDir, String outputFile) throws Exception {
+        generate(protoDir, outputFile, null);
+    }
+
+    public void generate(String protoDir, String outputFile, String modelsYamlPath) throws Exception {
         logger.debug("Generating OpenAPI from proto dir: {} -> {}", protoDir, outputFile);
         Path dir = Paths.get(protoDir);
+
+        if (modelsYamlPath != null) {
+            decimalPrecisionLookup = loadDecimalPrecision(modelsYamlPath);
+            logger.info("Loaded decimal precision/scale for {} model(s) from {}", decimalPrecisionLookup.size(), modelsYamlPath);
+        }
 
         List<ProtoMessage> allModels = new ArrayList<>();
         List<ProtoMessage> allViews = new ArrayList<>();
@@ -93,6 +106,76 @@ public class ProtoOpenAPIGenerator {
         Yaml yaml = new Yaml();
         Files.writeString(Paths.get(outputFile), yaml.dump(openapi));
         logger.debug("Wrote OpenAPI spec to {}", outputFile);
+    }
+
+    // ---- Models YAML Decimal Precision Loading ----
+
+    @SuppressWarnings("unchecked")
+    Map<String, Map<String, int[]>> loadDecimalPrecision(String modelsYamlPath) {
+        Map<String, Map<String, int[]>> lookup = new LinkedHashMap<>();
+        try {
+            Yaml yaml = new Yaml();
+            Map<String, Object> root = yaml.load(Files.readString(Paths.get(modelsYamlPath)));
+            Map<String, Object> domains = (Map<String, Object>) root.get("domains");
+            if (domains == null) return lookup;
+
+            for (Map.Entry<String, Object> domainEntry : domains.entrySet()) {
+                Map<String, Object> domainMap = (Map<String, Object>) domainEntry.getValue();
+                loadDecimalFieldsFromGroup(lookup, (List<Map<String, Object>>) domainMap.get("models"));
+                loadDecimalFieldsFromGroup(lookup, (List<Map<String, Object>>) domainMap.get("views"));
+            }
+        } catch (Exception e) {
+            logger.warn("Could not load decimal precision from {}: {}", modelsYamlPath, e.getMessage());
+        }
+        return lookup;
+    }
+
+    @SuppressWarnings("unchecked")
+    private void loadDecimalFieldsFromGroup(Map<String, Map<String, int[]>> lookup,
+                                             List<Map<String, Object>> modelList) {
+        if (modelList == null) return;
+        for (Map<String, Object> model : modelList) {
+            String rawName = (String) model.get("name");
+            // Convert snake_case model name to PascalCase message name
+            // e.g. "employee_salary_view" -> "EmployeeSalaryView"
+            String pascalName = snakeToPascal(rawName);
+            List<Map<String, Object>> fields = (List<Map<String, Object>>) model.get("fields");
+            if (fields == null) continue;
+
+            for (Map<String, Object> field : fields) {
+                String type = (String) field.get("type");
+                if (!"decimal".equals(type)) continue;
+
+                Object precObj = field.get("precision");
+                Object scaleObj = field.get("scale");
+                if (precObj == null) continue;
+
+                int precision = (precObj instanceof Number) ? ((Number) precObj).intValue() : Integer.parseInt(precObj.toString());
+                int scale = (scaleObj instanceof Number) ? ((Number) scaleObj).intValue() : 0;
+                String fieldName = (String) field.get("name");
+
+                lookup.computeIfAbsent(pascalName, k -> new LinkedHashMap<>())
+                      .put(fieldName, new int[]{precision, scale});
+                logger.debug("Loaded decimal precision for {}.{}: precision={}, scale={}",
+                        pascalName, fieldName, precision, scale);
+            }
+        }
+    }
+
+    private String snakeToPascal(String snakeCase) {
+        StringBuilder sb = new StringBuilder();
+        boolean capitalizeNext = true;
+        for (char c : snakeCase.toCharArray()) {
+            if (c == '_') {
+                capitalizeNext = true;
+            } else if (capitalizeNext) {
+                sb.append(Character.toUpperCase(c));
+                capitalizeNext = false;
+            } else {
+                sb.append(c);
+            }
+        }
+        return sb.toString();
     }
 
     // ---- Proto File Parsing ----
@@ -152,13 +235,14 @@ public class ProtoOpenAPIGenerator {
 
         for (String line : msgBody.split("\n")) {
             line = line.trim();
-            if (line.isEmpty() || line.startsWith("option") || line.startsWith("//")
-                    || line.startsWith("repeated") || line.startsWith("}")) continue;
 
-            // Strip optional prefix before matching
+            // Strip optional prefix before skip-checks (so "optional" is not confused with "option")
             if (line.startsWith("optional ")) {
                 line = line.substring("optional ".length()).trim();
             }
+
+            if (line.isEmpty() || line.startsWith("option") || line.startsWith("//")
+                    || line.startsWith("repeated") || line.startsWith("}")) continue;
 
             // Match field lines: type can include dots for qualified names (e.g. appget.common.Decimal)
             Matcher fm = Pattern.compile("^([\\w.]+)\\s+(\\w+)\\s*=\\s*(\\d+)\\s*;")
@@ -371,12 +455,23 @@ public class ProtoOpenAPIGenerator {
         Map<String, Object> properties = new LinkedHashMap<>();
         List<String> required = new ArrayList<>();
 
+        Map<String, int[]> modelDecimalFields = decimalPrecisionLookup.get(msg.name());
+
         for (ProtoField field : msg.fields()) {
             Map<String, Object> fieldSchema = new LinkedHashMap<>();
             String[] openAPIType = PROTO_TO_OPENAPI_TYPE.getOrDefault(field.type(), new String[]{"string", null});
             fieldSchema.put("type", openAPIType[0]);
             if (openAPIType[1] != null) {
                 fieldSchema.put("format", openAPIType[1]);
+            }
+
+            // Add x-precision and x-scale for decimal fields when models.yaml data is available
+            if ("decimal".equals(openAPIType[1]) && modelDecimalFields != null) {
+                int[] precisionScale = modelDecimalFields.get(field.name());
+                if (precisionScale != null) {
+                    fieldSchema.put("x-precision", precisionScale[0]);
+                    fieldSchema.put("x-scale", precisionScale[1]);
+                }
             }
 
             String jsonName = JavaUtils.snakeToCamel(field.name());

@@ -175,7 +175,7 @@ task generateOpenAPI(type: JavaExec) {
     description = 'Generate OpenAPI spec from .proto files (proto-first)'
     mainClass = 'dev.appget.codegen.ProtoOpenAPIGenerator'
     classpath = files(compileGenerators.destinationDirectory.get().getAsFile(), configurations.compileClasspath)
-    args = ['src/main/proto', 'openapi.yaml']
+    args = ['src/main/proto', 'openapi.yaml', 'models.yaml']
     dependsOn 'modelsToProto'
 }
 

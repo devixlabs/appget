@@ -444,6 +444,265 @@ class ProtoOpenAPIGeneratorTest {
         assertEquals("double", ((Map<String, Object>) props.get("value")).get("format"));
     }
 
+    @Test
+    @DisplayName("Decimal fields include x-precision and x-scale when models.yaml is loaded")
+    void testDecimalFieldsHavePrecisionAndScale(@TempDir Path tempDir) throws Exception {
+        // Write a minimal models.yaml with decimal precision/scale
+        Path modelsYaml = tempDir.resolve("models.yaml");
+        Files.writeString(modelsYaml, """
+                schema_version: 1
+                organization: test
+                domains:
+                  hr:
+                    namespace: dev.test.hr
+                    models:
+                      - name: salaries
+                        source_table: salaries
+                        fields:
+                          - name: employee_id
+                            type: string
+                            nullable: false
+                            field_number: 1
+                          - name: amount
+                            type: decimal
+                            nullable: false
+                            field_number: 2
+                            precision: 15
+                            scale: 2
+                """);
+
+        // Load decimal precision lookup
+        var lookup = generator.loadDecimalPrecision(modelsYaml.toString());
+        assertNotNull(lookup.get("Salaries"), "Should have Salaries in lookup");
+        assertNotNull(lookup.get("Salaries").get("amount"), "Should have amount field");
+        assertEquals(15, lookup.get("Salaries").get("amount")[0], "Precision should be 15");
+        assertEquals(2, lookup.get("Salaries").get("amount")[1], "Scale should be 2");
+
+        // Write a minimal proto file
+        Path protoDir = tempDir.resolve("proto");
+        Files.createDirectories(protoDir);
+        Files.writeString(protoDir.resolve("hr_models.proto"), """
+                syntax = "proto3";
+                import "appget_common.proto";
+                option java_package = "dev.test.hr.model";
+                option java_multiple_files = true;
+                package hr;
+                message Salaries {
+                  string employee_id = 1;
+                  appget.common.Decimal amount = 2;
+                }
+                """);
+
+        Path outputFile = tempDir.resolve("openapi.yaml");
+        generator.generate(protoDir.toString(), outputFile.toString(), modelsYaml.toString());
+
+        Yaml yaml = new Yaml();
+        Map<String, Object> spec = yaml.load(Files.readString(outputFile));
+        Map<String, Object> schemas = getSchemas(spec);
+        Map<String, Object> salaries = (Map<String, Object>) schemas.get("Salaries");
+        Map<String, Object> props = (Map<String, Object>) salaries.get("properties");
+        Map<String, Object> amountField = (Map<String, Object>) props.get("amount");
+
+        assertEquals("string", amountField.get("type"), "Decimal type should be string");
+        assertEquals("decimal", amountField.get("format"), "Decimal format should be decimal");
+        assertEquals(15, amountField.get("x-precision"), "x-precision should be 15");
+        assertEquals(2, amountField.get("x-scale"), "x-scale should be 2");
+    }
+
+    @Test
+    @DisplayName("Non-decimal fields do NOT include x-precision or x-scale")
+    void testNonDecimalFieldsHaveNoPrecisionOrScale(@TempDir Path tempDir) throws Exception {
+        // Write a models.yaml with a decimal field and a non-decimal field
+        Path modelsYaml = tempDir.resolve("models.yaml");
+        Files.writeString(modelsYaml, """
+                schema_version: 1
+                organization: test
+                domains:
+                  hr:
+                    namespace: dev.test.hr
+                    models:
+                      - name: salaries
+                        source_table: salaries
+                        fields:
+                          - name: employee_id
+                            type: string
+                            nullable: false
+                            field_number: 1
+                          - name: amount
+                            type: decimal
+                            nullable: false
+                            field_number: 2
+                            precision: 15
+                            scale: 2
+                          - name: years_of_service
+                            type: int32
+                            nullable: true
+                            field_number: 3
+                """);
+
+        // Write a proto file with string, decimal, and int32 fields
+        Path protoDir = tempDir.resolve("proto");
+        Files.createDirectories(protoDir);
+        Files.writeString(protoDir.resolve("hr_models.proto"), """
+                syntax = "proto3";
+                import "appget_common.proto";
+                option java_package = "dev.test.hr.model";
+                option java_multiple_files = true;
+                package hr;
+                message Salaries {
+                  string employee_id = 1;
+                  appget.common.Decimal amount = 2;
+                  optional int32 years_of_service = 3;
+                }
+                """);
+
+        Path outputFile = tempDir.resolve("openapi.yaml");
+        generator.generate(protoDir.toString(), outputFile.toString(), modelsYaml.toString());
+
+        Yaml yaml = new Yaml();
+        Map<String, Object> spec = yaml.load(Files.readString(outputFile));
+        Map<String, Object> schemas = getSchemas(spec);
+        Map<String, Object> salaries = (Map<String, Object>) schemas.get("Salaries");
+        Map<String, Object> props = (Map<String, Object>) salaries.get("properties");
+
+        // String field: no x-precision/x-scale
+        Map<String, Object> employeeIdField = (Map<String, Object>) props.get("employeeId");
+        assertNull(employeeIdField.get("x-precision"), "String field should not have x-precision");
+        assertNull(employeeIdField.get("x-scale"), "String field should not have x-scale");
+
+        // Int32 field: no x-precision/x-scale
+        Map<String, Object> yearsField = (Map<String, Object>) props.get("yearsOfService");
+        assertNull(yearsField.get("x-precision"), "Int32 field should not have x-precision");
+        assertNull(yearsField.get("x-scale"), "Int32 field should not have x-scale");
+
+        // Decimal field: HAS x-precision/x-scale
+        Map<String, Object> amountField = (Map<String, Object>) props.get("amount");
+        assertEquals(15, amountField.get("x-precision"), "Decimal field should have x-precision");
+        assertEquals(2, amountField.get("x-scale"), "Decimal field should have x-scale");
+    }
+
+    @Test
+    @DisplayName("Decimal fields without models.yaml have no x-precision or x-scale (backward compatible)")
+    void testDecimalFieldsWithoutModelsYaml() {
+        // Build schema WITHOUT loading any models.yaml (backward compatible)
+        var msg = new ProtoOpenAPIGenerator.ProtoMessage("Salaries",
+                List.of(
+                        new ProtoOpenAPIGenerator.ProtoField("employee_id", "string", 1),
+                        new ProtoOpenAPIGenerator.ProtoField("amount", "appget.common.Decimal", 2)
+                ), "hr", false);
+
+        Map<String, Object> schema = generator.buildSchema(msg);
+        Map<String, Object> props = (Map<String, Object>) schema.get("properties");
+        Map<String, Object> amountField = (Map<String, Object>) props.get("amount");
+
+        assertEquals("string", amountField.get("type"), "Decimal type should be string");
+        assertEquals("decimal", amountField.get("format"), "Decimal format should be decimal");
+        assertNull(amountField.get("x-precision"), "No x-precision without models.yaml");
+        assertNull(amountField.get("x-scale"), "No x-scale without models.yaml");
+    }
+
+    @Test
+    @DisplayName("Conformance: decimal fields in views also get x-precision and x-scale")
+    void testViewDecimalFieldsPrecisionScale(@TempDir Path tempDir) throws Exception {
+        // Write a models.yaml with a view that has decimal precision/scale
+        Path modelsYaml = tempDir.resolve("models.yaml");
+        Files.writeString(modelsYaml, """
+                schema_version: 1
+                organization: test
+                domains:
+                  appget:
+                    namespace: dev.test
+                    views:
+                      - name: employee_salary_view
+                        source_view: employee_salary_view
+                        fields:
+                          - name: employee_name
+                            type: string
+                            nullable: false
+                            field_number: 1
+                          - name: salary_amount
+                            type: decimal
+                            nullable: false
+                            field_number: 2
+                            precision: 15
+                            scale: 2
+                """);
+
+        Path protoDir = tempDir.resolve("proto");
+        Files.createDirectories(protoDir);
+        Files.writeString(protoDir.resolve("appget_views.proto"), """
+                syntax = "proto3";
+                import "appget_common.proto";
+                option java_package = "dev.test.view";
+                option java_multiple_files = true;
+                package appget_views;
+                message EmployeeSalaryView {
+                  string employee_name = 1;
+                  appget.common.Decimal salary_amount = 2;
+                }
+                """);
+
+        Path outputFile = tempDir.resolve("openapi.yaml");
+        generator.generate(protoDir.toString(), outputFile.toString(), modelsYaml.toString());
+
+        Yaml yaml = new Yaml();
+        Map<String, Object> spec = yaml.load(Files.readString(outputFile));
+        Map<String, Object> schemas = getSchemas(spec);
+        Map<String, Object> view = (Map<String, Object>) schemas.get("EmployeeSalaryView");
+        Map<String, Object> props = (Map<String, Object>) view.get("properties");
+        Map<String, Object> salaryField = (Map<String, Object>) props.get("salaryAmount");
+
+        assertEquals("string", salaryField.get("type"), "View decimal type should be string");
+        assertEquals("decimal", salaryField.get("format"), "View decimal format should be decimal");
+        assertEquals(15, salaryField.get("x-precision"), "View decimal x-precision should be 15");
+        assertEquals(2, salaryField.get("x-scale"), "View decimal x-scale should be 2");
+    }
+
+    @Test
+    @DisplayName("loadDecimalPrecision converts snake_case names to PascalCase correctly")
+    void testSnakeToPascalConversion(@TempDir Path tempDir) throws Exception {
+        Path modelsYaml = tempDir.resolve("models.yaml");
+        Files.writeString(modelsYaml, """
+                schema_version: 1
+                organization: test
+                domains:
+                  hr:
+                    namespace: dev.test.hr
+                    models:
+                      - name: departments
+                        source_table: departments
+                        fields:
+                          - name: budget
+                            type: decimal
+                            nullable: false
+                            field_number: 1
+                            precision: 10
+                            scale: 4
+                    views:
+                      - name: department_budget_view
+                        source_view: department_budget_view
+                        fields:
+                          - name: department_budget
+                            type: decimal
+                            nullable: false
+                            field_number: 1
+                            precision: 15
+                            scale: 2
+                """);
+
+        var lookup = generator.loadDecimalPrecision(modelsYaml.toString());
+
+        // Simple name: departments -> Departments
+        assertNotNull(lookup.get("Departments"), "Should have Departments");
+        assertEquals(10, lookup.get("Departments").get("budget")[0], "Departments.budget precision");
+        assertEquals(4, lookup.get("Departments").get("budget")[1], "Departments.budget scale");
+
+        // Multi-word name: department_budget_view -> DepartmentBudgetView
+        assertNotNull(lookup.get("DepartmentBudgetView"), "Should have DepartmentBudgetView");
+        assertEquals(15, lookup.get("DepartmentBudgetView").get("department_budget")[0], "DepartmentBudgetView precision");
+        assertEquals(2, lookup.get("DepartmentBudgetView").get("department_budget")[1], "DepartmentBudgetView scale");
+    }
+
     // ---- Helper Methods ----
 
     @SuppressWarnings("unchecked")

@@ -504,7 +504,7 @@ class AppServerGeneratorTest {
     }
 
     @Test
-    @DisplayName("GlobalExceptionHandler handles all three exception types")
+    @DisplayName("GlobalExceptionHandler handles all five exception types")
     void testGlobalExceptionHandlerAllHandlers(@TempDir Path tempDir) throws Exception {
         String content = generateAndReadFile(tempDir,
             "dev", "appget", "server", "exception", "GlobalExceptionHandler.java");
@@ -514,12 +514,66 @@ class AppServerGeneratorTest {
             "Should handle ResourceNotFoundException");
         assertTrue(content.contains("@ExceptionHandler(MetadataParsingException.class)"),
             "Should handle MetadataParsingException");
+        assertTrue(content.contains("@ExceptionHandler(HttpMessageNotReadableException.class)"),
+            "Should handle HttpMessageNotReadableException");
+        assertTrue(content.contains("@ExceptionHandler(Exception.class)"),
+            "Should have catch-all Exception handler");
         assertTrue(content.contains("HttpStatus.UNPROCESSABLE_ENTITY"),
             "RuleViolation should map to 422");
         assertTrue(content.contains("HttpStatus.NOT_FOUND"),
             "ResourceNotFound should map to 404");
         assertTrue(content.contains("HttpStatus.BAD_REQUEST"),
             "MetadataParsing should map to 400");
+        assertTrue(content.contains("HttpStatus.INTERNAL_SERVER_ERROR"),
+            "Catch-all should map to 500");
+    }
+
+    @Test
+    @DisplayName("GlobalExceptionHandler catches bad request body with HttpMessageNotReadableException")
+    void testGlobalExceptionHandlerBadRequestBody(@TempDir Path tempDir) throws Exception {
+        String content = generateAndReadFile(tempDir,
+            "dev", "appget", "server", "exception", "GlobalExceptionHandler.java");
+        assertTrue(content.contains("handleBadRequest(HttpMessageNotReadableException ex)"),
+            "Should have handleBadRequest method for JSON parse errors");
+        assertTrue(content.contains("BAD_REQUEST"),
+            "Bad request body should return 400");
+    }
+
+    @Test
+    @DisplayName("GlobalExceptionHandler has catch-all for unexpected exceptions")
+    void testGlobalExceptionHandlerCatchAll(@TempDir Path tempDir) throws Exception {
+        String content = generateAndReadFile(tempDir,
+            "dev", "appget", "server", "exception", "GlobalExceptionHandler.java");
+        assertTrue(content.contains("handleGeneral(Exception ex)"),
+            "Should have catch-all handleGeneral method");
+        assertTrue(content.contains("INTERNAL_ERROR"),
+            "Catch-all error code should be INTERNAL_ERROR");
+    }
+
+    @Test
+    @DisplayName("Application.java disables WRITE_DATES_AS_TIMESTAMPS for RFC 3339")
+    void testApplicationDisablesTimestamps(@TempDir Path tempDir) throws Exception {
+        String content = generateAndReadFile(tempDir,
+            "dev", "appget", "server", "Application.java");
+        assertTrue(content.contains("SerializationFeature.WRITE_DATES_AS_TIMESTAMPS"),
+            "ObjectMapper should disable WRITE_DATES_AS_TIMESTAMPS");
+        assertTrue(content.contains("mapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)"),
+            "Should explicitly disable timestamp serialization");
+    }
+
+    @Test
+    @DisplayName("Application.java registers all required Jackson modules")
+    void testApplicationJacksonModules(@TempDir Path tempDir) throws Exception {
+        String content = generateAndReadFile(tempDir,
+            "dev", "appget", "server", "Application.java");
+        assertTrue(content.contains("new ProtobufModule()"),
+            "Should register ProtobufModule");
+        assertTrue(content.contains("new JavaTimeModule()"),
+            "Should register JavaTimeModule");
+        assertTrue(content.contains("new DecimalJacksonModule()"),
+            "Should register DecimalJacksonModule");
+        assertTrue(content.contains("FAIL_ON_UNKNOWN_PROPERTIES"),
+            "Should disable FAIL_ON_UNKNOWN_PROPERTIES");
     }
 
     @Test
@@ -641,5 +695,130 @@ class AppServerGeneratorTest {
             "View repository should have findById");
         assertTrue(content.contains("findAll"),
             "View repository should have findAll");
+    }
+
+    // ---- Composite primary key tests (GAP-R1) ----
+
+    @Test
+    @DisplayName("Single-PK model uses /{id} path variable (regression)")
+    void testSinglePkModelUsesIdPathVariable(@TempDir Path tempDir) throws Exception {
+        String controller = generateAndReadFile(tempDir,
+            "dev", "appget", "server", "controller", "UsersController.java");
+        assertTrue(controller.contains("@GetMapping(\"/{id}\")"),
+            "Single-PK controller GET should use /{id}");
+        assertTrue(controller.contains("@PutMapping(\"/{id}\")"),
+            "Single-PK controller PUT should use /{id}");
+        assertTrue(controller.contains("@DeleteMapping(\"/{id}\")"),
+            "Single-PK controller DELETE should use /{id}");
+        assertTrue(controller.contains("@PathVariable String id"),
+            "Single-PK controller should have @PathVariable String id");
+
+        String service = generateAndReadFile(tempDir,
+            "dev", "appget", "server", "service", "UsersService.java");
+        assertTrue(service.contains("findById(String id)"),
+            "Single-PK service findById should take String id");
+        assertTrue(service.contains("deleteById(String id)"),
+            "Single-PK service deleteById should take String id");
+
+        String repoInterface = generateAndReadFile(tempDir,
+            "dev", "appget", "server", "repository", "UsersRepository.java");
+        assertTrue(repoInterface.contains("findById(String id)"),
+            "Single-PK repository interface findById should take String id");
+        assertTrue(repoInterface.contains("deleteById(String id)"),
+            "Single-PK repository interface deleteById should take String id");
+        assertTrue(repoInterface.contains("existsById(String id)"),
+            "Single-PK repository interface existsById should take String id");
+    }
+
+    @Test
+    @DisplayName("Composite-PK model generates multiple path variables")
+    void testCompositePkModelGeneratesMultiplePathVariables(@TempDir Path tempDir) throws Exception {
+        // Create a minimal models.yaml with a composite-key model
+        String compositeModelsYaml =
+            "schema_version: 1\n" +
+            "organization: appget\n" +
+            "domains:\n" +
+            "  admin:\n" +
+            "    namespace: dev.appget.admin\n" +
+            "    models:\n" +
+            "      - name: team_members\n" +
+            "        source_table: team_members\n" +
+            "        fields:\n" +
+            "          - name: team_id\n" +
+            "            type: string\n" +
+            "            nullable: false\n" +
+            "            field_number: 1\n" +
+            "            primary_key: true\n" +
+            "            primary_key_position: 1\n" +
+            "          - name: user_id\n" +
+            "            type: string\n" +
+            "            nullable: false\n" +
+            "            field_number: 2\n" +
+            "            primary_key: true\n" +
+            "            primary_key_position: 2\n" +
+            "          - name: role\n" +
+            "            type: string\n" +
+            "            nullable: false\n" +
+            "            field_number: 3\n";
+
+        String minimalSpecsYaml =
+            "metadata: {}\n" +
+            "rules: []\n";
+
+        Path modelsFile = tempDir.resolve("composite-models.yaml");
+        Path specsFile = tempDir.resolve("composite-specs.yaml");
+        Files.writeString(modelsFile, compositeModelsYaml);
+        Files.writeString(specsFile, minimalSpecsYaml);
+
+        Path outputDir = tempDir.resolve("output");
+        Files.createDirectories(outputDir);
+
+        AppServerGenerator compositeGenerator = new AppServerGenerator();
+        compositeGenerator.generateServer(modelsFile.toString(), specsFile.toString(), outputDir.toString());
+
+        // Verify controller has composite path variables
+        String controller = Files.readString(Paths.get(outputDir.toString(),
+            "dev", "appget", "server", "controller", "TeamMembersController.java"));
+        assertTrue(controller.contains("@GetMapping(\"/{teamId}/{userId}\")"),
+            "Composite-PK controller GET should use /{teamId}/{userId}");
+        assertTrue(controller.contains("@PutMapping(\"/{teamId}/{userId}\")"),
+            "Composite-PK controller PUT should use /{teamId}/{userId}");
+        assertTrue(controller.contains("@DeleteMapping(\"/{teamId}/{userId}\")"),
+            "Composite-PK controller DELETE should use /{teamId}/{userId}");
+        assertTrue(controller.contains("@PathVariable String teamId"),
+            "Composite-PK controller should have @PathVariable String teamId");
+        assertTrue(controller.contains("@PathVariable String userId"),
+            "Composite-PK controller should have @PathVariable String userId");
+        // Should NOT contain single /{id} for the get/put/delete endpoints
+        assertFalse(controller.contains("@GetMapping(\"/{id}\")"),
+            "Composite-PK controller should not use /{id}");
+
+        // Verify service has composite parameters
+        String service = Files.readString(Paths.get(outputDir.toString(),
+            "dev", "appget", "server", "service", "TeamMembersService.java"));
+        assertTrue(service.contains("findById(String teamId, String userId)"),
+            "Composite-PK service findById should take two String params");
+        assertTrue(service.contains("deleteById(String teamId, String userId)"),
+            "Composite-PK service deleteById should take two String params");
+        assertTrue(service.contains("update(String teamId, String userId,"),
+            "Composite-PK service update should take two String params");
+
+        // Verify repository interface has composite parameters
+        String repoInterface = Files.readString(Paths.get(outputDir.toString(),
+            "dev", "appget", "server", "repository", "TeamMembersRepository.java"));
+        assertTrue(repoInterface.contains("findById(String teamId, String userId)"),
+            "Composite-PK repo interface findById should take two String params");
+        assertTrue(repoInterface.contains("deleteById(String teamId, String userId)"),
+            "Composite-PK repo interface deleteById should take two String params");
+        assertTrue(repoInterface.contains("existsById(String teamId, String userId)"),
+            "Composite-PK repo interface existsById should take two String params");
+
+        // Verify in-memory repository builds composite key
+        String repoImpl = Files.readString(Paths.get(outputDir.toString(),
+            "dev", "appget", "server", "repository", "InMemoryTeamMembersRepository.java"));
+        assertTrue(repoImpl.contains("entity.getTeamId() + \":\" + entity.getUserId()"),
+            "Composite-PK repo save should build composite key from entity getters");
+        assertTrue(repoImpl.contains("teamId + \":\" + userId"),
+            "Composite-PK repo findById/deleteById should build composite key from params");
     }
 }
