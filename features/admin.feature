@@ -11,7 +11,7 @@ Feature: Admin Domain Business Rules
   Scenario: User role assignment is authorized
     Given roles context requires:
       | field     | operator | value |
-      | roleLevel | >=       | 4     |
+      | role_level | >=       | 4     |
     When role_id does not equal ""
     Then status is "ROLE_ASSIGNED"
     But otherwise status is "ROLE_NOT_ASSIGNED"
@@ -26,7 +26,7 @@ Feature: Admin Domain Business Rules
   Scenario: Only admins can perform moderation
     Given roles context requires:
       | field     | operator | value |
-      | isAdmin   | ==       | true  |
+      | is_admin   | ==       | true  |
     And sso context requires:
       | field         | operator | value |
       | authenticated | ==       | true  |

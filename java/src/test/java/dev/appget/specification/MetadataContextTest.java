@@ -59,7 +59,7 @@ class MetadataContextTest {
                 .roleLevel(5)
                 .build();
 
-        Specification spec = new Specification("roleLevel", ">=", 3);
+        Specification spec = new Specification("role_level", ">=", 3);
         assertTrue(spec.isSatisfiedBy(roles), "RoleLevel 5 >= 3 should be true");
     }
 
@@ -101,7 +101,7 @@ class MetadataContextTest {
                 .roleLevel(5)
                 .build();
 
-        Specification spec = new Specification("roleName", "==", "Admin");
+        Specification spec = new Specification("role_name", "==", "Admin");
         assertTrue(spec.isSatisfiedBy(roles), "roleName 'Admin' == 'Admin' should be true");
     }
 
@@ -127,7 +127,7 @@ class MetadataContextTest {
                 .isAdmin(true)
                 .build();
 
-        Specification spec = new Specification("isAdmin", "==", true);
+        Specification spec = new Specification("is_admin", "==", true);
         assertTrue(spec.isSatisfiedBy(roles), "isAdmin true == true should be true via reflection");
     }
 }

@@ -335,7 +335,7 @@ class RuleTest {
     void testRuleFailsWhenMetadataCategoryMissing() {
         Map<String, List<Specification>> metaReqs = Map.of(
                 "sso", List.of(new Specification("authenticated", "==", true)),
-                "roles", List.of(new Specification("roleLevel", ">=", 5))
+                "roles", List.of(new Specification("role_level", ">=", 5))
         );
 
         Rule authRule = Rule.builder()
@@ -431,7 +431,7 @@ class RuleTest {
     void testRuleWithMultipleMetadataCategories() {
         Map<String, List<Specification>> metaReqs = Map.of(
                 "sso", List.of(new Specification("authenticated", "==", true)),
-                "roles", List.of(new Specification("roleLevel", ">=", 3))
+                "roles", List.of(new Specification("role_level", ">=", 3))
         );
 
         Rule multiMetaRule = Rule.builder()

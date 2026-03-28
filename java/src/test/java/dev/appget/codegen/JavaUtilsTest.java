@@ -186,4 +186,25 @@ class JavaUtilsTest {
     void testSnakeToPascalEmpty() {
         assertEquals("", JavaUtils.snakeToPascal(""));
     }
+
+    // ---- snakeToHeaderCase ----
+
+    @Test
+    @DisplayName("snakeToHeaderCase converts snake_case to Header-Case")
+    void testSnakeToHeaderCase() {
+        assertEquals("Role-Level", JavaUtils.snakeToHeaderCase("role_level"));
+        assertEquals("Session-Id", JavaUtils.snakeToHeaderCase("session_id"));
+        assertEquals("Is-Admin", JavaUtils.snakeToHeaderCase("is_admin"));
+        assertEquals("Authenticated", JavaUtils.snakeToHeaderCase("authenticated"));
+        assertEquals("Access-Token", JavaUtils.snakeToHeaderCase("access_token"));
+        assertEquals("Rate-Limit-Tier", JavaUtils.snakeToHeaderCase("rate_limit_tier"));
+    }
+
+    @Test
+    @DisplayName("snakeToHeaderCase handles edge cases")
+    void testSnakeToHeaderCaseEdgeCases() {
+        assertEquals("", JavaUtils.snakeToHeaderCase(""));
+        assertNull(JavaUtils.snakeToHeaderCase(null));
+        assertEquals("A", JavaUtils.snakeToHeaderCase("a"));
+    }
 }

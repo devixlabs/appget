@@ -62,19 +62,20 @@ public class Specification {
     }
 
     private <T> Object getFieldValueViaReflection(T target, String fieldName) throws Exception {
-        String getterName = "get" + Character.toUpperCase(fieldName.charAt(0)) + fieldName.substring(1);
+        String camelName = snakeToCamel(fieldName);
+        String getterName = "get" + Character.toUpperCase(camelName.charAt(0)) + camelName.substring(1);
         Method getter;
         try {
             getter = target.getClass().getMethod(getterName);
         } catch (NoSuchMethodException e) {
             logger.debug("Getter method {} not found, trying is* prefix", getterName);
             try {
-                getter = target.getClass().getMethod("is" + Character.toUpperCase(fieldName.charAt(0)) + fieldName.substring(1));
+                getter = target.getClass().getMethod("is" + Character.toUpperCase(camelName.charAt(0)) + camelName.substring(1));
             } catch (NoSuchMethodException e2) {
                 // Lombok boolean fields starting with "is" (e.g., isAdmin) generate isAdmin() directly
-                if (fieldName.length() > 2 && fieldName.startsWith("is") && Character.isUpperCase(fieldName.charAt(2))) {
-                    logger.debug("Trying direct field name as getter: {}", fieldName);
-                    getter = target.getClass().getMethod(fieldName);
+                if (camelName.length() > 2 && camelName.startsWith("is") && Character.isUpperCase(camelName.charAt(2))) {
+                    logger.debug("Trying direct field name as getter: {}", camelName);
+                    getter = target.getClass().getMethod(camelName);
                 } else {
                     throw e2;
                 }
@@ -253,6 +254,26 @@ public class Specification {
     public String getField() { return field; }
     public String getOperator() { return operator; }
     public Object getValue() { return value; }
+
+    private static String snakeToCamel(String str) {
+        if (str == null || str.isEmpty() || !str.contains("_")) {
+            return str;
+        }
+        StringBuilder result = new StringBuilder();
+        boolean capitalizeNext = false;
+        for (int i = 0; i < str.length(); i++) {
+            char c = str.charAt(i);
+            if (c == '_') {
+                capitalizeNext = true;
+            } else if (capitalizeNext) {
+                result.append(Character.toUpperCase(c));
+                capitalizeNext = false;
+            } else {
+                result.append(c);
+            }
+        }
+        return result.toString();
+    }
 
     @Override
     public String toString() {

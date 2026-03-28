@@ -53,6 +53,22 @@ public class JavaUtils {
         return result.toString();
     }
 
+    public static String snakeToHeaderCase(String str) {
+        if (str == null || str.isEmpty()) {
+            return str;
+        }
+        String[] parts = str.split("_");
+        StringBuilder result = new StringBuilder();
+        for (int i = 0; i < parts.length; i++) {
+            if (i > 0) result.append('-');
+            if (!parts[i].isEmpty()) {
+                result.append(Character.toUpperCase(parts[i].charAt(0)));
+                result.append(parts[i].substring(1));
+            }
+        }
+        return result.toString();
+    }
+
     public static String snakeToPascal(String snake) {
         if (snake == null || snake.isEmpty()) {
             return snake;

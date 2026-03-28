@@ -4,25 +4,25 @@ metadata:
     fields:
       - name: authenticated
         type: bool
-      - name: sessionId
+      - name: session_id
         type: string
   roles:
     fields:
-      - name: roleName
+      - name: role_name
         type: string
-      - name: roleLevel
+      - name: role_level
         type: int32
   user:
     fields:
-      - name: userId
+      - name: user_id
         type: string
-      - name: clearanceLevel
+      - name: clearance_level
         type: int32
   location:
     fields:
-      - name: locationId
+      - name: location_id
         type: string
-      - name: locationName
+      - name: location_name
         type: string
       - name: longitude
         type: float64
@@ -126,7 +126,7 @@ rules:
           value: true
           value_type: bool
       roles:
-        - field: roleLevel
+        - field: role_level
           operator: ">="
           value: 3
           value_type: int32

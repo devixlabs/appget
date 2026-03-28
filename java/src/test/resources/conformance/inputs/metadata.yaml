@@ -4,28 +4,28 @@ metadata:
     fields:
       - name: authenticated
         type: boolean
-      - name: sessionId
+      - name: session_id
         type: String
   roles:
     enabled: true
     fields:
-      - name: roleName
+      - name: role_name
         type: String
-      - name: roleLevel
+      - name: role_level
         type: int
   user:
     enabled: true
     fields:
-      - name: userId
+      - name: user_id
         type: String
-      - name: clearanceLevel
+      - name: clearance_level
         type: int
   location:
     enabled: true
     fields:
-      - name: locationId
+      - name: location_id
         type: String
-      - name: locationName
+      - name: location_name
         type: String
       - name: longitude
         type: float

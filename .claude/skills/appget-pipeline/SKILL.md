@@ -40,7 +40,7 @@ All generated files are git-ignored. Regenerate with `make all` — never hand-e
 
 | Command | What it does |
 |---------|-------------|
-| `make all` | clean → generate → test → build (always run this after major changes) |
+| `make all` | clean → generate → test → build → regenerate verify.sh (always run after major changes) |
 | `make features-to-specs` | features/*.feature + metadata.yaml → specs.yaml |
 | `make parse-schema` | schema.sql + views.sql → models.yaml |
 | `make generate-proto` | SQL + specs → .proto → Java protobuf classes |
@@ -54,7 +54,8 @@ All generated files are git-ignored. Regenerate with `make all` — never hand-e
 | `make clean` | Remove build/, src/main/java-generated/, specs.yaml |
 | `make run` | Build and execute the rule engine demo |
 | `make run-server` | Build and start Spring Boot on http://localhost:8080 |
-| `make test-api` | Run generated API test script (server must be running) |
+| `make verify` | Regenerate + run API verification script (server must be running) |
+| `make test-api` | Alias for `make verify` |
 
 **Always use `make` targets, never raw `./gradlew` commands, unless debugging a specific Gradle task.**
 
@@ -297,7 +298,7 @@ Adjust verbosity: Edit `log4j2.properties`, change `dev.appget.codegen.level` fr
 
 | Subproject | Status | Notes |
 |------------|--------|-------|
-| `java/` | Production-ready | 290+ tests passing, AppServerGenerator (Spring Boot) complete |
+| `java/` | Production-ready | 382 tests passing, AppServerGenerator (Spring Boot) complete |
 | `rust/` | POC | `cargo run/build/test/clean` via Makefile; Actix-web |
 | `python/` | Planned | Not started |
 | `node/` | Planned | Not started |

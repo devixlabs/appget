@@ -9,6 +9,7 @@ import java.util.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import dev.appget.codegen.CodeGenUtils;
+import dev.appget.codegen.JavaUtils;
 
 /**
  * Generates Specification implementation classes from YAML rule definitions.
@@ -183,9 +184,10 @@ public class SpecificationGenerator {
             if (typeImports.containsKey(javaType)) {
                 imports.add(typeImports.get(javaType));
             }
-            // Build new field map with Java type
+            // Build new field map with Java type and Java-convention field name
             Map<String, Object> javaField = new LinkedHashMap<>(field);
             javaField.put("type", javaType);
+            javaField.put("name", JavaUtils.snakeToCamel((String) field.get("name")));
             javaFields.add(javaField);
         }
 

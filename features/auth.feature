@@ -41,7 +41,7 @@ Feature: Auth Domain Business Rules
   Scenario: User with admin role can manage system
     Given roles context requires:
       | field     | operator | value |
-      | roleLevel | >=       | 3     |
+      | role_level | >=       | 3     |
     And sso context requires:
       | field         | operator | value |
       | authenticated | ==       | true  |

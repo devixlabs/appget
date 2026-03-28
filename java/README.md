@@ -218,8 +218,8 @@ Feature: Auth Domain Business Rules
   @target:users @blocking @rule:AdminAuthenticationRequired
   Scenario: User with admin role can manage system
     Given roles context requires:
-      | field     | operator | value |
-      | roleLevel | >=       | 3     |
+      | field      | operator | value |
+      | role_level | >=       | 3     |
     And sso context requires:
       | field         | operator | value |
       | authenticated | ==       | true  |
@@ -741,7 +741,7 @@ CREATE TABLE users (
 
 ✓ Multi-dialect SQL support (MySQL, PostgreSQL, SQLite, Oracle, MSSQL)
 ✓ NOT NULL constraints honored (primitives stay primitive, nullable fields wrapped)
-✓ Automatic snake_case → camelCase conversion
+✓ snake_case naming throughout (schema, metadata, features)
 
 ### 2. SQL Views (Composite Read Models)
 
@@ -801,8 +801,8 @@ Metadata categories are **cross-cutting concerns** — they represent "who is ma
 @target:users @blocking @rule:AdminAuthenticationRequired
 Scenario: User with admin role can manage system
   Given roles context requires:
-    | field     | operator | value |
-    | roleLevel | >=       | 3     |
+    | field      | operator | value |
+    | role_level | >=       | 3     |
   And sso context requires:
     | field         | operator | value |
     | authenticated | ==       | true  |
@@ -813,7 +813,7 @@ Scenario: User with admin role can manage system
 
 **What happens at runtime:**
 1. `MetadataExtractor` reads HTTP headers (`X-Roles-Role-Level`, `X-Sso-Authenticated`) into typed POJOs
-2. Rule checks `roles.roleLevel >= 3` and `sso.authenticated == true` first
+2. Rule checks `roles.role_level >= 3` and `sso.authenticated == true` first
 3. Only if metadata passes, evaluates `users.is_active == true` on the model
 4. Returns `"ADMIN_AUTHENTICATED"` or `"ADMIN_DENIED"`
 
@@ -834,19 +834,19 @@ curl -X POST http://localhost:8080/users \
 
 | Category | Enabled | Purpose | Fields |
 |----------|---------|---------|--------|
-| **sso** | yes (default) | Single sign-on session state | authenticated, sessionId, provider |
-| **user** | yes (default) | Authenticated user identity | userId, email, username |
-| **roles** | yes (default) | Role-based access control | roleName, roleLevel, isAdmin |
-| **oauth** | yes (project) | OAuth 2.0 token context | accessToken, scope, expiresIn, provider |
-| **api** | yes (project) | API key authentication | apiKey, rateLimitTier, isActive |
-| jwt | no | JWT token claims | subject, issuer, audience, expiresAt |
+| **sso** | yes (default) | Single sign-on session state | authenticated, session_id, provider |
+| **user** | yes (default) | Authenticated user identity | user_id, email, username |
+| **roles** | yes (default) | Role-based access control | role_name, role_level, is_admin |
+| **oauth** | yes (project) | OAuth 2.0 token context | access_token, scope, expires_in, provider |
+| **api** | yes (project) | API key authentication | api_key, rate_limit_tier, is_active |
+| jwt | no | JWT token claims | subject, issuer, audience, expires_at |
 | mfa | no | Multi-factor auth state | verified, method |
-| permissions | no | Fine-grained permissions | permissionName, resourceType, canRead, canWrite |
-| tenant | no | Multi-tenant isolation | tenantId, tenantName, plan, isActive |
-| billing | no | Billing/subscription | customerId, plan, isActive, billingCycle |
-| payments | no | Payment processing | paymentMethodId, provider, currency, isVerified |
-| invoice | no | Invoice records | invoiceId, status, amount, isPaid |
-| audit | no | Request audit trail | requestId, sourceIp, userAgent |
+| permissions | no | Fine-grained permissions | permission_name, resource_type, can_read, can_write |
+| tenant | no | Multi-tenant isolation | tenant_id, tenant_name, plan, is_active |
+| billing | no | Billing/subscription | customer_id, plan, is_active, billing_cycle |
+| payments | no | Payment processing | payment_method_id, provider, currency, is_verified |
+| invoice | no | Invoice records | invoice_id, status, amount, is_paid |
+| audit | no | Request audit trail | request_id, source_ip, user_agent |
 | geo | no | Geolocation context | country, region, timezone |
 
 **To enable a built-in category**: Set `enabled: true` in `metadata.yaml`.

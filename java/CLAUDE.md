@@ -150,6 +150,7 @@ Step 7: build (depends on test)
 | **Pattern matching vars** (`instanceof Type var`) | Java 25+ only, requires explicit casting in other languages | Explicit casting: `Type var = (Type) obj` |
 | **Static initialization blocks** (`static { map.put(...) }`) | Not portable; replaced by package-level initialization in Go/Python/Ruby | Static factory methods returning initialized maps |
 | **Method overloading** | Not supported in Python/Ruby; confusing in Go/Rust | Builder pattern for multiple constructor signatures |
+| **Singleton pattern** (`INSTANCE` field) | Mutable state risk, concurrency hazard, not idiomatic in Go/Python/Rust | Static utility class with static methods (private constructor, no instances) |
 
 ### Examples
 
@@ -258,6 +259,37 @@ TypeRegistry.INSTANCE.neutralToOpenApi("datetime") // → ["string", "date-time"
 
 ---
 
+## Language-Specific Utility Pattern
+
+Appget separates **language-agnostic** utilities from **language-specific** naming convention utilities. This separation is a primary extension point for multi-language portability — each language subproject provides its own naming utility class while sharing the common utilities.
+
+**Language-agnostic** (`CodeGenUtils.java`): String operations that apply to any language — `capitalize()`, `escapeString()`, `smartSplit()`, `findMatchingParen()`. Shared across all generators, never language-specific.
+
+**Language-specific** (`JavaUtils.java`): Naming convention transforms that encode Java's casing rules. Future subprojects replicate this pattern with their own conventions:
+
+| Utility class | Language | `snake_case` input | Casing output |
+|--------------|----------|-------------------|--------------|
+| `JavaUtils.java` | Java | `role_level` | `roleLevel` (camelCase) |
+| `GoUtils.go` | Go | `role_level` | `RoleLevel` (PascalCase) |
+| `PythonUtils.py` | Python | `role_level` | `role_level` (identity) |
+| `RustUtils.rs` | Rust | `role_level` | `role_level` (identity) |
+| `NodeUtils.js` | Node/JS | `role_level` | `roleLevel` (camelCase) |
+
+```java
+// Language-agnostic (CodeGenUtils) — shared by all
+CodeGenUtils.capitalize("role_level")              // → "Role_level"
+CodeGenUtils.escapeString("he said \"hi\"")        // → "he said \\\"hi\\\""
+
+// Language-specific (JavaUtils) — Java naming conventions
+JavaUtils.snakeToCamel("role_level")               // → "roleLevel"
+JavaUtils.snakeToPascal("role_level")              // → "RoleLevel"
+JavaUtils.snakeToHeaderCase("role_level")          // → "Role-Level"
+```
+
+**Key rule**: Generators read snake_case from intermediates (`models.yaml`, `specs.yaml`) and call the language-specific utility at codegen time. Never store language-specific casing in intermediate files.
+
+---
+
 ## Protocol Buffers as Universal Schema Layer
 
 Protobuf is the shared schema and code generation medium for ALL future appget.dev language implementations.
@@ -351,6 +383,12 @@ LocalDate + nullable=any → LocalDate (can hold null)
 - Domain `auth`   → `dev.appget.auth.model`
 - Domain `social` → `dev.appget.social.model` / `dev.appget.social.view`
 - Domain `admin`  → `dev.appget.admin.model`
+
+---
+
+## Metadata Field Naming Convention
+
+`metadata.yaml` and `specs.yaml` use **snake_case** field names (`role_level`, `session_id`, `is_admin`). This is the language-agnostic canonical form, consistent with `models.yaml`. Each language's codegen applies its own casing: Java → `snakeToCamel`, Go → `snakeToPascal`, Python/Rust/Ruby → identity. HTTP header derivation: `snakeToHeaderCase("role_level")` → `Role-Level` → `X-Roles-Role-Level`.
 
 ---
 
@@ -499,7 +537,7 @@ metadata:
     fields:
       - name: authenticated
         type: boolean
-      - name: sessionId
+      - name: session_id
         type: String
 
 rules:
@@ -560,9 +598,10 @@ URL transform: `post_detail_view` → strip `_view` → `post_detail` → kebab 
 - `dto/RuleEvaluationResult.java` - Rule outcomes
 - `dto/RuleOutcome.java` - Individual rule result
 - `dto/ErrorResponse.java` - Error format
-- `exception/GlobalExceptionHandler.java` - @ControllerAdvice error handling
+- `exception/GlobalExceptionHandler.java` - @ControllerAdvice error handling (5 handlers)
 - `exception/RuleViolationException.java` - Rule validation failure
 - `exception/ResourceNotFoundException.java` - Not found errors
+- `exception/MetadataParsingException.java` - Invalid metadata header type
 - `application.yaml` - Spring Boot configuration
 
 **Key Features**:
@@ -572,8 +611,21 @@ URL transform: `post_detail_view` → strip `_view` → `post_detail` → kebab 
 - ✓ RuleService uses pre-compiled spec classes directly (no runtime YAML parsing)
 - ✓ MetadataExtractor reads typed HTTP headers into context POJOs via builder pattern
 - ✓ Constructor injection for all dependencies
-- ✓ Proper HTTP status codes (201 Created, 200 OK, 204 No Content, 422 Unprocessable Entity, 404 Not Found)
+- ✓ Proper HTTP status codes (201 Created, 200 OK, 204 No Content, 422 Unprocessable Entity, 404 Not Found, 400 Bad Request)
 - ✓ In-memory repository (no database dependency for MVP)
+
+### Generated Server Error Handling
+
+GlobalExceptionHandler has 5 handlers in priority order:
+- `RuleViolationException` → 422 UNPROCESSABLE_ENTITY (blocking rule failure)
+- `ResourceNotFoundException` → 404 NOT_FOUND
+- `MetadataParsingException` → 400 BAD_REQUEST (invalid metadata header type)
+- `HttpMessageNotReadableException` → 400 BAD_REQUEST (malformed JSON body)
+- `Exception` (catch-all) → 500 INTERNAL_SERVER_ERROR
+
+All responses use the `ErrorResponse` DTO with `OffsetDateTime` timestamps (RFC 3339).
+
+**Jackson gotcha**: Use direct `ObjectMapper` construction with `mapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)`. `Jackson2ObjectMapperBuilder.featuresToDisable()` is unreliable when combined with `.modules()` and `ProtobufModule`.
 
 **Bridge Architecture** (RuleService → Specification classes):
 ```
@@ -584,6 +636,10 @@ AppServerGenerator reads specs.yaml
   → generates MetadataExtractor that reads X-{Category}-{Field} headers
   → no runtime YAML parsing, no @PostConstruct, no reflection
 ```
+
+### Generated Server Classpath Restriction
+
+The generated-server `build.gradle` excludes `**/codegen/**` from its source sets. Classes in `dev.appget.specification` (like `Specification.java`) CANNOT import from `dev.appget.codegen`. If utilities are needed at runtime, move them to a runtime-accessible package (e.g., `dev.appget.naming`) — never duplicate logic to work around the restriction.
 
 ### RuleEngine.java: Specs.yaml-Driven Rule Loading
 
@@ -637,7 +693,7 @@ if (target instanceof Users) {
 
 **MetadataExtractor Generated Pattern**:
 ```java
-// Header convention: X-{Category}-{CamelToKebab(fieldName)}
+// Header convention: X-{Category}-{SnakeToHeaderCase(field_name)}
 String ssoAuthenticated = request.getHeader("X-Sso-Authenticated");
 // Type-aware parsing: boolean → Boolean.parseBoolean, int → Integer.parseInt
 SsoContext ssoContext = SsoContext.builder()
@@ -665,6 +721,7 @@ curl -X POST http://localhost:8080/users \
   -H "X-Roles-Is-Admin: true" \
   -d '{"username":"alice","email":"alice@example.com","isVerified":true,"isSuspended":false}'
 # Returns: 201 Created with ruleResults
+# For automated API testing: make verify (requires server running)
 ```
 
 **Integration with Specification Classes**:
@@ -746,7 +803,7 @@ When refactoring across multiple files (e.g., updating patterns, simplifying cod
     enabled: true
     description: "What this category provides"
     fields:
-      - name: myField
+      - name: my_field
         type: String
 ```
 
@@ -810,6 +867,15 @@ make run                      # 6. Execute
 - Requires: `make generate-server` first
 - Note: Requires Spring Boot dependencies installed
 
+### make verify
+- Regenerates `generated-server/verify.sh` from openapi.yaml, runs shellcheck, then executes it
+- Includes: CRUD happy-path tests + error-path tests (metadata 400, RFC 3339 timestamp, 404)
+- Requires: Server running on port 8080 (`make run-server` in separate terminal)
+- Script tracks failures and exits non-zero if any test fails
+
+### make test-api
+- Alias: same as `make verify` (regenerate + run)
+
 ### make test
 - Runs: `gradle test` (0 failures, 0 errors expected)
 
@@ -817,8 +883,9 @@ make run                      # 6. Execute
 - Full pipeline: parse → generate → compile → package
 
 ### make all
-- Runs: `clean → generate → test → build`
-- Note: Does NOT include generate-server (separate optional step)
+- Runs: `clean → generate → test → build → _generate-default-script`
+- Includes `generate-server` (via `generate`) and `verify.sh` regeneration + shellcheck
+- Follow with `make verify` against a running server for full QA
 
 ---
 
@@ -1043,15 +1110,45 @@ make all
 # Runs: clean → parse-schema → generate → test → build
 ```
 
-### End-to-End Verification Checklist
+### QA Pipeline (End-to-End Verification)
 
-After any source change (generators, schema, features, metadata), run these steps in order to confirm the full pipeline works:
+**MANDATORY after any source change** (generators, schema, features, metadata). This is the definitive verification sequence — do not skip steps or declare work complete without running all of them.
 
-1. **`make all`** — MUST pass cleanly (all unit tests green, build successful)
-2. **Inspect `generated-server/test-api.sh`** — all generated API endpoints should have 200-level happy-path test scenarios (POST → 201, GET → 200, PUT → 200, DELETE → 204)
-3. **`make run-server`** (starts Spring Boot on port 8080), then in a separate terminal **`make test-api`** — all API tests should pass with exit 0
+```bash
+# Step 1: Full build pipeline (unit tests + compilation)
+make all
+# MUST exit 0. All unit tests green, verify.sh regenerated + shellchecked.
 
-If step 3 fails, check server logs for `NoSuchMethodException` (reflection bugs) or `422 Unprocessable Entity` (rule violations from bad test data or missing metadata headers).
+# Step 2: Kill any stale server, start fresh
+fuser -k 8080/tcp 2>/dev/null
+make run-server &
+# Wait for "Started Application" in output (~15-20s)
+
+# Step 3: API verification (in a separate terminal, or after server is ready)
+make verify
+# MUST exit 0. Tests CRUD for every model, view GETs, error paths (400, 404, RFC 3339).
+# Script tracks failures and exits non-zero if ANY test fails.
+
+# Step 4: Stop server
+fuser -k 8080/tcp
+```
+
+**What each step catches:**
+| Step | Catches |
+|------|---------|
+| `make all` | Compilation errors, unit test regressions, stale generated code, shellcheck violations in verify.sh |
+| `make verify` | Server startup failures, endpoint routing errors (wrong paths), protobuf serialization bugs, rule evaluation crashes, metadata header parsing, HTTP status code correctness |
+
+**Common failure patterns:**
+| Symptom | Root Cause | Fix |
+|---------|-----------|-----|
+| `No static resource <name>` (500) | Stale server — models changed since last `make generate-server` | `make all` regenerates everything |
+| 422 on POST/PUT | Blocking rule unsatisfied — test data or metadata headers wrong | Check `verify.sh` sample data and metadata headers |
+| 500 on POST | Protobuf deserialization failure — JSON field names don't match proto | Check openapi.yaml schema field names vs proto fields |
+| Port 8080 already in use | Stale server process | `fuser -k 8080/tcp` then restart |
+| `verify.sh` tests wrong endpoints | Script wasn't regenerated after schema change | `make all` now includes `_generate-default-script` |
+
+**For Claude Code sessions:** Always run the full QA pipeline before declaring any task complete. `make all` passing is necessary but NOT sufficient — `make verify` against a running server is required for full confidence.
 
 ### Build Artifact Generation
 
@@ -1227,8 +1324,8 @@ DON'T commit (all auto-generated):
 
 ---
 
-**Last Updated**: 2026-02-24
+**Last Updated**: 2026-03-25
 **Status**: Production Ready
-**Test Coverage**: 0 failures, 0 errors expected across 16 suites
+**Test Coverage**: 382 tests, 0 failures, 0 errors expected across 16 suites
 **Logging**: Log4j2 integrated in all non-generated classes
 **Testing**: 16 test suites, comprehensive pipeline coverage

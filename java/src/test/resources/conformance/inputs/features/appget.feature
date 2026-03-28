@@ -41,7 +41,7 @@ Feature: Appget Domain Business Rules
       | authenticated | ==       | true  |
     And roles context requires:
       | field     | operator | value |
-      | roleLevel | >=       | 3     |
+      | role_level | >=       | 3     |
     When age is at least 25
     Then status is "APPROVED_WITH_AUTH"
     But otherwise status is "DENIED"

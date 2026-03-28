@@ -6,7 +6,7 @@ metadata:
     fields:
       - name: authenticated
         type: boolean
-      - name: sessionId
+      - name: session_id
         type: String
       - name: provider
         type: String
@@ -15,7 +15,7 @@ metadata:
     enabled: true
     description: "Authenticated user identity"
     fields:
-      - name: userId
+      - name: user_id
         type: String
       - name: email
         type: String
@@ -26,11 +26,11 @@ metadata:
     enabled: true
     description: "OAuth 2.0 token context"
     fields:
-      - name: accessToken
+      - name: access_token
         type: String
       - name: scope
         type: String
-      - name: expiresIn
+      - name: expires_in
         type: int
       - name: provider
         type: String
@@ -45,7 +45,7 @@ metadata:
         type: String
       - name: audience
         type: String
-      - name: expiresAt
+      - name: expires_at
         type: int
 
   mfa:
@@ -62,24 +62,24 @@ metadata:
     enabled: true
     description: "Role-based access control"
     fields:
-      - name: roleName
+      - name: role_name
         type: String
-      - name: roleLevel
+      - name: role_level
         type: int
-      - name: isAdmin
+      - name: is_admin
         type: boolean
 
   permissions:
     enabled: false
     description: "Fine-grained permission checks"
     fields:
-      - name: permissionName
+      - name: permission_name
         type: String
-      - name: resourceType
+      - name: resource_type
         type: String
-      - name: canRead
+      - name: can_read
         type: boolean
-      - name: canWrite
+      - name: can_write
         type: boolean
 
   # ─── API Management ───
@@ -87,11 +87,11 @@ metadata:
     enabled: true
     description: "API key authentication and rate limiting"
     fields:
-      - name: apiKey
+      - name: api_key
         type: String
-      - name: rateLimitTier
+      - name: rate_limit_tier
         type: int
-      - name: isActive
+      - name: is_active
         type: boolean
 
   # ─── Multi-tenancy ───
@@ -99,13 +99,13 @@ metadata:
     enabled: false
     description: "Multi-tenant isolation context"
     fields:
-      - name: tenantId
+      - name: tenant_id
         type: String
-      - name: tenantName
+      - name: tenant_name
         type: String
       - name: plan
         type: String
-      - name: isActive
+      - name: is_active
         type: boolean
 
   # ─── Commerce ───
@@ -113,39 +113,39 @@ metadata:
     enabled: false
     description: "Billing and subscription context"
     fields:
-      - name: customerId
+      - name: customer_id
         type: String
       - name: plan
         type: String
-      - name: isActive
+      - name: is_active
         type: boolean
-      - name: billingCycle
+      - name: billing_cycle
         type: String
 
   payments:
     enabled: false
     description: "Payment processing context"
     fields:
-      - name: paymentMethodId
+      - name: payment_method_id
         type: String
       - name: provider
         type: String
       - name: currency
         type: String
-      - name: isVerified
+      - name: is_verified
         type: boolean
 
   invoice:
     enabled: false
     description: "Invoice and billing records context"
     fields:
-      - name: invoiceId
+      - name: invoice_id
         type: String
       - name: status
         type: String
       - name: amount
         type: int
-      - name: isPaid
+      - name: is_paid
         type: boolean
 
   # ─── Compliance & Observability ───
@@ -153,11 +153,11 @@ metadata:
     enabled: false
     description: "Request audit trail"
     fields:
-      - name: requestId
+      - name: request_id
         type: String
-      - name: sourceIp
+      - name: source_ip
         type: String
-      - name: userAgent
+      - name: user_agent
         type: String
 
   geo:

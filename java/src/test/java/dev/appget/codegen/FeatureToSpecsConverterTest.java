@@ -298,7 +298,7 @@ class FeatureToSpecsConverterTest {
             // Roles requirement
             List<Map<String, Object>> rolesReqs = requires.get("roles");
             assertEquals(1, rolesReqs.size());
-            assertEquals("isAdmin", rolesReqs.get(0).get("field"));
+            assertEquals("is_admin", rolesReqs.get(0).get("field"));
             assertEquals("==", rolesReqs.get(0).get("operator"));
             assertEquals(true, rolesReqs.get(0).get("value"));
 
@@ -501,7 +501,7 @@ class FeatureToSpecsConverterTest {
                 "    enabled: true\n" +
                 "    description: \"Role-based access\"\n" +
                 "    fields:\n" +
-                "      - name: isAdmin\n" +
+                "      - name: is_admin\n" +
                 "        type: boolean\n");
 
         Path outputPath = tempDir.resolve("specs.yaml");

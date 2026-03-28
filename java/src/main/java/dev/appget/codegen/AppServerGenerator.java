@@ -539,8 +539,9 @@ public class AppServerGenerator {
             // Read headers
             for (Map<String, Object> field : fields) {
                 String fieldName = (String) field.get("name");
-                String varName = category + CodeGenUtils.capitalize(fieldName);
-                String headerName = headerPrefix + camelToHeaderCase(fieldName);
+                String camelFieldName = JavaUtils.snakeToCamel(fieldName);
+                String varName = category + CodeGenUtils.capitalize(camelFieldName);
+                String headerName = headerPrefix + JavaUtils.snakeToHeaderCase(fieldName);
                 code.append("        String ").append(varName).append(" = request.getHeader(\"")
                     .append(headerName).append("\");\n");
             }
@@ -549,7 +550,8 @@ public class AppServerGenerator {
             StringBuilder condition = new StringBuilder();
             for (int i = 0; i < fields.size(); i++) {
                 String fieldName = (String) fields.get(i).get("name");
-                String varName = category + CodeGenUtils.capitalize(fieldName);
+                String camelFieldName = JavaUtils.snakeToCamel(fieldName);
+                String varName = category + CodeGenUtils.capitalize(camelFieldName);
                 if (i > 0) condition.append(" || ");
                 condition.append(varName).append(" != null");
             }
@@ -561,9 +563,10 @@ public class AppServerGenerator {
             for (Map<String, Object> field : fields) {
                 String fieldName = (String) field.get("name");
                 String fieldType = (String) field.get("type");
-                String varName = category + CodeGenUtils.capitalize(fieldName);
-                String headerName = headerPrefix + camelToHeaderCase(fieldName);
-                code.append("                .").append(fieldName).append("(")
+                String camelFieldName = JavaUtils.snakeToCamel(fieldName);
+                String varName = category + CodeGenUtils.capitalize(camelFieldName);
+                String headerName = headerPrefix + JavaUtils.snakeToHeaderCase(fieldName);
+                code.append("                .").append(camelFieldName).append("(")
                     .append(parseHeaderValue(varName, fieldType, headerName)).append(")\n");
             }
 
@@ -1604,20 +1607,6 @@ public class AppServerGenerator {
         return base.replace('_', '-');
     }
 
-    private String camelToHeaderCase(String camelCase) {
-        // roleLevel -> Role-Level, sessionId -> Session-Id
-        StringBuilder result = new StringBuilder();
-        result.append(Character.toUpperCase(camelCase.charAt(0)));
-        for (int i = 1; i < camelCase.length(); i++) {
-            char c = camelCase.charAt(i);
-            if (Character.isUpperCase(c)) {
-                result.append('-').append(c);
-            } else {
-                result.append(c);
-            }
-        }
-        return result.toString();
-    }
 
     private String parseHeaderValue(String varName, String type, String headerName) {
         // Support both neutral types (bool, int32, int64, float64) and legacy Java types

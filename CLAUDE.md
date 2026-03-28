@@ -52,6 +52,8 @@ Each subproject is **self-contained** with:
 ## Design Principles
 
 ### 1. Language-First Code Generation
+Java is the **reference implementation**. Design patterns in java/ set the structural template that all future language subprojects (Go, Python, Rust) replicate. When making architecture decisions, optimize for cross-language structural consistency — not just Java's immediate needs.
+
 Each subproject generates code for a specific language:
 - **java/**: Protobuf models, Java specifications, Spring Boot servers
 - **[Future]**: Python Django, Go gRPC, Rust Actix, etc.
@@ -118,9 +120,11 @@ make all              # clean → generate → test → build
 make features-to-specs   # .feature files + metadata → specs.yaml
 make parse-schema        # schema.sql → models.yaml
 make generate            # protobuf + specifications + OpenAPI
-make test                # 250+ tests
+make test                # 380+ unit tests
 make run                 # Execute rule engine demo
 make generate-server     # Generate Spring Boot REST API
+make run-server          # Start server on http://localhost:8080
+make verify              # API integration tests (requires server running)
 ```
 
 **See**: [java/README.md](java/README.md) for complete user guide
@@ -230,5 +234,5 @@ Periodic audits should verify that Active docs still match source code. Run this
 
 ---
 
-**Last Updated**: 2026-03-24
+**Last Updated**: 2026-03-25
 **Status**: Language-agnostic guidance (Java details in java/CLAUDE.md)

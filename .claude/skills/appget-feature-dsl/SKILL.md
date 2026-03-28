@@ -22,7 +22,7 @@ The appget Gherkin DSL defines business rules that drive the code generation pip
 
 3. **@target uses the SQL table name directly**: Table `follows` → `@target:follows`. Table `blog_posts` → `@target:blog_posts`. Use the exact snake_case plural table name — the pipeline applies `snakeToPascal` automatically.
 
-4. **Metadata fields use camelCase**: Model fields use `snake_case` (`is_active`, `like_count`), but metadata fields use `camelCase` (`roleLevel`, `isAdmin`, `sessionId`) — matching Java getter conventions.
+4. **Metadata fields use snake_case**: Both model fields and metadata fields use `snake_case` (`role_level`, `is_admin`, `session_id`). This is the language-agnostic canonical form — each language's codegen applies its own casing convention.
 
 5. **View fields must be in SELECT clause**: For `@view` targets, every field in `When` conditions must exist in the view's `SELECT` clause, not just in its `WHERE` or `JOIN`. A column the view filters on but doesn't project is not accessible.
 
@@ -134,12 +134,12 @@ Given sso context requires:
   | authenticated | ==       | true  |
 And roles context requires:
   | field     | operator | value |
-  | roleLevel | >=       | 3     |
+  | role_level | >=       | 3     |
 ```
 
 **Category names** must match categories defined in `metadata.yaml` (e.g., `sso`, `roles`, `user`, `oauth`, `api`, `tenant`). The category must also have `enabled: true` in metadata.yaml — disabled categories cannot be referenced.
 
-**Field names** must match field names in that category's `fields` list in `metadata.yaml`. Use **camelCase** (e.g., `roleLevel`, `isAdmin`), NOT snake_case.
+**Field names** must match field names in that category's `fields` list in `metadata.yaml`. Use **snake_case** (e.g., `role_level`, `is_admin`) — the language-agnostic canonical form.
 
 **Automated validation** (`FeatureToSpecsConverter` enforces at build time):
 - Unknown category → **build error**: "Category 'X' does not exist in metadata.yaml"

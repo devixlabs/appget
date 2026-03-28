@@ -53,3 +53,5 @@ Implemented in Java today. All future language targets must conform. Minor gaps 
 | [LANGUAGE_IMPLEMENTATION.md](todos/LANGUAGE_IMPLEMENTATION.md) | Framework selections and implementation guide per language |
 | [SPEC-server-framework-abstraction.md](todos/SPEC-server-framework-abstraction.md) | Refactor AppServerGenerator into ServerGenerator + ServerEmitter interface for multi-language portability |
 | [SPEC-html-crud-codegen.md](todos/SPEC-html-crud-codegen.md) | Generate static HTML CRUD pages from models.yaml + specs.yaml (depends on server abstraction) |
+| [TODO-enhance-make-run-demo.md](todos/TODO-enhance-make-run-demo.md) | Enhance `make run` CLI demo to exercise metadata-aware authorization rules with populated demo data |
+| [TODO-naming-convention-interface.md](todos/TODO-naming-convention-interface.md) | Extract NamingConvention interface from Specification.java — cross-language pattern for field-name resolution |

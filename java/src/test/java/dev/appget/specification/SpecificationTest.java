@@ -4,6 +4,7 @@ import dev.appget.auth.model.Users;
 import dev.appget.admin.model.Roles;
 import dev.appget.social.view.PostDetailView;
 import dev.appget.specification.context.SsoContext;
+import dev.appget.specification.context.RolesContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -406,7 +407,7 @@ class SpecificationTest {
     void testIsNullTrueWhenFieldIsNull() {
         // SsoContext built without setting sessionId → sessionId is null (Lombok POJO)
         SsoContext sso = SsoContext.builder().authenticated(true).build();
-        Specification spec = new Specification("sessionId", "IS_NULL", null);
+        Specification spec = new Specification("session_id", "IS_NULL", null);
         assertTrue(spec.isSatisfiedBy(sso), "IS_NULL should return true when field is null");
     }
 
@@ -414,7 +415,7 @@ class SpecificationTest {
     @DisplayName("IS_NULL returns false when field has a value (reflection path)")
     void testIsNullFalseWhenFieldHasValue() {
         SsoContext sso = SsoContext.builder().authenticated(true).sessionId("abc123").build();
-        Specification spec = new Specification("sessionId", "IS_NULL", null);
+        Specification spec = new Specification("session_id", "IS_NULL", null);
         assertFalse(spec.isSatisfiedBy(sso), "IS_NULL should return false when field has a value");
     }
 
@@ -422,7 +423,7 @@ class SpecificationTest {
     @DisplayName("IS_NOT_NULL returns true when field has a value (reflection path)")
     void testIsNotNullTrueWhenFieldHasValue() {
         SsoContext sso = SsoContext.builder().authenticated(true).sessionId("abc123").build();
-        Specification spec = new Specification("sessionId", "IS_NOT_NULL", null);
+        Specification spec = new Specification("session_id", "IS_NOT_NULL", null);
         assertTrue(spec.isSatisfiedBy(sso), "IS_NOT_NULL should return true when field has a value");
     }
 
@@ -430,7 +431,33 @@ class SpecificationTest {
     @DisplayName("IS_NOT_NULL returns false when field is null (reflection path)")
     void testIsNotNullFalseWhenFieldIsNull() {
         SsoContext sso = SsoContext.builder().authenticated(true).build();
-        Specification spec = new Specification("sessionId", "IS_NOT_NULL", null);
+        Specification spec = new Specification("session_id", "IS_NOT_NULL", null);
         assertFalse(spec.isSatisfiedBy(sso), "IS_NOT_NULL should return false when field is null");
+    }
+
+    // ---- snake_case field name reflection tests ----
+
+    @Test
+    @DisplayName("Specification resolves snake_case field name via reflection on POJO")
+    void testSnakeCaseFieldReflection() {
+        SsoContext sso = SsoContext.builder().authenticated(true).sessionId("abc").build();
+        Specification spec = new Specification("session_id", "==", "abc");
+        assertTrue(spec.isSatisfiedBy(sso), "snake_case 'session_id' should resolve to getSessionId()");
+    }
+
+    @Test
+    @DisplayName("Specification resolves snake_case is_admin via Lombok is-prefix reflection")
+    void testSnakeCaseIsAdminReflection() {
+        RolesContext roles = RolesContext.builder().roleName("Admin").roleLevel(5).isAdmin(true).build();
+        Specification spec = new Specification("is_admin", "==", true);
+        assertTrue(spec.isSatisfiedBy(roles), "snake_case 'is_admin' should resolve to isAdmin()");
+    }
+
+    @Test
+    @DisplayName("Specification resolves snake_case role_level via reflection")
+    void testSnakeCaseRoleLevelReflection() {
+        RolesContext roles = RolesContext.builder().roleName("Admin").roleLevel(5).isAdmin(false).build();
+        Specification spec = new Specification("role_level", ">=", 3);
+        assertTrue(spec.isSatisfiedBy(roles), "snake_case 'role_level' should resolve to getRoleLevel()");
     }
 }

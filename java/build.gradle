@@ -195,7 +195,7 @@ task generateDefaultScript(type: JavaExec) {
     description = 'Generate API default script from OpenAPI spec'
     mainClass = 'dev.appget.codegen.OpenAPIDefaultScriptGenerator'
     classpath = files(compileGenerators.destinationDirectory.get().getAsFile(), configurations.compileClasspath)
-    args = ['openapi.yaml', 'generated-server/test-api.sh']
+    args = ['openapi.yaml', 'generated-server/verify.sh']
     dependsOn 'generateOpenAPI'
 }
 
