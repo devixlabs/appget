@@ -1227,6 +1227,19 @@ make test
 
 ---
 
+## Domain Architect Agent
+
+The **domain-architect** agent ([../.claude/agents/domain-architect.md](../.claude/agents/domain-architect.md)) translates high-level business descriptions into appget source files (`schema.sql`, `views.sql`, `features/*.feature`, `metadata.yaml`).
+
+**Example prompt**:
+```
+Create a social media application with MVP functionality for regular users, company admins, GitHub OAuth2, and API keys for 3rd party developers. Define SQL views for cross-table reads (JOINs), aggregated analytics (GROUP BY), and transactional writes spanning multiple tables. The REST API must be fully featured — not just basic CRUD, but complete endpoints for every complex operation.
+```
+
+After the agent runs, execute `make all` to generate the full backend from the produced source files.
+
+---
+
 ## Additional Documentation
 
 For more details on implementation and architecture:
