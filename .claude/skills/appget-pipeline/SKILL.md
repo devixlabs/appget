@@ -8,7 +8,7 @@ allowed-tools: Bash, Read, Glob, Grep, Edit, Write
 
 The appget project (`appget/`) is DevixLabs' multi-language application generation platform. **SQL DDL + Gherkin business rules → protobuf models → Java specs → Spring Boot REST API.** Deterministic, AI-free, schema-driven.
 
-**Working directory**: Always operate from `appget/java/` unless explicitly working on the root or Rust subproject.
+**Working directory**: Always operate from `appget/java/` unless explicitly working on the root or a non-Java subproject (`rust/`, `go/`, `node/`, `python/`, `ruby/`).
 
 ---
 
@@ -300,6 +300,7 @@ Adjust verbosity: Edit `log4j2.properties`, change `dev.appget.codegen.level` fr
 |------------|--------|-------|
 | `java/` | Production-ready | 382 tests passing, AppServerGenerator (Spring Boot) complete |
 | `rust/` | POC | `cargo run/build/test/clean` via Makefile; Actix-web |
+| `go/` | Planned | Not started |
 | `python/` | Planned | Not started |
 | `node/` | Planned | Not started |
 | `ruby/` | Planned | Not started |

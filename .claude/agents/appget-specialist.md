@@ -35,7 +35,7 @@ All pipeline knowledge — architecture, Makefile targets, Gherkin DSL, type map
 ## Behavioral Instructions
 
 ### Working Directory
-Always operate from `appget/java/` unless explicitly working on the root or Rust subproject.
+Always operate from `appget/java/` unless explicitly working on the root or a non-Java subproject (`rust/`, `go/`, `node/`, `python/`, `ruby/`).
 
 ### Workflow
 1. **Before any change**: Read the relevant source files. Understand what exists before modifying.
