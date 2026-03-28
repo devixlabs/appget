@@ -16,17 +16,19 @@ public class Rule {
     private String successStatus;
     private String failureStatus;
     private String targetType;
+    private boolean blocking;
     private Map<String, List<Specification>> metadataRequirements;
 
     private Rule(String name, Object spec, String successStatus, String failureStatus,
-                 String targetType, Map<String, List<Specification>> metadataRequirements) {
-        logger.debug("Creating Rule '{}' with targetType={}, metadataRequirements={}, successStatus={}, failureStatus={}",
-                name, targetType, metadataRequirements != null ? metadataRequirements.size() : 0, successStatus, failureStatus);
+                 String targetType, boolean blocking, Map<String, List<Specification>> metadataRequirements) {
+        logger.debug("Creating Rule '{}' with targetType={}, blocking={}, metadataRequirements={}, successStatus={}, failureStatus={}",
+                name, targetType, blocking, metadataRequirements != null ? metadataRequirements.size() : 0, successStatus, failureStatus);
         this.name = name;
         this.spec = spec;
         this.successStatus = successStatus;
         this.failureStatus = failureStatus;
         this.targetType = targetType;
+        this.blocking = blocking;
         this.metadataRequirements = metadataRequirements;
     }
 
@@ -40,6 +42,7 @@ public class Rule {
         private String successStatus;
         private String failureStatus;
         private String targetType;
+        private boolean blocking;
         private Map<String, List<Specification>> metadataRequirements;
 
         private Builder() {
@@ -80,13 +83,18 @@ public class Rule {
             return this;
         }
 
+        public Builder blocking(boolean blocking) {
+            this.blocking = blocking;
+            return this;
+        }
+
         public Builder metadataRequirements(Map<String, List<Specification>> metadataRequirements) {
             this.metadataRequirements = metadataRequirements;
             return this;
         }
 
         public Rule build() {
-            return new Rule(name, spec, successStatus, failureStatus, targetType, metadataRequirements);
+            return new Rule(name, spec, successStatus, failureStatus, targetType, blocking, metadataRequirements);
         }
     }
 
@@ -147,5 +155,10 @@ public class Rule {
 
     public String getName() { return name; }
     public Object getSpec() { return spec; }
+    public String getSuccessStatus() { return successStatus; }
+    public String getFailureStatus() { return failureStatus; }
     public String getTargetType() { return targetType; }
+    public boolean isBlocking() { return blocking; }
+    public Map<String, List<Specification>> getMetadataRequirements() { return metadataRequirements; }
+    public boolean hasMetadataRequirements() { return metadataRequirements != null && !metadataRequirements.isEmpty(); }
 }

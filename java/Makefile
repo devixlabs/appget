@@ -1,6 +1,6 @@
 # Note to LLMs, DO NOT MUDDY THIS FILE UP, instead create a bash script if you're hacking on something to please your user overlords.
 
-.PHONY: all help check features-to-specs parse-schema generate-proto generate-specs generate-registry generate-openapi generate-server _generate-default-script generate build test run run-server test-api verify clean
+.PHONY: all help check features-to-specs parse-schema generate-proto generate-specs generate-registry generate-openapi generate-server _generate-default-script generate build test run-server test-api verify clean
 
 GRADLE_VERSION := 9.3.1
 
@@ -8,7 +8,7 @@ help:
 	@echo "Available commands:"
 	@echo "  make check             - Static analysis and tooling checks"
 	@echo "  make help              - Show this help message"
-	@echo "  make all               - Build everything (clean, generate, test, build, verify.sh)"
+	@echo "  make all               - Build everything + verify (exits non-zero on failure)"
 	@echo "  make features-to-specs - Convert .feature files + metadata.yaml to specs.yaml"
 	@echo "  make parse-schema      - Parse schema.sql + views.sql and generate models.yaml"
 	@echo "  make generate-proto    - schema.sql -> .proto -> protoc -> Java model classes"
@@ -19,9 +19,8 @@ help:
 	@echo "  make generate-server   - Generate application server from models and specs"
 	@echo "  make build             - Full build: parse schema, generate, then compile"
 	@echo "  make test              - Run unit tests"
-	@echo "  make run               - Build and run the Java Rule Engine POC"
 	@echo "  make run-server        - Build and run the application server"
-	@echo "  make verify            - Run API verification (requires server running on port 8080)"
+	@echo "  make verify            - Rule engine verification + API tests (exits non-zero on failure)"
 	@echo "  make test-api          - Regenerate + run API test script (requires server running)"
 	@echo "  make clean             - Remove build artifacts and generated code"
 
@@ -32,13 +31,13 @@ check:
 		chmod +x gradlew; \
 	fi
 
-# Default target - build everything
-all: check clean generate test build _generate-default-script
+# Default target - build everything and verify
+all: check clean generate test build verify
 
-# Run full QA verification (requires server running on port 8080)
-verify: _generate-default-script
-	@echo "Running API verification against http://localhost:8080..."
-	@./generated-server/verify.sh
+# Rule engine verification (exits non-zero if auth gates or pipeline fail)
+# Also regenerates API test script + shellcheck
+verify: build _generate-default-script
+	@./gradlew run
 
 # Convert .feature files + metadata.yaml to specs.yaml
 features-to-specs: check
@@ -82,10 +81,6 @@ generate-server: check
 
 # Generate models (protoc), specs, registry, and OpenAPI
 generate: features-to-specs generate-proto generate-specs generate-registry generate-openapi generate-server
-
-# Run the application
-run: build
-	@./gradlew run
 
 # Run unit tests
 test: build

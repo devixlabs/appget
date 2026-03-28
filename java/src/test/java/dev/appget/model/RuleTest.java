@@ -424,6 +424,71 @@ class RuleTest {
         assertEquals("Users", r.getTargetType());
     }
 
+    @Test
+    @DisplayName("Rule.isBlocking() returns true when set")
+    void testRuleIsBlockingTrue() {
+        Rule r = Rule.builder().name("Test")
+                .spec(new Specification("follower_count", ">", 0))
+                .successStatus("S").failureStatus("F")
+                .blocking(true)
+                .build();
+        assertTrue(r.isBlocking(), "Rule should be blocking when set to true");
+    }
+
+    @Test
+    @DisplayName("Rule.isBlocking() defaults to false")
+    void testRuleIsBlockingDefaultFalse() {
+        Rule r = Rule.builder().name("Test")
+                .spec(new Specification("follower_count", ">", 0))
+                .successStatus("S").failureStatus("F")
+                .build();
+        assertFalse(r.isBlocking(), "Rule should default to non-blocking");
+    }
+
+    @Test
+    @DisplayName("Rule.getSuccessStatus() returns success status")
+    void testRuleGetSuccessStatus() {
+        Rule r = Rule.builder().name("Test")
+                .spec(new Specification("follower_count", ">", 0))
+                .successStatus("PASSED").failureStatus("FAILED")
+                .build();
+        assertEquals("PASSED", r.getSuccessStatus());
+    }
+
+    @Test
+    @DisplayName("Rule.getFailureStatus() returns failure status")
+    void testRuleGetFailureStatus() {
+        Rule r = Rule.builder().name("Test")
+                .spec(new Specification("follower_count", ">", 0))
+                .successStatus("PASSED").failureStatus("FAILED")
+                .build();
+        assertEquals("FAILED", r.getFailureStatus());
+    }
+
+    @Test
+    @DisplayName("Rule.hasMetadataRequirements() returns false when none set")
+    void testRuleHasNoMetadataRequirements() {
+        Rule r = Rule.builder().name("Test")
+                .spec(new Specification("follower_count", ">", 0))
+                .successStatus("S").failureStatus("F")
+                .build();
+        assertFalse(r.hasMetadataRequirements(), "Should have no metadata requirements");
+    }
+
+    @Test
+    @DisplayName("Rule.hasMetadataRequirements() returns true when set")
+    void testRuleHasMetadataRequirements() {
+        Map<String, List<Specification>> reqs = Map.of(
+                "sso", List.of(new Specification("authenticated", "==", true))
+        );
+        Rule r = Rule.builder().name("Test")
+                .spec(new Specification("follower_count", ">", 0))
+                .successStatus("S").failureStatus("F")
+                .metadataRequirements(reqs)
+                .build();
+        assertTrue(r.hasMetadataRequirements(), "Should have metadata requirements");
+    }
+
     // ---- Multiple metadata categories ----
 
     @Test
