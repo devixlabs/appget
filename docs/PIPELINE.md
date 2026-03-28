@@ -89,8 +89,8 @@ Feature: Auth Domain Business Rules
   @target:moderation_flags @rule:AdminAuthorizationRequired @blocking
   Scenario: Only admins can resolve moderation flags
     Given roles context requires:
-      | field   | operator | value |
-      | isAdmin | ==       | true  |
+      | field    | operator | value |
+      | is_admin | ==       | true  |
     When is_resolved equals true
     Then status is "ADMIN_APPROVED"
     But otherwise status is "UNAUTHORIZED"
@@ -129,14 +129,14 @@ metadata:
     fields:
       - name: authenticated
         type: boolean
-      - name: sessionId
+      - name: session_id
         type: String
 
   roles:
     fields:
-      - name: roleLevel
+      - name: role_level
         type: int
-      - name: roleName
+      - name: role_name
         type: String
 ```
 
@@ -343,7 +343,7 @@ class AdminAuthorizationRequired:
     spec = Specification("is_verified", "==", true)
     metaSpecs = {
         sso: [Specification("authenticated", "==", true)],
-        roles: [Specification("isAdmin", "==", true)]
+        roles: [Specification("is_admin", "==", true)]
     }
 
     evaluate(target: Users, metadata: MetadataContext) → bool
@@ -423,7 +423,7 @@ Repository.save(entity)
 
 **HTTP header convention for metadata**:
 ```
-X-{Category}-{CamelToKebab(fieldName)}: value
+X-{Category}-{SnakeToKebab(field_name)}: value
 
 Examples:
   X-Sso-Authenticated: true

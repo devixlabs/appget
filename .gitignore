@@ -3,5 +3,6 @@ java/2026*.txt
 java/TEST*.md
 rust/
 tmp/
+docs/superpowers/
 docs/todos/*.zip
 Makefile.example

@@ -79,15 +79,15 @@ The university application enables `sso` and `roles`:
 | Category | Field | Type | HTTP Header |
 |----------|-------|------|-------------|
 | `sso` | `authenticated` | boolean | `X-Sso-Authenticated` |
-| `sso` | `sessionId` | string | `X-Sso-Session-Id` |
+| `sso` | `session_id` | string | `X-Sso-Session-Id` |
 | `sso` | `provider` | string | `X-Sso-Provider` |
-| `roles` | `roleLevel` | int | `X-Roles-Role-Level` |
-| `roles` | `isAdmin` | boolean | `X-Roles-Is-Admin` |
-| `roles` | `roleName` | string | `X-Roles-Role-Name` |
+| `roles` | `role_level` | int | `X-Roles-Role-Level` |
+| `roles` | `is_admin` | boolean | `X-Roles-Is-Admin` |
+| `roles` | `role_name` | string | `X-Roles-Role-Name` |
 
 **University role level convention** used throughout these examples:
 
-| `roleLevel` | Role |
+| `role_level` | Role |
 |-------------|------|
 | 1 | Student |
 | 2 | Staff |
@@ -114,11 +114,11 @@ metadata:
     enabled: true            # true = active in pipeline; false = dormant in registry
     description: "..."       # documentation-only, not emitted to specs.yaml
     fields:
-      - name: <fieldName>   # camelCase — becomes a Java getter; used in data table "field" column
+      - name: <field_name>  # snake_case — converted to Java getter; used in data table "field" column
         type: <type>         # boolean | String | int
 ```
 
-Field names must be **camelCase** and match exactly what you write in the `Given` data table. They are read from HTTP request headers at runtime: a field `roleLevel` in category `roles` is delivered via the `X-Roles-Role-Level` header.
+Field names must be **snake_case** and match exactly what you write in the `Given` data table. They are read from HTTP request headers at runtime: a field `role_level` in category `roles` is delivered via the `X-Roles-Role-Level` header.
 
 ### Supported types
 
@@ -126,7 +126,7 @@ Field names must be **camelCase** and match exactly what you write in the `Given
 |------|---------|-------------------------------|
 | `boolean` | flags | `authenticated == true` |
 | `String` | identifiers, names | `provider == "google"` |
-| `int` | levels, counts | `roleLevel >= 3` |
+| `int` | levels, counts | `role_level >= 3` |
 
 ### Built-in categories
 
@@ -134,19 +134,19 @@ The registry ships with 14 built-in categories. Three are pre-enabled (`sso`, `u
 
 | Group | Category | Pre-enabled | Fields |
 |-------|----------|-------------|--------|
-| Identity | `sso` | yes | authenticated, sessionId, provider |
-| Identity | `user` | yes | userId, email, username |
-| Identity | `oauth` | no | accessToken, scope, expiresIn, provider |
-| Identity | `jwt` | no | subject, issuer, audience, expiresAt |
+| Identity | `sso` | yes | authenticated, session_id, provider |
+| Identity | `user` | yes | user_id, email, username |
+| Identity | `oauth` | no | access_token, scope, expires_in, provider |
+| Identity | `jwt` | no | subject, issuer, audience, expires_at |
 | Identity | `mfa` | no | verified, method |
-| Authorization | `roles` | yes | roleName, roleLevel, isAdmin |
-| Authorization | `permissions` | no | permissionName, resourceType, canRead, canWrite |
-| API | `api` | no | apiKey, rateLimitTier, isActive |
-| Multi-tenancy | `tenant` | no | tenantId, tenantName, plan, isActive |
-| Commerce | `billing` | no | customerId, plan, isActive, billingCycle |
-| Commerce | `payments` | no | paymentMethodId, provider, currency, isVerified |
-| Commerce | `invoice` | no | invoiceId, status, amount, isPaid |
-| Compliance | `audit` | no | requestId, sourceIp, userAgent |
+| Authorization | `roles` | yes | role_name, role_level, is_admin |
+| Authorization | `permissions` | no | permission_name, resource_type, can_read, can_write |
+| API | `api` | no | api_key, rate_limit_tier, is_active |
+| Multi-tenancy | `tenant` | no | tenant_id, tenant_name, plan, is_active |
+| Commerce | `billing` | no | customer_id, plan, is_active, billing_cycle |
+| Commerce | `payments` | no | payment_method_id, provider, currency, is_verified |
+| Commerce | `invoice` | no | invoice_id, status, amount, is_paid |
+| Compliance | `audit` | no | request_id, source_ip, user_agent |
 | Compliance | `geo` | no | country, region, timezone |
 
 ### University application example
@@ -161,7 +161,7 @@ metadata:
     fields:
       - name: authenticated
         type: boolean
-      - name: sessionId
+      - name: session_id
         type: String
       - name: provider
         type: String
@@ -169,11 +169,11 @@ metadata:
     enabled: true
     description: "Role-based access control"
     fields:
-      - name: roleName
+      - name: role_name
         type: String
-      - name: roleLevel
+      - name: role_level
         type: int
-      - name: isAdmin
+      - name: is_admin
         type: boolean
 ```
 
@@ -187,11 +187,11 @@ Custom categories use the same format as built-ins. Add them at the bottom of `m
     enabled: true
     description: "University-specific role context"
     fields:
-      - name: isStudent
+      - name: is_student
         type: boolean
-      - name: isFaculty
+      - name: is_faculty
         type: boolean
-      - name: isStaff
+      - name: is_staff
         type: boolean
 ```
 
@@ -199,8 +199,8 @@ Then use it in a `Given` step just like any built-in category:
 
 ```gherkin
 Given university context requires:
-  | field     | operator | value |
-  | isFaculty | ==       | true  |
+  | field      | operator | value |
+  | is_faculty | ==       | true  |
 ```
 
 ### Enabling a built-in category
@@ -219,7 +219,7 @@ To start using a built-in category that's currently disabled, just set `enabled:
 
 - [ ] Category name is lowercase (`university`, not `University`)
 - [ ] `enabled: true` is set
-- [ ] Field names are camelCase (`roleLevel`, `isFaculty` — not `role_level`, `is_faculty`)
+- [ ] Field names are snake_case (`role_level`, `is_faculty` -- not `roleLevel`, `isFaculty`)
 - [ ] Each field type is one of `boolean`, `String`, or `int`
 - [ ] Run `make features-to-specs` after updating to confirm the pipeline still passes
 
@@ -322,8 +322,8 @@ Authorization context from HTTP headers is checked in `Given` steps **before** t
   @target:Admissions @blocking @rule:AdmissionsStaffOnly
   Scenario: Only admissions staff can review applications
     Given roles context requires:
-      | field     | operator | value |
-      | roleLevel | >=       | 4     |
+      | field      | operator | value |
+      | role_level | >=       | 4     |
     And sso context requires:
       | field         | operator | value |
       | authenticated | ==       | true  |
@@ -387,8 +387,8 @@ Feature: Auth Domain Business Rules
   @target:Users @blocking @rule:AdminAuthenticationRequired
   Scenario: Admin operations require an authenticated user with elevated role
     Given roles context requires:
-      | field     | operator | value |
-      | roleLevel | >=       | 5     |
+      | field      | operator | value |
+      | role_level | >=       | 5     |
     And sso context requires:
       | field         | operator | value |
       | authenticated | ==       | true  |
@@ -486,8 +486,8 @@ Feature: Academic Domain Business Rules
   @target:Courses @blocking @rule:CourseFacultyManagement
   Scenario: Only authenticated faculty can modify course configuration
     Given roles context requires:
-      | field     | operator | value |
-      | roleLevel | >=       | 3     |
+      | field      | operator | value |
+      | role_level | >=       | 3     |
     And sso context requires:
       | field         | operator | value |
       | authenticated | ==       | true  |
@@ -564,8 +564,8 @@ Feature: Admissions Domain Business Rules
   @target:Admissions @blocking @rule:AdmissionsStaffOnly
   Scenario: Only admissions staff with sufficient role can review applications
     Given roles context requires:
-      | field     | operator | value |
-      | roleLevel | >=       | 4     |
+      | field      | operator | value |
+      | role_level | >=       | 4     |
     And sso context requires:
       | field         | operator | value |
       | authenticated | ==       | true  |
@@ -693,8 +693,8 @@ Feature: Intranet Domain Business Rules
   @target:IntranetSystems @blocking @rule:AdminSystemAccessOnly
   Scenario: High-security systems require admin role and active SSO session
     Given roles context requires:
-      | field   | operator | value |
-      | isAdmin | ==       | true  |
+      | field    | operator | value |
+      | is_admin | ==       | true  |
     And sso context requires:
       | field         | operator | value |
       | authenticated | ==       | true  |
@@ -782,20 +782,20 @@ Scenario: Only active enrollments appear in transcript
   But otherwise status is "COURSE_IN_PROGRESS"
 ```
 
-### 5. Metadata fields use camelCase
+### 5. Metadata fields use snake_case
 
-Model fields use `snake_case`, but metadata fields use `camelCase` — matching Java getter conventions.
+Both model fields and metadata fields use `snake_case`. The pipeline converts snake_case field names to HTTP header names automatically.
 
 ```gherkin
-# WRONG: snake_case for a metadata field
-Given roles context requires:
-  | field      | operator | value |
-  | role_level | >=       | 3     |
-
-# CORRECT: camelCase for metadata fields
+# WRONG: camelCase for a metadata field
 Given roles context requires:
   | field     | operator | value |
   | roleLevel | >=       | 3     |
+
+# CORRECT: snake_case for metadata fields
+Given roles context requires:
+  | field      | operator | value |
+  | role_level | >=       | 3     |
 ```
 
 ### 6. Data table operators use symbols, not natural language
@@ -843,7 +843,7 @@ Before committing any `.feature` file, verify each scenario against this list:
 - [ ] No `When` condition references a `DATE`, `TIMESTAMP`, or `DATETIME` column
 - [ ] All values in `When` conditions are literals — never another field name
 - [ ] Compound data table operators use symbols (`==`, `>=`, etc.)
-- [ ] Metadata fields in `Given … context requires:` use `camelCase`
+- [ ] Metadata fields in `Given … context requires:` use `snake_case`
 - [ ] Every metadata category name (e.g., `roles`, `sso`) exists in `metadata.yaml`
 - [ ] Every metadata field name exists in that category's `fields` list in `metadata.yaml`
 - [ ] Every scenario has both `Then status is "…"` and `But otherwise status is "…"`

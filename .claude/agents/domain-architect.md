@@ -301,7 +301,7 @@ The complete Gherkin DSL reference — tags, operators, conditions, metadata, ou
 - Operators: `equals`, `does not equal`, `is greater than`, `is less than`, `is at least`, `is at most`
 - Non-comparable types: `DATE`/`TIMESTAMP`/`DATETIME` CANNOT be in `When` conditions
 - Values must be literals (never field references)
-- Metadata field names use **camelCase**, model field names use **snake_case**
+- Metadata field names use **snake_case**, model field names use **snake_case**
 - Outcomes: `Then status is "X"` + `But otherwise status is "Y"`
 
 **Validation workflow** (always run before finalizing feature files):
@@ -323,11 +323,11 @@ Defines authorization context model categories. Each category becomes a typed PO
 metadata:
   <category_name>:
     fields:
-      - name: <fieldName>        # camelCase
+      - name: <field_name>        # snake_case
         type: <type>             # boolean, String, int, float
   <another_category>:
     fields:
-      - name: <fieldName>
+      - name: <field_name>
         type: <type>
 ```
 
@@ -342,7 +342,7 @@ metadata:
 
 ### Field Naming
 
-Field names use **camelCase** (e.g., `roleLevel`, `sessionId`, `isAdmin`). This matches Java getter conventions and is used by the reflection-based evaluation path.
+Field names use **snake_case** (e.g., `role_level`, `session_id`, `is_admin`). The pipeline converts snake_case to Java getter names and HTTP header names automatically.
 
 ### Standard Categories
 
@@ -350,13 +350,13 @@ These are common authorization categories. Use what the application needs:
 
 | Category | Purpose | Common Fields |
 |----------|---------|--------------|
-| `sso` | Single sign-on context | `authenticated` (boolean), `sessionId` (String), `provider` (String) |
-| `roles` | Role-based access control | `roleName` (String), `roleLevel` (int), `isAdmin` (boolean) |
-| `user` | User identity | `userId` (String), `email` (String), `clearanceLevel` (int) |
-| `location` | Geographic context | `locationId` (String), `country` (String), `timezone` (String) |
-| `tenant` | Multi-tenancy | `tenantId` (String), `tenantPlan` (String), `isEnterprise` (boolean) |
-| `oauth` | OAuth2 context | `accessToken` (String), `scope` (String), `expiresIn` (int) |
-| `api` | API key context | `apiKey` (String), `rateLimitTier` (int) |
+| `sso` | Single sign-on context | `authenticated` (boolean), `session_id` (String), `provider` (String) |
+| `roles` | Role-based access control | `role_name` (String), `role_level` (int), `is_admin` (boolean) |
+| `user` | User identity | `user_id` (String), `email` (String), `clearance_level` (int) |
+| `location` | Geographic context | `location_id` (String), `country` (String), `timezone` (String) |
+| `tenant` | Multi-tenancy | `tenant_id` (String), `tenant_plan` (String), `is_enterprise` (boolean) |
+| `oauth` | OAuth2 context | `access_token` (String), `scope` (String), `expires_in` (int) |
+| `api` | API key context | `api_key` (String), `rate_limit_tier` (int) |
 
 ### Example
 
@@ -366,27 +366,27 @@ metadata:
     fields:
       - name: authenticated
         type: boolean
-      - name: sessionId
+      - name: session_id
         type: String
   roles:
     fields:
-      - name: roleName
+      - name: role_name
         type: String
-      - name: roleLevel
+      - name: role_level
         type: int
-      - name: isAdmin
+      - name: is_admin
         type: boolean
   oauth:
     fields:
-      - name: accessToken
+      - name: access_token
         type: String
       - name: scope
         type: String
   tenant:
     fields:
-      - name: tenantId
+      - name: tenant_id
         type: String
-      - name: isEnterprise
+      - name: is_enterprise
         type: boolean
 ```
 

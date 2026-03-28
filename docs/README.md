@@ -51,3 +51,5 @@ Implemented in Java today. All future language targets must conform. Minor gaps 
 | [CONFORMANCE_TESTS.md](todos/CONFORMANCE_TESTS.md) | Cross-language fixture layout and golden outputs |
 | [PARSER_PARITY.md](todos/PARSER_PARITY.md) | Rules for byte-for-byte identical parser output across languages |
 | [LANGUAGE_IMPLEMENTATION.md](todos/LANGUAGE_IMPLEMENTATION.md) | Framework selections and implementation guide per language |
+| [SPEC-server-framework-abstraction.md](todos/SPEC-server-framework-abstraction.md) | Refactor AppServerGenerator into ServerGenerator + ServerEmitter interface for multi-language portability |
+| [SPEC-html-crud-codegen.md](todos/SPEC-html-crud-codegen.md) | Generate static HTML CRUD pages from models.yaml + specs.yaml (depends on server abstraction) |

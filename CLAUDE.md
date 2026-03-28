@@ -87,7 +87,10 @@ The remaining generators (`AppServerGenerator`, `ProtoOpenAPIGenerator`, `Models
 
 **Rule for future subprojects**: Use plain string building. Do not introduce templating libraries unless the generated output is simple and structural.
 
-### 6. Git-Friendly Artifacts
+### 6. Language-Specific Utility Classes
+Each subproject provides a language-specific utility class (`JavaUtils.java`, future `GoUtils.go`, `RustUtils.rs`, etc.) that handles naming convention transforms from the canonical snake_case intermediates to the target language's conventions. A separate `CodeGenUtils` class holds language-agnostic string operations shared by all generators. Generators read snake_case from `models.yaml`/`specs.yaml` and call the language utility at codegen time — never store language-specific casing in intermediate files.
+
+### 7. Git-Friendly Artifacts
 Only source files are committed:
 - ✅ schema.sql, features/*.feature, metadata.yaml (sources)
 - ✅ src/main/java/, src/test/ (handwritten code)
