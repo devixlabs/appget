@@ -216,6 +216,19 @@ Periodic audits should verify that Active docs still match source code. Run this
 
 ---
 
+## Pending Work & TODO Awareness
+
+All pending work is tracked in two systems. Every session and sub-agent should know about both.
+
+| System | Entry Point | Slash Command | Purpose |
+|--------|-------------|---------------|---------|
+| **Spec docs** | `docs/todos/ROADMAP.md` | `/audit-todos-dlabs` | What to build — phase-mapped specs, gap tracking, lifecycle management |
+| **Execution tasks** | `TODO*.md` in working directory | `/todo-breakdown` | How to build it — recursive task decomposition, atomic leaf execution |
+
+**Workflow**: ROADMAP.md defines phases and links to spec docs. When starting a phase, `/todo-breakdown` decomposes it into executable TODO files. After completing work, `/audit-todos-dlabs` audits specs against the codebase and cleans up finished docs.
+
+---
+
 ## Key Principles for Claude Code
 
 1. **Understand the subproject first** - Read the README in the subproject directory
@@ -234,5 +247,5 @@ Periodic audits should verify that Active docs still match source code. Run this
 
 ---
 
-**Last Updated**: 2026-03-25
+**Last Updated**: 2026-03-29
 **Status**: Language-agnostic guidance (Java details in java/CLAUDE.md)

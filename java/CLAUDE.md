@@ -881,7 +881,7 @@ make run                      # 6. Execute
 - Alias: same as `make verify` (regenerate + run)
 
 ### make test
-- Runs: `gradle test` (0 failures, 0 errors expected)
+- Runs: `./gradlew test` (0 failures, 0 errors expected)
 
 ### make build
 - Full pipeline: parse → generate → compile → package
@@ -1093,6 +1093,8 @@ When changing metadata.yaml structure (e.g., adding `enabled` field), update thi
 
 ### Test Execution
 
+**Gotcha:** Always use `./gradlew`, never system `gradle`. The project requires Java 25; the system Gradle (snap) uses Java 21 and will fail to compile.
+
 **Run all tests**:
 ```bash
 make test
@@ -1100,12 +1102,12 @@ make test
 
 **Run specific test class**:
 ```bash
-gradle test --tests "dev.appget.specification.CompoundSpecificationTest"
+./gradlew test --tests "dev.appget.specification.CompoundSpecificationTest"
 ```
 
 **Run specific test method**:
 ```bash
-gradle test --tests "dev.appget.model.RuleTest.testRuleWithCompoundSpecification"
+./gradlew test --tests "dev.appget.model.RuleTest.testRuleWithCompoundSpecification"
 ```
 
 **Run with full pipeline** (recommended):

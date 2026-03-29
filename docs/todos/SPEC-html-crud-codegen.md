@@ -247,7 +247,7 @@ Follow the existing test suite patterns (read `src/test/java/` for structure):
 - Test view-only pages for SQL views
 - Test root index.html contains all domains and entities
 - Test graceful degradation when `specs.yaml` is absent
-- All existing 280+ tests must still pass
+- All existing 380+ tests must still pass
 
 ---
 

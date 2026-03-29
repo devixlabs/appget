@@ -190,7 +190,7 @@ These data classes live in the generator layer, not in any framework package.
 6. Add `application/x-www-form-urlencoded` support to `SpringBootEmitter`
    (required for HTML form integration)
 7. Add `HiddenHttpMethodFilter` emission to `SpringBootEmitter`
-8. Run `make all` — all 280+ tests must pass, generated Spring Boot output must be identical
+8. Run `make all` — all 380+ tests must pass, generated Spring Boot output must be identical
 
 ---
 
