@@ -43,15 +43,22 @@ Implemented in Java today. All future language targets must conform. Minor gaps 
 
 ## Pending Work (docs/todos/)
 
-| Document | Purpose |
-|----------|---------|
-| [CONTRACT_GAPS.md](todos/CONTRACT_GAPS.md) | Tracked implementation gaps in the active contract docs above |
-| [ROADMAP.md](todos/ROADMAP.md) | Phase-by-phase plan for multi-language rollout |
-| [GRPC_CONTRACT.md](todos/GRPC_CONTRACT.md) | gRPC server contract — proto stubs exist, server implementation pending |
-| [CONFORMANCE_TESTS.md](todos/CONFORMANCE_TESTS.md) | Cross-language fixture layout and golden outputs |
-| [PARSER_PARITY.md](todos/PARSER_PARITY.md) | Rules for byte-for-byte identical parser output across languages |
-| [LANGUAGE_IMPLEMENTATION.md](todos/LANGUAGE_IMPLEMENTATION.md) | Framework selections and implementation guide per language |
-| [SPEC-server-framework-abstraction.md](todos/SPEC-server-framework-abstraction.md) | Refactor AppServerGenerator into ServerGenerator + ServerEmitter interface for multi-language portability |
-| [SPEC-html-crud-codegen.md](todos/SPEC-html-crud-codegen.md) | Generate static HTML CRUD pages from models.yaml + specs.yaml (depends on server abstraction) |
-| [TODO-enhance-make-run-demo.md](todos/TODO-enhance-make-run-demo.md) | Enhance `make run` CLI demo to exercise metadata-aware authorization rules with populated demo data |
-| [TODO-naming-convention-interface.md](todos/TODO-naming-convention-interface.md) | Extract NamingConvention interface from Specification.java — cross-language pattern for field-name resolution |
+**Entry point**: [ROADMAP.md](todos/ROADMAP.md) — every pending doc maps to a roadmap phase.
+
+### Phase 0 — Java Reference Hardening (current focus)
+
+| Document | Phase | Purpose |
+|----------|-------|---------|
+| [TODO-naming-convention-interface.md](todos/TODO-naming-convention-interface.md) | 0a | Extract NamingConvention interface — cross-language field-name resolution pattern |
+| [SPEC-server-framework-abstraction.md](todos/SPEC-server-framework-abstraction.md) | 0b | Refactor AppServerGenerator into ServerGenerator + ServerEmitter for portability |
+| [GRPC_CONTRACT.md](todos/GRPC_CONTRACT.md) | 0c | gRPC server implementation (proto stubs exist, server pending) |
+| [SPEC-html-crud-codegen.md](todos/SPEC-html-crud-codegen.md) | 0d | Generate static HTML CRUD pages (depends on 0b) |
+
+### Phase 1+ — Cross-Language Rollout
+
+| Document | Phase | Purpose |
+|----------|-------|---------|
+| [PARSER_PARITY.md](todos/PARSER_PARITY.md) | 1 | Rules for byte-for-byte identical parser output across languages |
+| [CONFORMANCE_TESTS.md](todos/CONFORMANCE_TESTS.md) | 1 | Cross-language fixture layout and golden outputs |
+| [LANGUAGE_IMPLEMENTATION.md](todos/LANGUAGE_IMPLEMENTATION.md) | 5-6 | Framework selections and implementation guide per language |
+| [CONTRACT_GAPS.md](todos/CONTRACT_GAPS.md) | 5 | Remaining gap (GAP-P1): non-Java package options, blocked on language implementations |
