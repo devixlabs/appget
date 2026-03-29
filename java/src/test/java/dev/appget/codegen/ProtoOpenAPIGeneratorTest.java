@@ -11,7 +11,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
-import dev.appget.codegen.JavaUtils;
+import dev.appget.naming.JavaNaming;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -373,10 +373,10 @@ class ProtoOpenAPIGeneratorTest {
     @Test
     @DisplayName("snake_case to camelCase conversion works correctly")
     void testSnakeToCamelConversion() {
-        assertEquals("roleId", JavaUtils.snakeToCamel("role_id"));
-        assertEquals("invoiceNumber", JavaUtils.snakeToCamel("invoice_number"));
-        assertEquals("yearsOfService", JavaUtils.snakeToCamel("years_of_service"));
-        assertEquals("name", JavaUtils.snakeToCamel("name"));
+        assertEquals("roleId", JavaNaming.toFieldAccessor("role_id"));
+        assertEquals("invoiceNumber", JavaNaming.toFieldAccessor("invoice_number"));
+        assertEquals("yearsOfService", JavaNaming.toFieldAccessor("years_of_service"));
+        assertEquals("name", JavaNaming.toFieldAccessor("name"));
     }
 
     @Test

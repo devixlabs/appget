@@ -47,12 +47,12 @@ Implemented in Java today. All future language targets must conform. Minor gaps 
 
 ### Phase 0 — Java Reference Hardening (current focus)
 
-| Document | Phase | Purpose |
-|----------|-------|---------|
-| [TODO-naming-convention-interface.md](todos/TODO-naming-convention-interface.md) | 0a | Extract NamingConvention interface — cross-language field-name resolution pattern |
-| [SPEC-server-framework-abstraction.md](todos/SPEC-server-framework-abstraction.md) | 0b | Refactor AppServerGenerator into ServerGenerator + ServerEmitter for portability |
-| [GRPC_CONTRACT.md](todos/GRPC_CONTRACT.md) | 0c | gRPC server implementation (proto stubs exist, server pending) |
-| [SPEC-html-crud-codegen.md](todos/SPEC-html-crud-codegen.md) | 0d | Generate static HTML CRUD pages (depends on 0b) |
+| Document | Phase | Status | Purpose |
+|----------|-------|--------|---------|
+| ~~TODO-naming-convention-interface.md~~ (deleted) | 0a | **Done** (2026-03-29) | NamingConvention interface — `dev.appget.naming` package with cross-language field-name resolution pattern |
+| [SPEC-server-framework-abstraction.md](todos/SPEC-server-framework-abstraction.md) | 0b | Pending | Refactor AppServerGenerator into ServerGenerator + ServerEmitter for portability |
+| [GRPC_CONTRACT.md](todos/GRPC_CONTRACT.md) | 0c | Pending | gRPC server implementation (proto stubs exist, server pending) |
+| [SPEC-html-crud-codegen.md](todos/SPEC-html-crud-codegen.md) | 0d | Pending | Generate static HTML CRUD pages (depends on 0b) |
 
 ### Phase 1+ — Cross-Language Rollout
 

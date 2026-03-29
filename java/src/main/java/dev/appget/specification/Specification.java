@@ -4,6 +4,7 @@ import com.google.protobuf.ByteString;
 import com.google.protobuf.Descriptors;
 import com.google.protobuf.Message;
 import com.google.protobuf.MessageOrBuilder;
+import dev.appget.naming.JavaNaming;
 import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -62,7 +63,7 @@ public class Specification {
     }
 
     private <T> Object getFieldValueViaReflection(T target, String fieldName) throws Exception {
-        String camelName = snakeToCamel(fieldName);
+        String camelName = JavaNaming.toFieldAccessor(fieldName);
         String getterName = "get" + Character.toUpperCase(camelName.charAt(0)) + camelName.substring(1);
         Method getter;
         try {
@@ -254,26 +255,6 @@ public class Specification {
     public String getField() { return field; }
     public String getOperator() { return operator; }
     public Object getValue() { return value; }
-
-    private static String snakeToCamel(String str) {
-        if (str == null || str.isEmpty() || !str.contains("_")) {
-            return str;
-        }
-        StringBuilder result = new StringBuilder();
-        boolean capitalizeNext = false;
-        for (int i = 0; i < str.length(); i++) {
-            char c = str.charAt(i);
-            if (c == '_') {
-                capitalizeNext = true;
-            } else if (capitalizeNext) {
-                result.append(Character.toUpperCase(c));
-                capitalizeNext = false;
-            } else {
-                result.append(c);
-            }
-        }
-        return result.toString();
-    }
 
     @Override
     public String toString() {

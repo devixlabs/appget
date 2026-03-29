@@ -7,7 +7,7 @@ import java.util.regex.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.yaml.snakeyaml.Yaml;
-import dev.appget.codegen.JavaUtils;
+import dev.appget.naming.JavaNaming;
 
 /**
  * Generates OpenAPI 3.0 specification from .proto files.
@@ -474,7 +474,7 @@ public class ProtoOpenAPIGenerator {
                 }
             }
 
-            String jsonName = JavaUtils.snakeToCamel(field.name());
+            String jsonName = JavaNaming.toFieldAccessor(field.name());
             properties.put(jsonName, fieldSchema);
             required.add(jsonName);
         }

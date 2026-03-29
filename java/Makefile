@@ -31,6 +31,10 @@ check:
 		chmod +x gradlew; \
 	fi
 
+# Clean build artifacts and generated code
+clean: check
+	@./gradlew clean
+
 # Default target - build everything and verify
 all: check clean generate test build verify
 
@@ -38,6 +42,12 @@ all: check clean generate test build verify
 # Also regenerates API test script + shellcheck
 verify: build _generate-default-script
 	@./gradlew run
+	@./generated-server/verify.sh
+
+# Run API test script (requires server to be running)
+test-api: check _generate-default-script
+	@echo "✓ Running API tests..."
+	@./generated-server/verify.sh
 
 # Convert .feature files + metadata.yaml to specs.yaml
 features-to-specs: check
@@ -96,11 +106,3 @@ _generate-default-script:
 	@./gradlew generateDefaultScript
 	@shellcheck generated-server/verify.sh
 
-# Run API test script (requires server to be running)
-test-api: check _generate-default-script
-	@echo "✓ Running API tests..."
-	@./generated-server/verify.sh
-
-# Clean build artifacts and generated code
-clean: check
-	@./gradlew clean

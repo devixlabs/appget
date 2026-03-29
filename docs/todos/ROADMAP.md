@@ -16,11 +16,10 @@ This roadmap reflects the current decisions and the latest pipeline constraints.
 Goal: the Java subproject is clean, well-abstracted, and establishes every structural pattern that future language subprojects replicate.
 
 ### 0a. NamingConvention Interface
-- **Doc**: [TODO-naming-convention-interface.md](TODO-naming-convention-interface.md)
+- **Status**: **Done** (2026-03-29)
 - **What**: Extract duplicated `snakeToCamel` from `Specification.java` and `JavaUtils.java` into a `NamingConvention` interface + `JavaNaming` static utility in `dev.appget.naming`
 - **Why**: Establishes the cross-language pattern for field-name resolution. Every future language replicates this interface.
-- **Blocks**: Nothing directly, but reduces tech debt before larger refactors touch the same files
-- **Effort**: Small (~9 files, focused refactor)
+- **Result**: `dev.appget.naming` package created with `NamingConvention` interface and `JavaNaming` static utility. All `snakeToCamel` callers migrated to `JavaNaming.toFieldAccessor()`. `JavaUtils` retains only codegen-specific methods (`snakeToPascal`, `snakeToHeaderCase`, `JAVA_TO_PROTO_TYPE`).
 
 ### 0b. Server Framework Abstraction
 - **Doc**: [SPEC-server-framework-abstraction.md](SPEC-server-framework-abstraction.md)
@@ -43,9 +42,9 @@ Goal: the Java subproject is clean, well-abstracted, and establishes every struc
 - **Blocked by**: Server Framework Abstraction (0b) — needs emitter support for `application/x-www-form-urlencoded`
 - **Effort**: Medium
 
-### Suggested order: 0a → 0b → 0c → 0d
+### Suggested order: ~~0a~~ → 0b → 0c → 0d
 
-0c and 0d can be parallelized once 0b is done. 0a is independent and should go first.
+0a is done. Next is 0b. 0c and 0d can be parallelized once 0b is done.
 
 ---
 

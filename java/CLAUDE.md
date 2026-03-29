@@ -265,23 +265,27 @@ Appget separates **language-agnostic** utilities from **language-specific** nami
 
 **Language-agnostic** (`CodeGenUtils.java`): String operations that apply to any language — `capitalize()`, `escapeString()`, `smartSplit()`, `findMatchingParen()`. Shared across all generators, never language-specific.
 
-**Language-specific** (`JavaUtils.java`): Naming convention transforms that encode Java's casing rules. Future subprojects replicate this pattern with their own conventions:
+**Runtime naming** (`dev.appget.naming`): The `NamingConvention` interface defines the cross-language contract for field-name resolution at runtime. Each language implements this with a static utility class. `Specification.java` and generators both call `JavaNaming.toFieldAccessor()` for snake_case-to-camelCase conversion.
 
 | Utility class | Language | `snake_case` input | Casing output |
 |--------------|----------|-------------------|--------------|
-| `JavaUtils.java` | Java | `role_level` | `roleLevel` (camelCase) |
-| `GoUtils.go` | Go | `role_level` | `RoleLevel` (PascalCase) |
-| `PythonUtils.py` | Python | `role_level` | `role_level` (identity) |
-| `RustUtils.rs` | Rust | `role_level` | `role_level` (identity) |
-| `NodeUtils.js` | Node/JS | `role_level` | `roleLevel` (camelCase) |
+| `JavaNaming.java` | Java | `role_level` | `roleLevel` (camelCase) |
+| `GoNaming.go` | Go | `role_level` | `RoleLevel` (PascalCase) |
+| `python_naming.py` | Python | `role_level` | `role_level` (identity) |
+| `rust_naming.rs` | Rust | `role_level` | `role_level` (identity) |
+| `node_naming.js` | Node/JS | `role_level` | `roleLevel` (camelCase) |
+
+**Codegen-only** (`JavaUtils.java`): Methods used only at generation time that don't belong in the runtime naming contract: `snakeToPascal()`, `snakeToHeaderCase()`, `JAVA_TO_PROTO_TYPE`.
 
 ```java
 // Language-agnostic (CodeGenUtils) — shared by all
 CodeGenUtils.capitalize("role_level")              // → "Role_level"
 CodeGenUtils.escapeString("he said \"hi\"")        // → "he said \\\"hi\\\""
 
-// Language-specific (JavaUtils) — Java naming conventions
-JavaUtils.snakeToCamel("role_level")               // → "roleLevel"
+// Runtime naming (JavaNaming) — field accessor resolution
+JavaNaming.toFieldAccessor("role_level")           // → "roleLevel"
+
+// Codegen-only (JavaUtils) — generation-time transforms
 JavaUtils.snakeToPascal("role_level")              // → "RoleLevel"
 JavaUtils.snakeToHeaderCase("role_level")          // → "Role-Level"
 ```
@@ -388,7 +392,7 @@ LocalDate + nullable=any → LocalDate (can hold null)
 
 ## Metadata Field Naming Convention
 
-`metadata.yaml` and `specs.yaml` use **snake_case** field names (`role_level`, `session_id`, `is_admin`). This is the language-agnostic canonical form, consistent with `models.yaml`. Each language's codegen applies its own casing: Java → `snakeToCamel`, Go → `snakeToPascal`, Python/Rust/Ruby → identity. HTTP header derivation: `snakeToHeaderCase("role_level")` → `Role-Level` → `X-Roles-Role-Level`.
+`metadata.yaml` and `specs.yaml` use **snake_case** field names (`role_level`, `session_id`, `is_admin`). This is the language-agnostic canonical form, consistent with `models.yaml`. Each language's codegen applies its own casing: Java → `JavaNaming.toFieldAccessor`, Go → `GoNaming.toFieldAccessor`, Python/Rust/Ruby → identity. HTTP header derivation: `snakeToHeaderCase("role_level")` → `Role-Level` → `X-Roles-Role-Level`.
 
 ---
 

@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import dev.appget.codegen.CodeGenUtils;
 import dev.appget.codegen.JavaUtils;
+import dev.appget.naming.JavaNaming;
 
 /**
  * Generates a production-ready Spring Boot REST API server from models and specifications.
@@ -539,7 +540,7 @@ public class AppServerGenerator {
             // Read headers
             for (Map<String, Object> field : fields) {
                 String fieldName = (String) field.get("name");
-                String camelFieldName = JavaUtils.snakeToCamel(fieldName);
+                String camelFieldName = JavaNaming.toFieldAccessor(fieldName);
                 String varName = category + CodeGenUtils.capitalize(camelFieldName);
                 String headerName = headerPrefix + JavaUtils.snakeToHeaderCase(fieldName);
                 code.append("        String ").append(varName).append(" = request.getHeader(\"")
@@ -550,7 +551,7 @@ public class AppServerGenerator {
             StringBuilder condition = new StringBuilder();
             for (int i = 0; i < fields.size(); i++) {
                 String fieldName = (String) fields.get(i).get("name");
-                String camelFieldName = JavaUtils.snakeToCamel(fieldName);
+                String camelFieldName = JavaNaming.toFieldAccessor(fieldName);
                 String varName = category + CodeGenUtils.capitalize(camelFieldName);
                 if (i > 0) condition.append(" || ");
                 condition.append(varName).append(" != null");
@@ -563,7 +564,7 @@ public class AppServerGenerator {
             for (Map<String, Object> field : fields) {
                 String fieldName = (String) field.get("name");
                 String fieldType = (String) field.get("type");
-                String camelFieldName = JavaUtils.snakeToCamel(fieldName);
+                String camelFieldName = JavaNaming.toFieldAccessor(fieldName);
                 String varName = category + CodeGenUtils.capitalize(camelFieldName);
                 String headerName = headerPrefix + JavaUtils.snakeToHeaderCase(fieldName);
                 code.append("                .").append(camelFieldName).append("(")
@@ -1692,7 +1693,7 @@ public class AppServerGenerator {
         }
         StringBuilder path = new StringBuilder();
         for (Map<String, Object> field : pkFields) {
-            String camelName = JavaUtils.snakeToCamel((String) field.get("name"));
+            String camelName = JavaNaming.toFieldAccessor((String) field.get("name"));
             path.append("/{").append(camelName).append("}");
         }
         return path.toString();
@@ -1713,7 +1714,7 @@ public class AppServerGenerator {
             if (i > 0) {
                 params.append(", ");
             }
-            String camelName = JavaUtils.snakeToCamel((String) pkFields.get(i).get("name"));
+            String camelName = JavaNaming.toFieldAccessor((String) pkFields.get(i).get("name"));
             params.append("@PathVariable String ").append(camelName);
         }
         return params.toString();
@@ -1734,7 +1735,7 @@ public class AppServerGenerator {
             if (i > 0) {
                 params.append(", ");
             }
-            String camelName = JavaUtils.snakeToCamel((String) pkFields.get(i).get("name"));
+            String camelName = JavaNaming.toFieldAccessor((String) pkFields.get(i).get("name"));
             params.append("String ").append(camelName);
         }
         return params.toString();
@@ -1755,7 +1756,7 @@ public class AppServerGenerator {
             if (i > 0) {
                 args.append(", ");
             }
-            args.append(JavaUtils.snakeToCamel((String) pkFields.get(i).get("name")));
+            args.append(JavaNaming.toFieldAccessor((String) pkFields.get(i).get("name")));
         }
         return args.toString();
     }
@@ -1775,7 +1776,7 @@ public class AppServerGenerator {
             if (i > 0) {
                 expr.append(" + \":\" + ");
             }
-            expr.append(JavaUtils.snakeToCamel((String) pkFields.get(i).get("name")));
+            expr.append(JavaNaming.toFieldAccessor((String) pkFields.get(i).get("name")));
         }
         return expr.toString();
     }
@@ -1795,7 +1796,7 @@ public class AppServerGenerator {
             if (i > 0) {
                 expr.append(" + \":\" + ");
             }
-            String camelName = JavaUtils.snakeToCamel((String) pkFields.get(i).get("name"));
+            String camelName = JavaNaming.toFieldAccessor((String) pkFields.get(i).get("name"));
             String getterName = "get" + Character.toUpperCase(camelName.charAt(0)) + camelName.substring(1);
             expr.append("entity.").append(getterName).append("()");
         }
@@ -1817,7 +1818,7 @@ public class AppServerGenerator {
             if (i > 0) {
                 pattern.append(", ");
             }
-            pattern.append(JavaUtils.snakeToCamel((String) pkFields.get(i).get("name")));
+            pattern.append(JavaNaming.toFieldAccessor((String) pkFields.get(i).get("name")));
             pattern.append(": {}");
         }
         return pattern.toString();

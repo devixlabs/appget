@@ -33,26 +33,6 @@ public class JavaUtils {
         return map;
     }
 
-    public static String snakeToCamel(String str) {
-        if (str == null || str.isEmpty()) {
-            return str;
-        }
-        StringBuilder result = new StringBuilder();
-        boolean capitalizeNext = false;
-        for (int i = 0; i < str.length(); i++) {
-            char c = str.charAt(i);
-            if (c == '_') {
-                capitalizeNext = true;
-            } else if (capitalizeNext) {
-                result.append(Character.toUpperCase(c));
-                capitalizeNext = false;
-            } else {
-                result.append(c);
-            }
-        }
-        return result.toString();
-    }
-
     public static String snakeToHeaderCase(String str) {
         if (str == null || str.isEmpty()) {
             return str;

@@ -106,7 +106,7 @@ sourceSets {
 task compileGenerators(type: JavaCompile) {
     group = 'build'
     description = 'Compile generator classes only'
-    source = 'src/main/java/dev/appget/codegen'
+    source = fileTree('src/main/java/dev/appget/codegen') + fileTree('src/main/java/dev/appget/naming')
     classpath = configurations.compileClasspath + configurations.annotationProcessor
     destinationDirectory = file("${buildDir}/generators")
 }
