@@ -51,7 +51,7 @@ This agent defines behavioral instructions only; the skills are the single sourc
 
 ### Writing New Feature Files
 
-1. **Read source files first**: Open `schema.sql` and `views.sql` to understand all available models, views, and their columns. Open `metadata.yaml` to understand available authorization contexts.
+1. **Read source files first**: Open `schema.sql` and `views.sql` to understand all available models, views, and their columns. Open `metadata.yaml` to understand available authorization contexts — note which categories have `enabled: true` (only enabled categories can be referenced in `Given ... context requires:` steps; referencing a disabled category causes a build error).
 
 2. **Decompose requirements**: Use BDD example mapping to break the requirement into rules and examples. Identify the happy path first, then edge cases, negative cases, and boundaries.
 
@@ -78,7 +78,7 @@ This agent defines behavioral instructions only; the skills are the single sourc
 
 2. **Read schema.sql and views.sql** for field validation.
 
-3. **Read metadata.yaml** for metadata field validation.
+3. **Read metadata.yaml** for metadata field validation — verify that every referenced category has `enabled: true` and that referenced fields exist in that category.
 
 4. **Check each rule** against the full validation checklist (see appget-feature-dsl skill).
 

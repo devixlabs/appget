@@ -139,6 +139,30 @@ make verify              # API integration tests (requires server running)
 
 ---
 
+## Gherkin DSL Validation Rules
+
+When writing `.feature` files or abstract rule examples, validate:
+
+1. **Every rule must have ≥1 non-metadata condition** (maps to `When` clause in Gherkin). Metadata-only rules are invalid and cause spec generation errors.
+   - ❌ Bad: `METADATA: sso.authenticated; CONDITIONS: (metadata) authenticated equals true`
+   - ✅ Good: `METADATA: sso.authenticated; CONDITIONS: (metadata) authenticated equals true AND content (TEXT) does not equal ""`
+
+2. **Name collisions**: New rule names (especially in skills like SKILL.md) must be checked against existing names in appget-feature-dsl skill to avoid conflicts during spec generation.
+
+3. **Metadata category references** (in features/*.feature or metadata.yaml): All referenced categories must exist in metadata.yaml with `enabled: true`. Unknown or disabled categories cause pipeline errors with explicit "unknown category" or "disabled category" messages.
+
+---
+
+## Session Recovery via Logs
+
+If Claude Code is interrupted (power loss, timeout):
+- Session logs are stored at: `~/.claude/projects/<project-id>/*.jsonl`
+- Search logs with: `grep "<pattern>" ~/.claude/projects/<project-id>/*.jsonl`
+- Each log contains the full conversation history and can reveal exactly where the session left off
+- Check for "quality review", "pitfall", or specific file names to reconstruct context
+
+---
+
 ## Documentation Navigation
 
 | Document | Purpose |

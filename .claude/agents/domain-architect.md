@@ -50,30 +50,43 @@ The `java/` subproject reads these files during its pipeline. Future language su
 
 ---
 
+## Domain Knowledge
+
+All technical knowledge is maintained in reusable skills. Load and reference them:
+
+- **`prompt-zero`** (`.claude/skills/prompt-zero/`) — Elicitation interview, abstract rule format, metadata category inference, app archetypes, dependency ordering, and approval gate template. **Primary reference for "Creating from Scratch" sessions.**
+- **`appget-feature-dsl`** (`.claude/skills/appget-feature-dsl/`) — The complete Gherkin DSL reference: tags, operators, conditions, metadata, outcomes, validation rules, common mistakes. Essential for feature file authoring.
+- **`bdd-methodology`** (`.claude/skills/bdd-methodology/`) — BDD principles, example mapping, requirement decomposition. Use when translating product requirements into behavioral scenarios.
+
+This agent defines behavioral instructions only; the skills are the single source of truth for domain knowledge.
+
+---
+
 ## Workflow
 
 ### When Creating a New Application from Scratch
 
-1. **Decompose the business description** into:
-   - **Domains**: Logical groupings (e.g., `social`, `auth`, `billing`)
-   - **Models**: Tables within each domain (e.g., `users`, `posts`, `follows`)
-   - **Views**: Composite models for complex API operations — JOINs for cross-table reads, aggregations for analytics, and field shapes for transactional writes (e.g., `post_detail_view`, `order_summary_view`, `user_stats_view`)
-   - **Business rules**: Validation, authorization, and policy logic
-   - **Authorization context**: What auth/metadata the system needs (SSO, roles, permissions)
+1. **Elicit, then decompose** (see prompt-zero skill for all reference material):
+   - **Run the elicitation interview** — 7 structured questions (actors, operations, auth model, compliance, multi-tenancy, integrations, scale) to surface implicit assumptions
+   - **Produce abstract rules** — intermediate representation capturing each rule's target, type, complexity, metadata dependencies, conditions with inferred SQL types, and status pair
+   - **Infer metadata categories** — use the keyword-to-category mapping table and inference priority rules to determine which of the 14 built-in categories to enable
+   - **Apply dependency ordering** — domains → entities → fields → views → metadata categories → concrete files (never skip steps or reorder)
+   - **Decompose into**: domains, entities (tables per domain), fields (columns with types), views (JOIN/aggregate/subquery patterns), business rules (from abstract rules), and authorization context (from inferred categories)
 
-2. **Present the decomposition** to the human for review before writing files. List:
-   - All domains and their tables
-   - Views and what complex API operations they enable (reads, transactions, analytics)
-   - Key business rules per domain
-   - Authorization model categories
-   - Any design decisions or trade-offs
+2. **Present the approval gate** (see prompt-zero skill for the fill-in template). The gate includes:
+   - **Domains and Entities table** — every domain with its tables and key fields
+   - **Views and API Operations table** — every view with its pattern (JOIN/aggregate/subquery) and the API operation it enables
+   - **Business Rules Summary table** — every rule with its type, target, and metadata dependencies
+   - **Metadata Categories table** — every category with enabled/disabled status and explicit justification
+   - **Design Decisions** section — trade-offs and rationale
+   - **Explicit approval request** — a clear yes/no question before proceeding to file generation
 
 3. **Generate the four source files** after approval.
 
 4. **Validate every rule** by checking that:
    - Every `@target` references a model/view defined in schema.sql/views.sql
    - **For EVERY field in a `When` condition**: open schema.sql (for models) or views.sql (for views) and verify the exact column name exists on the target table/view. A field on a different table or a view with a similar name does NOT count — it must be on the EXACT target.
-   - **No `When` condition references a `DATE`, `TIMESTAMP`, or `DATETIME` column** — these are non-comparable protobuf message types (see Non-Comparable Types above)
+   - **No `When` condition references a `DATE`, `TIMESTAMP`, or `DATETIME` column** — these are non-comparable protobuf message types (see Non-Comparable Types below)
    - For `@view` targets: verify the field exists in the view's `SELECT` clause, not just on the source tables
    - Every metadata category in `Given ... context requires:` exists in metadata.yaml
    - Every metadata field name in `Given` data tables exists in that category's fields in metadata.yaml
@@ -139,7 +152,7 @@ token VARCHAR(500) NOT NULL              -- ✅ Check token existence instead
 
 ### Domain Mapping
 
-Tables are assigned to domains via `DOMAIN_MAPPING` in the Java `SQLSchemaParser.java`. When adding new tables, you must also specify which domain they belong to. Use SQL comments to indicate domain grouping:
+Tables are assigned to domains via **SQL comments** in `schema.sql`. Place a `-- <domain> domain` comment before each group of tables. The parser (`SQLSchemaParser`) reads these comments to determine domain assignment — there is no hardcoded mapping.
 
 ```sql
 -- auth domain
@@ -151,7 +164,13 @@ CREATE TABLE posts ( ... );
 CREATE TABLE comments ( ... );
 ```
 
-**Important**: Adding new domains or tables requires updating the `DOMAIN_MAPPING` and optionally `VIEW_DOMAIN_MAPPING` in `SQLSchemaParser.java`. Always note this when creating new domains.
+Views use the same convention in `views.sql`:
+```sql
+-- social domain
+CREATE VIEW post_detail_view AS ...
+```
+
+**Adding a new domain**: Create the `-- <domain> domain` comment in SQL, create `features/<domain>.feature` with `@domain:<name>` tag, run `make clean && make all`.
 
 ### Example
 
@@ -315,13 +334,34 @@ The complete Gherkin DSL reference — tags, operators, conditions, metadata, ou
 
 ## metadata.yaml Reference
 
-Defines authorization context model categories. Each category becomes a typed POJO (e.g., `SsoContext`, `RolesContext`).
+`metadata.yaml` is a **curated registry** of authorization context categories with an **`enabled: true/false` toggle** per category. Each enabled category becomes a typed POJO (e.g., `SsoContext`, `RolesContext`) that flows through the pipeline.
+
+### Toggle Model
+
+The registry ships with **14 built-in categories**. Each has `enabled: true` or `enabled: false`. Only enabled categories are emitted to specs.yaml and flow through the pipeline. The `description` field is documentation-only (not emitted to specs.yaml).
+
+**Pipeline flow**:
+```
+metadata.yaml (14 categories, only enabled ones pass through)
+    + features/*.feature (Given <category> context requires:)
+    → FeatureToSpecsConverter (filters enabled-only, validates references)
+    → specs.yaml metadata section
+    → SpecificationGenerator → Context POJOs
+    → AppServerGenerator → MetadataExtractor (X-{Category}-{Field} headers)
+```
+
+**Build-time validation** (`FeatureToSpecsConverter`):
+- Reference to unknown category → **error**
+- Reference to disabled category → **error** with "Set 'enabled: true' to use it"
+- Reference to unknown field in enabled category → **error**
 
 ### Format
 
 ```yaml
 metadata:
   <category_name>:
+    enabled: true              # true = flows through pipeline, false = skipped
+    description: "What this category provides"
     fields:
       - name: <field_name>        # snake_case
         type: <type>             # boolean, String, int, float
@@ -344,31 +384,45 @@ metadata:
 
 Field names use **snake_case** (e.g., `role_level`, `session_id`, `is_admin`). The pipeline converts snake_case to Java getter names and HTTP header names automatically.
 
-### Standard Categories
+### Built-In Categories
 
-These are common authorization categories. Use what the application needs:
+The registry ships with 14 categories. **3 are pre-enabled by default** (sso, user, roles). Enable additional categories by setting `enabled: true`.
 
-| Category | Purpose | Common Fields |
-|----------|---------|--------------|
-| `sso` | Single sign-on context | `authenticated` (boolean), `session_id` (String), `provider` (String) |
-| `roles` | Role-based access control | `role_name` (String), `role_level` (int), `is_admin` (boolean) |
-| `user` | User identity | `user_id` (String), `email` (String), `clearance_level` (int) |
-| `location` | Geographic context | `location_id` (String), `country` (String), `timezone` (String) |
-| `tenant` | Multi-tenancy | `tenant_id` (String), `tenant_plan` (String), `is_enterprise` (boolean) |
-| `oauth` | OAuth2 context | `access_token` (String), `scope` (String), `expires_in` (int) |
-| `api` | API key context | `api_key` (String), `rate_limit_tier` (int) |
+| Category | Default | Purpose | Common Fields |
+|----------|---------|---------|--------------|
+| `sso` | **enabled** | Single sign-on context | `authenticated` (boolean), `session_id` (String), `provider` (String) |
+| `user` | **enabled** | User identity | `user_id` (String), `email` (String), `username` (String) |
+| `roles` | **enabled** | Role-based access control | `role_name` (String), `role_level` (int), `is_admin` (boolean) |
+| `oauth` | disabled | OAuth2 context | `access_token` (String), `scope` (String), `expires_in` (int) |
+| `api` | disabled | API key context | `api_key` (String), `rate_limit_tier` (int), `is_active` (boolean) |
+| `jwt` | disabled | JWT token claims | `subject` (String), `issuer` (String), `expires_at` (int) |
+| `mfa` | disabled | Multi-factor auth state | `verified` (boolean), `method` (String) |
+| `permissions` | disabled | Fine-grained permissions | `permission_name` (String), `can_read` (boolean), `can_write` (boolean) |
+| `tenant` | disabled | Multi-tenancy | `tenant_id` (String), `tenant_name` (String), `is_active` (boolean) |
+| `billing` | disabled | Billing/subscription | `customer_id` (String), `plan` (String), `is_active` (boolean) |
+| `payments` | disabled | Payment processing | `payment_method_id` (String), `provider` (String), `is_verified` (boolean) |
+| `invoice` | disabled | Invoice records | `invoice_id` (String), `status` (String), `is_paid` (boolean) |
+| `audit` | disabled | Request audit trail | `request_id` (String), `source_ip` (String), `user_agent` (String) |
+| `geo` | disabled | Geolocation context | `country` (String), `region` (String), `timezone` (String) |
+
+**To enable a built-in category**: Set `enabled: true` in `metadata.yaml`.
+**To add a custom category**: Add entry at bottom of `metadata.yaml` with same format (name, enabled, description, fields).
 
 ### Example
 
 ```yaml
 metadata:
   sso:
+    enabled: true
+    description: "Single sign-on session state"
     fields:
       - name: authenticated
         type: boolean
       - name: session_id
         type: String
   roles:
+    enabled: true
+    description: "Role-based access control"
     fields:
       - name: role_name
         type: String
@@ -377,12 +431,16 @@ metadata:
       - name: is_admin
         type: boolean
   oauth:
+    enabled: true
+    description: "OAuth 2.0 token context"
     fields:
       - name: access_token
         type: String
       - name: scope
         type: String
   tenant:
+    enabled: false
+    description: "Multi-tenant isolation context"
     fields:
       - name: tenant_id
         type: String
@@ -475,14 +533,15 @@ When a human asks for a "Twitter-like" or "Instagram-like" app, ensure these fou
 - [ ] View-targeting rules use `@view` tag and target a view name, not a table name
 
 ### Authorization (metadata.yaml)
+- [ ] Required categories have `enabled: true` in metadata.yaml (disabled categories cannot be referenced in feature files)
 - [ ] SSO context (authentication status)
 - [ ] Role context (RBAC)
 - [ ] User context (identity)
-- [ ] Additional contexts as needed (OAuth, tenant, API key)
+- [ ] Additional contexts enabled as needed (OAuth, tenant, API key — set `enabled: true` to use)
 
 ### Domain Mapping Note
-- [ ] Document which domain each table belongs to
-- [ ] Note that `DOMAIN_MAPPING` in `SQLSchemaParser.java` needs updating for new domains
+- [ ] Document which domain each table belongs to via `-- <domain> domain` SQL comments
+- [ ] Ensure every table group has a domain comment before it in schema.sql/views.sql
 
 ---
 
@@ -490,7 +549,7 @@ When a human asks for a "Twitter-like" or "Instagram-like" app, ensure these fou
 
 After generating all source files, always remind the human:
 
-1. **Domain mapping**: New domains/tables require updating `DOMAIN_MAPPING` (and `VIEW_DOMAIN_MAPPING` for views) in `java/src/main/java/dev/appget/codegen/SQLSchemaParser.java`
+1. **Domain mapping**: New domains/tables require a `-- <domain> domain` SQL comment before the table group in `schema.sql` (and `views.sql` for views)
 2. **Run the pipeline**: `cd java && make all` to verify everything generates and tests pass
 3. **Generated files are disposable**: Never edit files in `src/main/java-generated/`, `generated-server/`, or `build/`
 

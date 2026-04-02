@@ -773,13 +773,13 @@ When refactoring across multiple files (e.g., updating patterns, simplifying cod
 ### Adding a New Table
 
 1. Edit `schema.sql`
-2. Add domain mapping in SQLSchemaParser if needed
+2. Ensure a `-- <domain> domain` SQL comment exists before the table group in `schema.sql`
 3. Run: `make parse-schema && make generate && make test`
 
 ### Adding a New View
 
 1. Edit `views.sql` with `CREATE VIEW` statement
-2. Add view domain mapping in SQLSchemaParser (`VIEW_DOMAIN_MAPPING`)
+2. Ensure a `-- <domain> domain` SQL comment exists before the view in `views.sql`
 3. Run: `make parse-schema && make generate && make test`
 
 ### Adding New Business Rules
@@ -792,7 +792,7 @@ When refactoring across multiple files (e.g., updating patterns, simplifying cod
 ### Adding a New Domain
 
 1. Create `features/<domain>.feature` with `@domain:<name>` tag
-2. Add tables to `schema.sql` and domain mapping in SQLSchemaParser
+2. Add tables to `schema.sql` with a `-- <domain> domain` comment before the table group
 3. Run: `make clean && make all`
 
 ### Adding New Metadata Categories
