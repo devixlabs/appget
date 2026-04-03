@@ -1,6 +1,6 @@
 # Note to LLMs, DO NOT MUDDY THIS FILE UP, instead create a bash script if you're hacking on something to please your user overlords.
 
-.PHONY: all help check features-to-specs parse-schema generate-proto generate-specs generate-registry generate-openapi generate-server _generate-default-script generate build test run-server test-api verify clean
+.PHONY: all help check features-to-specs parse-schema generate-proto generate-specs generate-registry generate-openapi generate-server generate-html _generate-default-script generate build test run-server test-api verify clean
 
 GRADLE_VERSION := 9.3.1
 
@@ -8,7 +8,7 @@ help:
 	@echo "Available commands:"
 	@echo "  make check             - Static analysis and tooling checks"
 	@echo "  make help              - Show this help message"
-	@echo "  make all               - Build everything + verify (exits non-zero on failure)"
+	@echo "  make all               - Full build pipeline: clean → generate → test → build (no server needed)"
 	@echo "  make features-to-specs - Convert .feature files + metadata.yaml to specs.yaml"
 	@echo "  make parse-schema      - Parse schema.sql + views.sql and generate models.yaml"
 	@echo "  make generate-proto    - schema.sql -> .proto -> protoc -> Java model classes"
@@ -17,10 +17,11 @@ help:
 	@echo "  make generate-registry - Generate DescriptorRegistry from models.yaml"
 	@echo "  make generate-openapi  - Generate OpenAPI spec from .proto files"
 	@echo "  make generate-server   - Generate application server from models and specs"
+	@echo "  make generate-html     - Generate static HTML CRUD pages from models + specs"
 	@echo "  make build             - Full build: parse schema, generate, then compile"
 	@echo "  make test              - Run unit tests"
 	@echo "  make run-server        - Build and run the application server"
-	@echo "  make verify            - Rule engine verification + API tests (exits non-zero on failure)"
+	@echo "  make verify            - All server-dependent tests: rule engine + API + HTTP (requires server running)"
 	@echo "  make test-api          - Regenerate + run API test script (requires server running)"
 	@echo "  make clean             - Remove build artifacts and generated code"
 
@@ -35,14 +36,15 @@ check:
 clean: check
 	@./gradlew clean
 
-# Default target - build everything and verify
-all: check clean generate test build verify
+# Default target - full build pipeline (no server needed)
+all: check clean generate test build _generate-default-script
 
-# Rule engine verification (exits non-zero if auth gates or pipeline fail)
-# Also regenerates API test script + shellcheck
+# All server-dependent tests (requires server running on port 8080)
+# Runs: rule engine verification + API integration tests + HTTP endpoint tests
 verify: build _generate-default-script
 	@./gradlew run
 	@./generated-server/verify.sh
+	@python3 tests/run-http-tests.py tests/http-tests.yaml
 
 # Run API test script (requires server to be running)
 test-api: check _generate-default-script
@@ -89,8 +91,13 @@ generate-server: check
 	@echo "✓ Generating application server from models and specs..."
 	@./gradlew generateServer
 
+# Generate static HTML CRUD pages
+generate-html: check
+	@echo "✓ Generating HTML CRUD pages..."
+	@./gradlew generateHtml
+
 # Generate models (protoc), specs, registry, and OpenAPI
-generate: features-to-specs generate-proto generate-specs generate-registry generate-openapi generate-server
+generate: features-to-specs generate-proto generate-specs generate-registry generate-openapi generate-server generate-html
 
 # Run unit tests
 test: build

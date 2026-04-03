@@ -114,17 +114,17 @@ cd java
 make help
 
 # Full pipeline (recommended)
-make all              # clean → generate → test → build
+make all              # clean → generate → test → build (no server needed)
 
 # Individual steps
 make features-to-specs   # .feature files + metadata → specs.yaml
 make parse-schema        # schema.sql → models.yaml
 make generate            # protobuf + specifications + OpenAPI
-make test                # 380+ unit tests
-make run                 # Execute rule engine demo
-make generate-server     # Generate Spring Boot REST API
+make test                # unit tests
+make generate-server     # Generate REST API server
+make generate-html       # Generate static HTML CRUD pages
 make run-server          # Start server on http://localhost:8080
-make verify              # API integration tests (requires server running)
+make verify              # All server-dependent tests (requires server running)
 ```
 
 **See**: [java/README.md](java/README.md) for complete user guide
@@ -136,6 +136,10 @@ make verify              # API integration tests (requires server running)
 3. **New authorization**: Edit `metadata.yaml` in java/
    - Enable built-in categories with `enabled: true`; only enabled categories flow through pipeline
 4. **Run pipeline**: `make all` in java/
+
+### Makefile Convention
+
+`Makefile.example` at the project root is the language-agnostic template. All subproject Makefiles follow the same target names and structure. Key rule: `make all` never requires a running server; `make verify` is the umbrella for all server-dependent tests. Each language subproject delegates to `scripts/*.sh` for implementation.
 
 ---
 

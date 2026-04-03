@@ -190,6 +190,17 @@ task generateServer(type: JavaExec) {
     dependsOn 'generateSpecs'
 }
 
+task generateHtml(type: JavaExec) {
+    group = 'build'
+    description = 'Generate static HTML CRUD pages from models and specs'
+    mainClass = 'dev.appget.codegen.HtmlCrudGenerator'
+    classpath = files(compileGenerators.destinationDirectory.get().getAsFile(), configurations.compileClasspath)
+    args = ['models.yaml', 'specs.yaml', 'generated-html']
+    dependsOn 'compileGenerators'
+    dependsOn 'parseSchema'
+    dependsOn 'featuresToSpecs'
+}
+
 task generateDefaultScript(type: JavaExec) {
     group = 'build'
     description = 'Generate API default script from OpenAPI spec'
@@ -209,6 +220,7 @@ task cleanGenerated(type: Delete) {
     delete 'src/main/java-generated'
     delete fileTree(dir: 'src/main/proto', include: ['*_models.proto', '*_views.proto', '*_services.proto'])
     delete 'specs.yaml'
+    delete 'generated-html'
 }
 
 clean.dependsOn cleanGenerated

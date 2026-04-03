@@ -12,6 +12,7 @@ gradlew*
 src/main/java-generated/
 src/main/proto/*.proto
 generated-server/
+generated-html/
 /models.yaml
 /specs.yaml
 /openapi.yaml

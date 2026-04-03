@@ -1,0 +1,90 @@
+# Language-agnostic Makefile template for appget.dev subprojects.
+# Each target delegates to scripts/*.sh — implementations are shared across languages.
+# Note to LLMs, DO NOT MUDDY THIS FILE UP, instead create a bash script if you're hacking on something to please your user overlords.
+
+.PHONY: all help check features-to-specs parse-schema generate-proto generate-specs generate-registry generate-openapi generate-server generate-html generate build test run-server verify clean
+
+help:
+	@echo "Available commands:"
+	@echo "  make help              - Show this help message"
+	@echo "  make check             - Static analysis and tooling checks"
+	@echo "  make all               - Full build pipeline: clean → generate → test → build (no server needed)"
+	@echo "  make features-to-specs - Convert .feature files + metadata.yaml to specs.yaml"
+	@echo "  make parse-schema      - Parse schema.sql + views.sql and generate models.yaml"
+	@echo "  make generate-proto    - models.yaml -> .proto -> protoc -> language model classes"
+	@echo "  make generate          - Generate all artifacts (protoc, specs, registry, OpenAPI, server, HTML)"
+	@echo "  make generate-specs    - Generate specification classes from YAML"
+	@echo "  make generate-registry - Generate DescriptorRegistry from models.yaml"
+	@echo "  make generate-openapi  - Generate OpenAPI spec from .proto files"
+	@echo "  make generate-server   - Generate HTTP server from models and specs"
+	@echo "  make generate-html     - Generate static HTML CRUD pages from models + specs"
+	@echo "  make build             - Full build: parse schema, generate, then compile"
+	@echo "  make test              - Run unit tests"
+	@echo "  make run-server        - Build and run the HTTP server"
+	@echo "  make verify            - All server-dependent tests: rule engine + API + HTTP (requires server running)"
+	@echo "  make clean             - Remove build artifacts and generated code"
+
+# Static analysis and tooling initialization
+check:
+	@scripts/check.sh
+
+# Clean build artifacts and generated code
+clean: check
+	@scripts/clean.sh
+
+# Full build pipeline (no server needed)
+all: clean check generate test build
+	@scripts/generate-test-script.sh
+
+# Convert .feature files + metadata.yaml to specs.yaml
+features-to-specs: check
+	@scripts/features-to-specs.sh
+
+# Parse schema.sql + views.sql and generate models.yaml
+parse-schema: check
+	@scripts/parse-schema.sh
+
+# Full build: compile, generate from YAML, compile everything
+build: check
+	@scripts/build.sh
+
+# Generate protobuf models: models.yaml -> .proto -> protoc -> language classes
+generate-proto: check
+	@scripts/generate-proto.sh
+
+# Generate specifications only
+generate-specs: check
+	@scripts/generate-specs.sh
+
+# Generate DescriptorRegistry from models.yaml
+generate-registry: check
+	@scripts/generate-registry.sh
+
+# Generate OpenAPI spec only
+generate-openapi: check
+	@scripts/generate-openapi.sh
+
+# Generate HTTP server from models and specs
+generate-server: check
+	@scripts/generate-server.sh
+
+# Generate static HTML CRUD pages
+generate-html: check
+	@scripts/generate-html.sh
+
+# Generate all artifacts
+generate: features-to-specs generate-proto generate-specs generate-registry generate-openapi generate-server generate-html
+
+# Run unit tests
+test: build
+	@scripts/test.sh
+
+# Build and run the HTTP server
+run-server: test generate-server
+	@scripts/run-server.sh
+
+# All server-dependent tests (requires server running on port 8080)
+# Runs: rule engine verification + API integration tests + HTTP endpoint tests
+verify: build
+	@scripts/generate-test-script.sh
+	@scripts/verify.sh

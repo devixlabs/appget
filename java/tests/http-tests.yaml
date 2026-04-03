@@ -1,0 +1,208 @@
+# HTTP Endpoint Test Spec — appget Java Reference Implementation
+# Run with: make test-http (requires server on port 8080)
+# Format: see ~/.claude/agents/http-tester.md for full spec
+
+config:
+  base_url: "http://localhost:8080"
+  default_headers:
+    Content-Type: "application/json"
+    X-Sso-Authenticated: "true"
+    X-Sso-Session-Id: "test-session"
+    X-Roles-Role-Name: "admin"
+    X-Roles-Role-Level: "10"
+    X-Roles-Is-Admin: "true"
+    X-User-User-Id: "test-user-1"
+    X-User-Email: "test@appget.dev"
+    X-User-Username: "testuser"
+
+tests:
+  # ─── Admin Domain: Roles ───
+  - name: "Create role"
+    url: "/roles"
+    method: POST
+    body: '{"id":"role-1","roleName":"admin","permissionLevel":10}'
+    expect:
+      status: 201
+      contains: ['"roleName"']
+
+  - name: "List roles"
+    url: "/roles"
+    method: GET
+    expect:
+      status: 200
+
+  - name: "Get role by ID"
+    url: "/roles/role-1"
+    method: GET
+    expect:
+      status: 200
+      contains: ['"roleName"', '"admin"']
+
+  - name: "Update role"
+    url: "/roles/role-1"
+    method: PUT
+    body: '{"id":"role-1","roleName":"superadmin","permissionLevel":99}'
+    expect:
+      status: 200
+      contains: ['"superadmin"']
+
+  - name: "Delete role"
+    url: "/roles/role-1"
+    method: DELETE
+    expect:
+      status: 204
+
+  # ─── Auth Domain: Users ───
+  - name: "Create user"
+    url: "/users"
+    method: POST
+    body: '{"id":"user-1","username":"alice","email":"alice@test.com","isVerified":true,"isActive":true,"followerCount":0}'
+    expect:
+      status: 201
+      contains: ['"username"', '"alice"']
+
+  - name: "List users"
+    url: "/users"
+    method: GET
+    expect:
+      status: 200
+
+  - name: "Get user by ID"
+    url: "/users/user-1"
+    method: GET
+    expect:
+      status: 200
+      contains: ['"alice"']
+
+  - name: "Delete user"
+    url: "/users/user-1"
+    method: DELETE
+    expect:
+      status: 204
+
+  # ─── Auth Domain: Sessions ───
+  - name: "Create session"
+    url: "/sessions"
+    method: POST
+    body: '{"id":"sess-1","userId":"user-1","token":"abc123","isActive":true}'
+    expect:
+      status: 201
+
+  - name: "List sessions"
+    url: "/sessions"
+    method: GET
+    expect:
+      status: 200
+
+  # ─── Social Domain: Posts ───
+  - name: "Create post"
+    url: "/posts"
+    method: POST
+    body: '{"id":"post-1","authorId":"user-1","content":"Hello world","likeCount":0,"commentCount":0,"isPublic":true,"isDeleted":false}'
+    expect:
+      status: 201
+      contains: ['"content"', '"Hello world"']
+
+  - name: "List posts"
+    url: "/posts"
+    method: GET
+    expect:
+      status: 200
+
+  - name: "Get post by ID"
+    url: "/posts/post-1"
+    method: GET
+    expect:
+      status: 200
+
+  # ─── Social Domain: Comments ───
+  - name: "Create comment"
+    url: "/comments"
+    method: POST
+    body: '{"id":"comment-1","postId":"post-1","authorId":"user-1","content":"Great post!","likeCount":0,"isDeleted":false}'
+    expect:
+      status: 201
+
+  - name: "List comments"
+    url: "/comments"
+    method: GET
+    expect:
+      status: 200
+
+  # ─── View Endpoints (GET only) ───
+  - name: "List UserRoleView"
+    url: "/views/user-role"
+    method: GET
+    expect:
+      status: 200
+
+  - name: "List PostDetailView"
+    url: "/views/post-detail"
+    method: GET
+    expect:
+      status: 200
+
+  - name: "List CommentDetailView"
+    url: "/views/comment-detail"
+    method: GET
+    expect:
+      status: 200
+
+  - name: "List UserFeedView"
+    url: "/views/user-feed"
+    method: GET
+    expect:
+      status: 200
+
+  - name: "List UserStatsView"
+    url: "/views/user-stats"
+    method: GET
+    expect:
+      status: 200
+
+  - name: "List TrendingPostsView"
+    url: "/views/trending-posts"
+    method: GET
+    expect:
+      status: 200
+
+  - name: "List ModerationQueueView"
+    url: "/views/moderation-queue"
+    method: GET
+    expect:
+      status: 200
+
+  - name: "List CompanyHealthView"
+    url: "/views/company-health"
+    method: GET
+    expect:
+      status: 200
+
+  - name: "List UserOauthView"
+    url: "/views/user-oauth"
+    method: GET
+    expect:
+      status: 200
+
+  - name: "List ApiKeyStatsView"
+    url: "/views/api-key-stats"
+    method: GET
+    expect:
+      status: 200
+
+  # ─── Error Paths ───
+  - name: "Non-existent resource returns 404"
+    url: "/users/does-not-exist"
+    method: GET
+    expect:
+      status: 404
+
+  - name: "Invalid metadata header returns 400"
+    url: "/users"
+    method: POST
+    headers:
+      X-Roles-Role-Level: "not-a-number"
+    body: '{"id":"bad","username":"test","email":"t@t.com","isVerified":false,"isActive":true,"followerCount":0}'
+    expect:
+      status: 400
+      contains: ["INVALID_METADATA"]

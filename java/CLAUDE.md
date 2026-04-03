@@ -659,6 +659,22 @@ AppServerGenerator reads specs.yaml
 
 The generated-server `build.gradle` excludes `**/codegen/**` from its source sets. Classes in `dev.appget.specification` (like `Specification.java`) CANNOT import from `dev.appget.codegen`. If utilities are needed at runtime, move them to a runtime-accessible package (e.g., `dev.appget.naming`) — never duplicate logic to work around the restriction.
 
+### HtmlCrudGenerator: YAML → Static HTML CRUD Pages
+
+**Location**: `src/main/java/dev/appget/codegen/HtmlCrudGenerator.java`
+
+**Input**: `models.yaml` + `specs.yaml` (optional)
+**Output**: 67 static HTML files in `generated-html/` (git-ignored)
+
+Standalone generator (NOT an emitter). Generates per-model pages (index/create/edit/view) and per-view pages (read-only index). Form actions match `SpringBootEmitter` REST routes (`/{resource}`). Static structural scaffold — list/detail pages do not display live data (see Phase 0f for server-rendered HTML via content negotiation).
+
+### HTTP Test Harness (YAML-Driven)
+
+**Spec**: `tests/http-tests.yaml` — 28 endpoint tests (CRUD + views + error paths)
+**Runner**: `tests/run-http-tests.py` — Python script, reads YAML, executes curl, colored output
+**Target**: `make test-http` (requires server running on port 8080)
+**Agent**: `~/.claude/agents/http-tester.md` — generic agent for any project's HTTP tests
+
 ### RuleEngine.java: Specs.yaml-Driven Rule Loading
 
 **Location**: `src/main/java/dev/appget/RuleEngine.java`
@@ -879,6 +895,11 @@ make run                      # 6. Execute
 - Location: `generated-server/dev/appget/server/`
 - Note: Separate from main build, independent generation
 
+### make generate-html
+- Runs: `HtmlCrudGenerator` (models.yaml + specs.yaml → generated-html/)
+- Output: 67 static HTML files (14 models × 4 pages + 10 views × 1 page + root index)
+- Git-ignored: `generated-html/`
+
 ### make run-server
 - Builds generated Spring Boot server
 - Starts server on http://localhost:8080
@@ -886,10 +907,9 @@ make run                      # 6. Execute
 - Note: Requires Spring Boot dependencies installed
 
 ### make verify
-- Regenerates `generated-server/verify.sh` from openapi.yaml, runs shellcheck, then executes it
-- Includes: CRUD happy-path tests + error-path tests (metadata 400, RFC 3339 timestamp, 404)
-- Requires: Server running on port 8080 (`make run-server` in separate terminal)
-- Script tracks failures and exits non-zero if any test fails
+- All server-dependent tests in one target (requires server running on port 8080)
+- Regenerates + shellchecks `verify.sh`, runs rule engine, API integration tests, and HTTP endpoint tests
+- Exits non-zero if any test fails
 
 ### make test-api
 - Alias: same as `make verify` (regenerate + run)
@@ -901,9 +921,8 @@ make run                      # 6. Execute
 - Full pipeline: parse → generate → compile → package
 
 ### make all
-- Runs: `clean → generate → test → build → _generate-default-script`
-- Includes `generate-server` (via `generate`) and `verify.sh` regeneration + shellcheck
-- Follow with `make verify` against a running server for full QA
+- Full build pipeline: `clean → generate → test → build → _generate-default-script` (no server needed)
+- Follow with `make run-server` + `make verify` for full QA
 
 ---
 
@@ -1136,9 +1155,8 @@ make all
 
 ```bash
 # Step 1: Full build pipeline (unit tests + compilation)
-make clean generate test build
-# MUST exit 0. All unit tests green.
-# Note: `make all` includes `verify` which requires a running server — use the targets above for Step 1.
+make all
+# MUST exit 0. All unit tests green, verify.sh regenerated + shellchecked.
 
 # Step 2: Kill any stale server, start fresh
 fuser -k 8080/tcp 2>/dev/null
