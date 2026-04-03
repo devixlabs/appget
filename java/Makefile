@@ -2,8 +2,6 @@
 
 .PHONY: all help check features-to-specs parse-schema generate-proto generate-specs generate-registry generate-openapi generate-server generate-html _generate-default-script generate build test run-server test-api verify clean
 
-GRADLE_VERSION := 9.3.1
-
 help:
 	@echo "Available commands:"
 	@echo "  make check             - Static analysis and tooling checks"
@@ -26,14 +24,11 @@ help:
 	@echo "  make clean             - Remove build artifacts and generated code"
 
 check:
-	@if [ ! -f "gradlew" ]; then \
-		echo "Initializing Gradle wrapper with version $(GRADLE_VERSION)..."; \
-		gradle wrapper --gradle-version=$(GRADLE_VERSION); \
-		chmod +x gradlew; \
-	fi
+	@scripts/check.sh
 
 # Clean build artifacts and generated code
-clean: check
+clean:
+	@echo "✓ Cleaning build artifacts..."
 	@./gradlew clean
 
 # Default target - full build pipeline (no server needed)
@@ -42,9 +37,7 @@ all: check clean generate test build _generate-default-script
 # All server-dependent tests (requires server running on port 8080)
 # Runs: rule engine verification + API integration tests + HTTP endpoint tests
 verify: build _generate-default-script
-	@./gradlew run
-	@./generated-server/verify.sh
-	@python3 tests/run-http-tests.py tests/http-tests.yaml
+	@scripts/verify.sh
 
 # Run API test script (requires server to be running)
 test-api: check _generate-default-script
@@ -105,8 +98,10 @@ test: build
 
 # Build, test, and run the application server
 run-server: test generate-server
-	@echo "✓ Starting application server..."
-	@cd generated-server && ../gradlew bootRun
+	@scripts/run-server.sh
+
+# --- PRIVATE TARGETS (called by other targets / LLM agents) -----------------
+# Internal implementation details. Do NOT call directly.
 
 _generate-default-script:
 	@echo "✓ Generating API default script from OpenAPI spec..."

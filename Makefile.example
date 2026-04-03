@@ -29,7 +29,7 @@ check:
 	@scripts/check.sh
 
 # Clean build artifacts and generated code
-clean: check
+clean:
 	@scripts/clean.sh
 
 # Full build pipeline (no server needed)
