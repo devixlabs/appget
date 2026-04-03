@@ -50,9 +50,10 @@ Implemented in Java today. All future language targets must conform. Minor gaps 
 | Document | Phase | Status | Purpose |
 |----------|-------|--------|---------|
 | ~~TODO-naming-convention-interface.md~~ (deleted) | 0a | **Done** (2026-03-29) | NamingConvention interface — `dev.appget.naming` package with cross-language field-name resolution pattern |
-| [SPEC-server-framework-abstraction.md](todos/SPEC-server-framework-abstraction.md) | 0b | Pending | Refactor AppServerGenerator into ServerGenerator + ServerEmitter for portability |
+| ~~SPEC-server-framework-abstraction.md~~ (deleted) | 0b | **Done** (2026-04-02) | ServerEmitter interface + SpringBootEmitter — AppServerGenerator is now a framework-agnostic orchestrator |
 | [GRPC_CONTRACT.md](todos/GRPC_CONTRACT.md) | 0c | Pending | gRPC server implementation (proto stubs exist, server pending) |
 | [SPEC-html-crud-codegen.md](todos/SPEC-html-crud-codegen.md) | 0d | Pending | Generate static HTML CRUD pages (depends on 0b) |
+| [SPEC-multi-industry-verification.md](todos/SPEC-multi-industry-verification.md) | 0e | Pending | Multi-industry verification harness — prove Java works across verticals (depends on 0d) |
 
 ### Phase 1+ — Cross-Language Rollout
 

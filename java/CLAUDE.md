@@ -576,12 +576,26 @@ View paths are generated automatically alongside model paths. Each view gets two
 
 URL transform: `post_detail_view` → strip `_view` → `post_detail` → kebab → `post-detail` → `/views/post-detail`
 
-### AppServerGenerator: YAML → Complete REST API Server
+### AppServerGenerator + ServerEmitter: YAML → Complete REST API Server
 
-**Location**: `src/main/java/dev/appget/codegen/AppServerGenerator.java`
+**Location**: `src/main/java/dev/appget/codegen/AppServerGenerator.java` (orchestrator, ~650 lines)
 
 **Input**: `models.yaml` + `specs.yaml`
 **Output**: Complete Spring Boot REST API server in `generated-server/dev/appget/server/`
+
+#### ServerEmitter Abstraction (Phase 0b)
+
+`AppServerGenerator` is a framework-agnostic orchestrator that delegates all code emission to a `ServerEmitter` interface. `SpringBootEmitter` is the sole implementation.
+
+| File | Purpose | Lines |
+|------|---------|-------|
+| `ServerEmitter.java` | Interface — 22 methods (one per output file) | ~270 |
+| `SpringBootEmitter.java` | All Spring Boot strings (annotations, imports, class structures) | ~1400 |
+| `EntityContext.java` | Per-model/view data passed to emitter (name, PK info, resource path) | ~110 |
+| `MetadataEmitContext.java` | Metadata categories + field definitions for emitter | ~45 |
+| `RuleEmitContext.java` | Pre-filtered rules + blocking map + target map for emitter | ~100 |
+
+**Rule**: To change generated server code, edit `SpringBootEmitter.java` — never `AppServerGenerator.java` (which only handles orchestration and file I/O). To add a new framework, implement `ServerEmitter`.
 
 **Generated Components**:
 
@@ -1122,8 +1136,9 @@ make all
 
 ```bash
 # Step 1: Full build pipeline (unit tests + compilation)
-make all
-# MUST exit 0. All unit tests green, verify.sh regenerated + shellchecked.
+make clean generate test build
+# MUST exit 0. All unit tests green.
+# Note: `make all` includes `verify` which requires a running server — use the targets above for Step 1.
 
 # Step 2: Kill any stale server, start fresh
 fuser -k 8080/tcp 2>/dev/null
@@ -1332,6 +1347,6 @@ DON'T commit (all auto-generated):
 
 **Last Updated**: 2026-03-25
 **Status**: Production Ready
-**Test Coverage**: 382 tests, 0 failures, 0 errors expected across 16 suites
+**Test Coverage**: 400+ tests, 0 failures, 0 errors expected
 **Logging**: Log4j2 integrated in all non-generated classes
 **Testing**: 16 test suites, comprehensive pipeline coverage

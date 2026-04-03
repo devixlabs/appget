@@ -15,36 +15,35 @@ This roadmap reflects the current decisions and the latest pipeline constraints.
 
 Goal: the Java subproject is clean, well-abstracted, and establishes every structural pattern that future language subprojects replicate.
 
-### 0a. NamingConvention Interface
-- **Status**: **Done** (2026-03-29)
-- **What**: Extract duplicated `snakeToCamel` from `Specification.java` and `JavaUtils.java` into a `NamingConvention` interface + `JavaNaming` static utility in `dev.appget.naming`
-- **Why**: Establishes the cross-language pattern for field-name resolution. Every future language replicates this interface.
-- **Result**: `dev.appget.naming` package created with `NamingConvention` interface and `JavaNaming` static utility. All `snakeToCamel` callers migrated to `JavaNaming.toFieldAccessor()`. `JavaUtils` retains only codegen-specific methods (`snakeToPascal`, `snakeToHeaderCase`, `JAVA_TO_PROTO_TYPE`).
+### 0a. NamingConvention Interface — **Done** (2026-03-29)
 
-### 0b. Server Framework Abstraction
-- **Doc**: [SPEC-server-framework-abstraction.md](SPEC-server-framework-abstraction.md)
-- **What**: Refactor `AppServerGenerator` into `ServerGenerator` (what to generate) + `ServerEmitter` interface (how to write it), with `SpringBootEmitter` as the first implementation
-- **Why**: Currently porting the server generator to another language means rewriting everything. This separation makes AppGet logic reusable.
-- **Blocks**: HTML codegen (0d), all Phase 5 language server generators
-- **Effort**: Large (AppServerGenerator is the biggest generator)
+### 0b. Server Framework Abstraction — **Done** (2026-04-02)
 
-### 0c. gRPC Server Implementation
-- **Doc**: [GRPC_CONTRACT.md](GRPC_CONTRACT.md)
-- **What**: Implement gRPC server generation (proto stubs already exist from `ModelsToProtoConverter`)
-- **Why**: Completes the "REST and gRPC enforce the same blocking rule semantics" principle. Validates the ServerEmitter abstraction as a second emitter type.
-- **Blocks**: Phase 3 completion
-- **Effort**: Medium
+### 0c. Multi-Protocol Server Generation (gRPC + GraphQL)
+- **Doc**: [GRPC_CONTRACT.md](GRPC_CONTRACT.md) (gRPC spec, draft — needs expansion)
+- **What**: Extract shared infrastructure (repos, rules, DTOs, exceptions) from SpringBootEmitter, then build protocol-specific generators (`GrpcServerGenerator`, future `GraphQLServerGenerator`) as separate generators — NOT as ServerEmitter implementations.
+- **Why**: ServerEmitter is REST-framework variation (Spring→FastAPI→Gin). Protocol variation (REST→gRPC→GraphQL) needs separate generators sharing common infrastructure.
+- **Blocks**: Phase 3 completion (gRPC half)
+- **Blocked by**: Spec expansion needed — shared infra extraction plan, GrpcServerGenerator interface, test harness
+- **Effort**: Large (spec work + shared extraction + gRPC impl + GraphQL tracking)
 
 ### 0d. HTML CRUD Code Generation
 - **Doc**: [SPEC-html-crud-codegen.md](SPEC-html-crud-codegen.md)
 - **What**: Generate static HTML CRUD pages from `models.yaml` + `specs.yaml`. No JS, no CSS frameworks. Pure HTML5 with native form semantics.
-- **Why**: First-class pipeline artifact alongside `openapi.yaml`. First real test of the ServerEmitter content-type abstraction.
-- **Blocked by**: Server Framework Abstraction (0b) — needs emitter support for `application/x-www-form-urlencoded`
+- **Why**: First-class pipeline artifact alongside `openapi.yaml`. Part of Java MVP.
+- **Blocked by**: None (0b completed 2026-04-02)
 - **Effort**: Medium
 
-### Suggested order: ~~0a~~ → 0b → 0c → 0d
+### 0e. Multi-Industry Verification Harness
+- **Doc**: [SPEC-multi-industry-verification.md](SPEC-multi-industry-verification.md)
+- **What**: Interactive loop that exercises domain-architect + full pipeline (API + HTML) across diverse industry verticals (finance, healthcare, e-commerce, food services, supply chain) until all pass.
+- **Why**: Proves the Java reference implementation handles real-world domain complexity — not just the social media demo. Must pass before expanding to other languages.
+- **Blocked by**: HTML CRUD Code Generation (0d) — HTML verification requires generated pages
+- **Effort**: Large (5 industry scenarios, iterative debugging)
 
-0a is done. Next is 0b. 0c and 0d can be parallelized once 0b is done.
+### Suggested order: ~~0a~~ → ~~0b~~ → 0d → 0e → 0c
+
+0a and 0b are done. 0d (HTML) is MVP priority. 0e (multi-industry) validates REST+HTML breadth. 0c (gRPC/GraphQL) needs spec work and shared infrastructure extraction — deferred until REST pipeline is proven across industries.
 
 ---
 
@@ -95,7 +94,7 @@ Deliverables (all implemented in Java):
 3. Rule evaluation results returned in responses (blocking = 422, informational = reported).
 
 ## Phase 5 - Language Implementations
-> **Status: Not started** — Blocked on Phase 0 (server abstraction) and Phase 1 (conformance).
+> **Status: Not started** — Blocked on Phase 0 completion and Phase 1 (conformance).
 
 Goal: deliver Go, Python, Ruby first, then Rust and Node after research.
 

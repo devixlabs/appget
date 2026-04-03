@@ -8,20 +8,23 @@ import java.nio.file.Paths;
 import java.util.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import dev.appget.codegen.CodeGenUtils;
 import dev.appget.codegen.JavaUtils;
 import dev.appget.naming.JavaNaming;
 
 /**
- * Generates a production-ready Spring Boot REST API server from models and specifications.
+ * Framework-agnostic orchestrator for REST API server code generation.
  *
- * Features:
- * - REST endpoints (CRUD) for all generated models
- * - In-memory repositories with ConcurrentHashMap
- * - Rule Engine integration for business logic validation
- * - Metadata-aware authorization (from specs.yaml)
- * - Global exception handling
- * - Server configuration (application.yaml)
+ * Loads domain models from {@code models.yaml} and business rules from
+ * {@code specs.yaml}, then delegates all code emission to a pluggable
+ * {@link ServerEmitter}. The default emitter is {@link SpringBootEmitter}.
+ *
+ * Responsibilities (framework-agnostic, stays here):
+ * - YAML parsing and model/rule loading
+ * - File iteration, directory creation, and file writing
+ * - Composite key resolution and entity context construction
+ *
+ * Code generation (framework-specific, delegated to emitter):
+ * - Annotations, imports, class structures, and build configuration
  *
  * Usage: java -cp <classpath> dev.appget.codegen.AppServerGenerator <models.yaml> <specs.yaml> <output-dir>
  */
@@ -34,6 +37,15 @@ public class AppServerGenerator {
     private List<RuleInfo> rules = new ArrayList<>();
     private Set<String> metadataCategories = new LinkedHashSet<>();
     private Map<String, List<Map<String, Object>>> metadataFieldDefinitions = new LinkedHashMap<>();
+    private final ServerEmitter emitter;
+
+    public AppServerGenerator() {
+        this(new SpringBootEmitter());
+    }
+
+    public AppServerGenerator(ServerEmitter emitter) {
+        this.emitter = emitter;
+    }
 
     public static void main(String[] args) {
         logger.debug("Entering main method with {} arguments", args.length);
@@ -227,1371 +239,162 @@ public class AppServerGenerator {
     }
 
     private void generateApplicationClass(String outputDir) throws IOException {
-        StringBuilder code = new StringBuilder();
-        code.append("package ").append(BASE_PACKAGE).append(";\n\n");
-
-        code.append("import org.springframework.boot.SpringApplication;\n");
-        code.append("import org.springframework.boot.autoconfigure.SpringBootApplication;\n");
-        code.append("import org.springframework.context.annotation.Bean;\n");
-        code.append("import com.fasterxml.jackson.databind.ObjectMapper;\n");
-        code.append("import com.fasterxml.jackson.databind.SerializationFeature;\n");
-        code.append("import com.fasterxml.jackson.databind.DeserializationFeature;\n");
-        code.append("import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;\n");
-        code.append("import com.hubspot.jackson.datatype.protobuf.ProtobufModule;\n");
-        code.append("import dev.appget.server.config.DecimalJacksonModule;\n\n");
-
-        code.append("/**\n");
-        code.append(" * Generated Spring Boot server for APPGET REST API\n");
-        code.append(" * DO NOT EDIT MANUALLY - Generated from models.yaml and specs.yaml\n");
-        code.append(" */\n");
-        code.append("@SpringBootApplication\n");
-        code.append("public class Application {\n\n");
-        code.append("    public static void main(String[] args) {\n");
-        code.append("        SpringApplication.run(Application.class, args);\n");
-        code.append("    }\n\n");
-        code.append("    @Bean\n");
-        code.append("    public ObjectMapper objectMapper() {\n");
-        code.append("        ObjectMapper mapper = new ObjectMapper();\n");
-        code.append("        mapper.registerModule(new ProtobufModule());\n");
-        code.append("        mapper.registerModule(new JavaTimeModule());\n");
-        code.append("        mapper.registerModule(new DecimalJacksonModule());\n");
-        code.append("        mapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);\n");
-        code.append("        mapper.disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);\n");
-        code.append("        return mapper;\n");
-        code.append("    }\n");
-        code.append("}\n");
-
-        writefile(outputDir, BASE_PACKAGE, "Application", code.toString());
+        writefile(outputDir, BASE_PACKAGE, "Application", emitter.emitApplicationClass(BASE_PACKAGE));
     }
 
     private void generateDecimalModule(String outputDir) throws IOException {
-        String pkg = BASE_PACKAGE + ".config";
-        StringBuilder code = new StringBuilder();
-        code.append("package ").append(pkg).append(";\n\n");
-        code.append("import com.fasterxml.jackson.core.JsonGenerator;\n");
-        code.append("import com.fasterxml.jackson.core.JsonParser;\n");
-        code.append("import com.fasterxml.jackson.core.JsonToken;\n");
-        code.append("import com.fasterxml.jackson.databind.DeserializationContext;\n");
-        code.append("import com.fasterxml.jackson.databind.JsonDeserializer;\n");
-        code.append("import com.fasterxml.jackson.databind.JsonSerializer;\n");
-        code.append("import com.fasterxml.jackson.databind.SerializerProvider;\n");
-        code.append("import com.fasterxml.jackson.databind.module.SimpleModule;\n");
-        code.append("import com.google.protobuf.ByteString;\n");
-        code.append("import dev.appget.common.Decimal;\n");
-        code.append("import java.io.IOException;\n");
-        code.append("import java.math.BigDecimal;\n");
-        code.append("import java.math.BigInteger;\n\n");
-        code.append("/**\n");
-        code.append(" * Jackson module for appget.common.Decimal serialization.\n");
-        code.append(" * Accepts JSON strings like \"99.99\" and maps to/from dev.appget.common.Decimal.\n");
-        code.append(" * DO NOT EDIT MANUALLY - Generated from models.yaml and specs.yaml\n");
-        code.append(" */\n");
-        code.append("public class DecimalJacksonModule extends SimpleModule {\n\n");
-        code.append("    public DecimalJacksonModule() {\n");
-        code.append("        super(\"DecimalJacksonModule\");\n");
-        code.append("        addDeserializer(Decimal.class, new DecimalDeserializer());\n");
-        code.append("        addSerializer(Decimal.class, new DecimalSerializer());\n");
-        code.append("    }\n\n");
-        code.append("    private static class DecimalDeserializer extends JsonDeserializer<Decimal> {\n");
-        code.append("        @Override\n");
-        code.append("        public Decimal deserialize(JsonParser p, DeserializationContext ctxt) throws IOException {\n");
-        code.append("            JsonToken token = p.currentToken();\n");
-        code.append("            if (token == JsonToken.VALUE_STRING\n");
-        code.append("                    || token == JsonToken.VALUE_NUMBER_FLOAT\n");
-        code.append("                    || token == JsonToken.VALUE_NUMBER_INT) {\n");
-        code.append("                BigDecimal bd = new BigDecimal(p.getText());\n");
-        code.append("                byte[] unscaledBytes = bd.unscaledValue().toByteArray();\n");
-        code.append("                return Decimal.newBuilder()\n");
-        code.append("                    .setUnscaled(ByteString.copyFrom(unscaledBytes))\n");
-        code.append("                    .setScale(bd.scale())\n");
-        code.append("                    .build();\n");
-        code.append("            }\n");
-        code.append("            return Decimal.newBuilder().build();\n");
-        code.append("        }\n");
-        code.append("    }\n\n");
-        code.append("    private static class DecimalSerializer extends JsonSerializer<Decimal> {\n");
-        code.append("        @Override\n");
-        code.append("        public void serialize(Decimal value, JsonGenerator gen, SerializerProvider serializers) throws IOException {\n");
-        code.append("            if (value.getUnscaled().isEmpty()) {\n");
-        code.append("                gen.writeString(\"0\");\n");
-        code.append("            } else {\n");
-        code.append("                BigInteger unscaled = new BigInteger(value.getUnscaled().toByteArray());\n");
-        code.append("                BigDecimal bd = new BigDecimal(unscaled, value.getScale());\n");
-        code.append("                gen.writeString(bd.toPlainString());\n");
-        code.append("            }\n");
-        code.append("        }\n");
-        code.append("    }\n");
-        code.append("}\n");
-        writefile(outputDir, pkg, "DecimalJacksonModule", code.toString());
+        writefile(outputDir, BASE_PACKAGE + ".config", "DecimalJacksonModule", emitter.emitDecimalModule(BASE_PACKAGE));
     }
 
     private void generateApplicationYaml(String outputDir) throws IOException {
-        StringBuilder yaml = new StringBuilder();
-        yaml.append("server:\n");
-        yaml.append("  port: 8080\n\n");
-        yaml.append("spring:\n");
-        yaml.append("  application:\n");
-        yaml.append("    name: appget-server\n\n");
-        yaml.append("logging:\n");
-        yaml.append("  level:\n");
-        yaml.append("    root: INFO\n");
-        yaml.append("    dev.appget.server: DEBUG\n");
-        yaml.append("    org.springframework.web: DEBUG\n");
-        yaml.append("    org.springframework.web.servlet.mvc: DEBUG\n\n");
-        yaml.append("  # File logging configuration\n");
-        yaml.append("  file:\n");
-        yaml.append("    name: logs/appget-server.log\n");
-        yaml.append("  logback:\n");
-        yaml.append("    rollingpolicy:\n");
-        yaml.append("      max-file-size: 10MB\n");
-        yaml.append("      max-history: 10\n");
-
-        // Create application.yaml in generated server directory itself
         Path serverDir = Paths.get(outputDir);
         Files.createDirectories(serverDir);
         Path yamlFile = serverDir.resolve("application.yaml");
-        Files.writeString(yamlFile, yaml.toString());
+        Files.writeString(yamlFile, emitter.emitApplicationYaml());
     }
 
     private void generateLog4j2Properties(String outputDir) throws IOException {
-        StringBuilder props = new StringBuilder();
-        props.append("# Log4j2 Configuration for Spring Boot Server\n");
-        props.append("# DO NOT EDIT MANUALLY - Generated from AppServerGenerator\n\n");
-
-        props.append("status = warn\n");
-        props.append("name = AppgetServerLogging\n\n");
-
-        props.append("# Define appenders\n");
-        props.append("appender.console.type = Console\n");
-        props.append("appender.console.name = STDOUT\n");
-        props.append("appender.console.layout.type = PatternLayout\n");
-        props.append("appender.console.layout.pattern = [%d{ISO8601}] [%-5p] [%t] [%c] - %m%n\n\n");
-
-        props.append("appender.file.type = RollingFile\n");
-        props.append("appender.file.name = FILE\n");
-        props.append("appender.file.fileName = logs/appget-server.log\n");
-        props.append("appender.file.filePattern = logs/appget-server-%d{yyyy-MM-dd}-%i.log.gz\n");
-        props.append("appender.file.layout.type = PatternLayout\n");
-        props.append("appender.file.layout.pattern = [%d{ISO8601}] [%-5p] [%t] [%c] - %m%n\n");
-        props.append("appender.file.policies.type = Policies\n");
-        props.append("appender.file.policies.time.type = TimeBasedTriggeringPolicy\n");
-        props.append("appender.file.policies.time.interval = 1\n");
-        props.append("appender.file.policies.time.modulate = true\n");
-        props.append("appender.file.policies.size.type = SizeBasedTriggeringPolicy\n");
-        props.append("appender.file.policies.size.size = 10MB\n");
-        props.append("appender.file.strategy.type = DefaultRolloverStrategy\n");
-        props.append("appender.file.strategy.max = 10\n\n");
-
-        props.append("# Root logger\n");
-        props.append("rootLogger.level = INFO\n");
-        props.append("rootLogger.appenderRef.stdout.ref = STDOUT\n");
-        props.append("rootLogger.appenderRef.file.ref = FILE\n\n");
-
-        props.append("# Package-specific loggers\n");
-        props.append("logger.dev_appget_server.name = dev.appget.server\n");
-        props.append("logger.dev_appget_server.level = DEBUG\n\n");
-
-        props.append("logger.springframework_web.name = org.springframework.web\n");
-        props.append("logger.springframework_web.level = DEBUG\n\n");
-
-        props.append("logger.springframework_mvc.name = org.springframework.web.servlet.mvc\n");
-        props.append("logger.springframework_mvc.level = DEBUG\n\n");
-
-        props.append("# Suppress noisy loggers\n");
-        props.append("logger.snakeyaml.name = org.yaml.snakeyaml\n");
-        props.append("logger.snakeyaml.level = WARN\n\n");
-
-        props.append("logger.protobuf.name = com.google.protobuf\n");
-        props.append("logger.protobuf.level = WARN\n");
-
-        // Create src/main/resources directory
         Path resourcesDir = Paths.get(outputDir, "src", "main", "resources");
         Files.createDirectories(resourcesDir);
-
-        // Write log4j2.properties
         Path propsFile = resourcesDir.resolve("log4j2.properties");
-        Files.writeString(propsFile, props.toString());
+        Files.writeString(propsFile, emitter.emitLog4j2Properties());
     }
 
     private void generateBuildGradle(String outputDir) throws IOException {
-        StringBuilder gradle = new StringBuilder();
-
-        // Header
-        gradle.append("// Auto-generated build.gradle for Spring Boot server\n");
-        gradle.append("// DO NOT EDIT MANUALLY - Regenerate via: make generate-server\n\n");
-
-        // Plugins
-        gradle.append("plugins {\n");
-        gradle.append("    id 'java'\n");
-        gradle.append("    id 'org.springframework.boot' version '3.3.5'\n");
-        gradle.append("    id 'io.spring.dependency-management' version '1.1.6'\n");
-        gradle.append("}\n\n");
-
-        // Java version (Spring Boot 3.3.5 requires Java 21 or lower)
-        gradle.append("java {\n");
-        gradle.append("    sourceCompatibility = JavaVersion.VERSION_21\n");
-        gradle.append("    targetCompatibility = JavaVersion.VERSION_21\n");
-        gradle.append("}\n\n");
-
-        // Group and version
-        gradle.append("group = 'dev.appget'\n");
-        gradle.append("version = '1.0.0'\n\n");
-
-        // Repositories
-        gradle.append("repositories {\n");
-        gradle.append("    mavenCentral()\n");
-        gradle.append("}\n\n");
-
-        // Dependencies
-        gradle.append("dependencies {\n");
-        gradle.append("    // Spring Boot (exclude Logback, use Log4j2 instead)\n");
-        gradle.append("    implementation('org.springframework.boot:spring-boot-starter-web') {\n");
-        gradle.append("        exclude group: 'org.springframework.boot', module: 'spring-boot-starter-logging'\n");
-        gradle.append("    }\n");
-        gradle.append("    implementation 'org.springframework.boot:spring-boot-starter-validation'\n\n");
-
-        gradle.append("    // Lombok for DTOs and context POJOs\n");
-        gradle.append("    compileOnly 'org.projectlombok:lombok:1.18.42'\n");
-        gradle.append("    annotationProcessor 'org.projectlombok:lombok:1.18.42'\n\n");
-
-        gradle.append("    // Protocol Buffers runtime (for generated models)\n");
-        gradle.append("    implementation 'com.google.protobuf:protobuf-java:3.25.3'\n");
-        gradle.append("    implementation 'com.google.protobuf:protobuf-java-util:3.25.3'\n\n");
-
-        gradle.append("    // Jackson support for protobuf (JSON serialization/deserialization)\n");
-        gradle.append("    implementation 'com.hubspot.jackson:jackson-datatype-protobuf:0.9.15'\n\n");
-
-        gradle.append("    // Log4j2 for logging (direct API, no SLF4J)\n");
-        gradle.append("    implementation 'org.apache.logging.log4j:log4j-api:2.25.3'\n");
-        gradle.append("    implementation 'org.apache.logging.log4j:log4j-core:2.25.3'\n");
-        gradle.append("}\n\n");
-
-        // Source sets - include main project's classes
-        gradle.append("sourceSets {\n");
-        gradle.append("    main {\n");
-        gradle.append("        java {\n");
-        gradle.append("            // Generated server source (dev/appget/server/)\n");
-        gradle.append("            srcDirs = ['dev']\n");
-        gradle.append("\n");
-        gradle.append("            // Main project's manual source (base Specification, CompoundSpecification, etc.)\n");
-        gradle.append("            srcDirs += ['../src/main/java']\n");
-        gradle.append("\n");
-        gradle.append("            // Main project's generated classes (specification instances and models)\n");
-        gradle.append("            srcDirs += ['../src/main/java-generated']\n");
-        gradle.append("            srcDirs += ['../build/generated/source/proto/main/java']\n");
-        gradle.append("\n");
-        gradle.append("            // Exclude build-time generators (not needed at runtime)\n");
-        gradle.append("            excludes = ['**/codegen/**']\n");
-        gradle.append("        }\n");
-        gradle.append("        resources {\n");
-        gradle.append("            srcDirs = ['.']\n");
-        gradle.append("            include 'application.yaml'\n");
-        gradle.append("        }\n");
-        gradle.append("    }\n");
-        gradle.append("}\n\n");
-
-        // Spring Boot configuration
-        gradle.append("springBoot {\n");
-        gradle.append("    mainClass = 'dev.appget.server.Application'\n");
-        gradle.append("}\n\n");
-
-        gradle.append("// Run with: gradle bootRun\n");
-
-        // Write build.gradle to generated-server directory
         Path serverDir = Paths.get(outputDir);
         Files.createDirectories(serverDir);
         Path gradleFile = serverDir.resolve("build.gradle");
-        Files.writeString(gradleFile, gradle.toString());
-
+        Files.writeString(gradleFile, emitter.emitBuildGradle());
         logger.info("Generated build.gradle for Spring Boot server");
     }
 
     private void generateMetadataExtractor(String outputDir) throws IOException {
-        StringBuilder code = new StringBuilder();
-        code.append("package ").append(BASE_PACKAGE).append(".config;\n\n");
+        MetadataEmitContext ctx = buildMetadataEmitContext();
+        writefile(outputDir, BASE_PACKAGE + ".config", "MetadataExtractor", emitter.emitMetadataExtractor(BASE_PACKAGE, ctx));
+    }
 
-        code.append("import dev.appget.specification.MetadataContext;\n");
-        // Import each context POJO
-        for (String category : metadataCategories) {
-            code.append("import dev.appget.specification.context.").append(CodeGenUtils.capitalize(category)).append("Context;\n");
-        }
-        code.append("import ").append(BASE_PACKAGE).append(".exception.MetadataParsingException;\n");
-        code.append("import org.springframework.stereotype.Component;\n");
-        code.append("import jakarta.servlet.http.HttpServletRequest;\n\n");
-
-        code.append("/**\n");
-        code.append(" * Extracts metadata (auth, roles, user context) from HTTP request headers\n");
-        code.append(" * DO NOT EDIT MANUALLY - Generated from specs.yaml\n");
-        code.append(" */\n");
-        code.append("@Component\n");
-        code.append("public class MetadataExtractor {\n\n");
-
-        code.append("    public MetadataContext extractFromHeaders(HttpServletRequest request) {\n");
-        code.append("        MetadataContext context = new MetadataContext();\n\n");
-
-        // Generate extraction for each metadata category
-        for (String category : metadataCategories) {
-            List<Map<String, Object>> fields = metadataFieldDefinitions.get(category);
-            if (fields == null || fields.isEmpty()) continue;
-
-            String contextClass = CodeGenUtils.capitalize(category) + "Context";
-            String headerPrefix = "X-" + CodeGenUtils.capitalize(category) + "-";
-
-            // Read headers
-            for (Map<String, Object> field : fields) {
-                String fieldName = (String) field.get("name");
-                String camelFieldName = JavaNaming.toFieldAccessor(fieldName);
-                String varName = category + CodeGenUtils.capitalize(camelFieldName);
-                String headerName = headerPrefix + JavaUtils.snakeToHeaderCase(fieldName);
-                code.append("        String ").append(varName).append(" = request.getHeader(\"")
-                    .append(headerName).append("\");\n");
-            }
-
-            // Build null-check condition (any header present)
-            StringBuilder condition = new StringBuilder();
-            for (int i = 0; i < fields.size(); i++) {
-                String fieldName = (String) fields.get(i).get("name");
-                String camelFieldName = JavaNaming.toFieldAccessor(fieldName);
-                String varName = category + CodeGenUtils.capitalize(camelFieldName);
-                if (i > 0) condition.append(" || ");
-                condition.append(varName).append(" != null");
-            }
-
-            code.append("        if (").append(condition).append(") {\n");
-            code.append("            ").append(contextClass).append(" ").append(category).append("Context = ")
-                .append(contextClass).append(".builder()\n");
-
-            for (Map<String, Object> field : fields) {
-                String fieldName = (String) field.get("name");
-                String fieldType = (String) field.get("type");
-                String camelFieldName = JavaNaming.toFieldAccessor(fieldName);
-                String varName = category + CodeGenUtils.capitalize(camelFieldName);
-                String headerName = headerPrefix + JavaUtils.snakeToHeaderCase(fieldName);
-                code.append("                .").append(camelFieldName).append("(")
-                    .append(parseHeaderValue(varName, fieldType, headerName)).append(")\n");
-            }
-
-            code.append("                .build();\n");
-            code.append("            context.with(\"").append(category).append("\", ").append(category).append("Context);\n");
-            code.append("        }\n\n");
-        }
-
-        code.append("        return context;\n");
-        code.append("    }\n\n");
-
-        // Generate safe parsing helper methods
-        code.append("    private int safeParseInt(String value, String headerName) {\n");
-        code.append("        if (value == null) return 0;\n");
-        code.append("        try {\n");
-        code.append("            return Integer.parseInt(value);\n");
-        code.append("        } catch (NumberFormatException e) {\n");
-        code.append("            throw new MetadataParsingException(\n");
-        code.append("                \"Invalid integer value for header \" + headerName + \": \" + value);\n");
-        code.append("        }\n");
-        code.append("    }\n\n");
-
-        code.append("    private long safeParseLong(String value, String headerName) {\n");
-        code.append("        if (value == null) return 0L;\n");
-        code.append("        try {\n");
-        code.append("            return Long.parseLong(value);\n");
-        code.append("        } catch (NumberFormatException e) {\n");
-        code.append("            throw new MetadataParsingException(\n");
-        code.append("                \"Invalid long value for header \" + headerName + \": \" + value);\n");
-        code.append("        }\n");
-        code.append("    }\n\n");
-
-        code.append("    private float safeParseFloat(String value, String headerName) {\n");
-        code.append("        if (value == null) return 0.0f;\n");
-        code.append("        try {\n");
-        code.append("            return Float.parseFloat(value);\n");
-        code.append("        } catch (NumberFormatException e) {\n");
-        code.append("            throw new MetadataParsingException(\n");
-        code.append("                \"Invalid float value for header \" + headerName + \": \" + value);\n");
-        code.append("        }\n");
-        code.append("    }\n\n");
-
-        code.append("    private double safeParseDouble(String value, String headerName) {\n");
-        code.append("        if (value == null) return 0.0;\n");
-        code.append("        try {\n");
-        code.append("            return Double.parseDouble(value);\n");
-        code.append("        } catch (NumberFormatException e) {\n");
-        code.append("            throw new MetadataParsingException(\n");
-        code.append("                \"Invalid double value for header \" + headerName + \": \" + value);\n");
-        code.append("        }\n");
-        code.append("    }\n");
-        code.append("}\n");
-
-        writefile(outputDir, BASE_PACKAGE + ".config", "MetadataExtractor", code.toString());
+    private MetadataEmitContext buildMetadataEmitContext() {
+        return new MetadataEmitContext(metadataCategories, metadataFieldDefinitions);
     }
 
     private void generateSpecificationRegistry(String outputDir) throws IOException {
-        // Collect model-targeting rules (skip views)
-        List<RuleInfo> modelRules = new ArrayList<>();
-        for (RuleInfo rule : rules) {
-            if (!"view".equals(rule.targetType)) {
-                modelRules.add(rule);
-            }
-        }
-
-        StringBuilder code = new StringBuilder();
-        code.append("package ").append(BASE_PACKAGE).append(".service;\n\n");
-
-        // Import each generated spec class
-        for (RuleInfo rule : modelRules) {
-            code.append("import dev.appget.specification.generated.").append(rule.name).append(";\n");
-        }
-
-        code.append("import org.springframework.stereotype.Component;\n");
-        code.append("import java.util.Collection;\n");
-        code.append("import java.util.LinkedHashMap;\n");
-        code.append("import java.util.List;\n");
-        code.append("import java.util.Map;\n");
-        code.append("import java.util.stream.Collectors;\n\n");
-
-        code.append("/**\n");
-        code.append(" * Registry of all compiled specification classes.\n");
-        code.append(" * DO NOT EDIT MANUALLY - Regenerated from specs.yaml when rules change.\n");
-        code.append(" */\n");
-        code.append("@Component\n");
-        code.append("public class SpecificationRegistry {\n");
-        code.append("    private final Map<String, Object> specs = new LinkedHashMap<>();\n\n");
-
-        code.append("    public SpecificationRegistry() {\n");
-        for (RuleInfo rule : modelRules) {
-            code.append("        register(\"").append(rule.name).append("\", new ").append(rule.name).append("());\n");
-        }
-        code.append("    }\n\n");
-
-        code.append("    private void register(String name, Object spec) {\n");
-        code.append("        specs.put(name, spec);\n");
-        code.append("    }\n\n");
-
-        code.append("    /** Retrieve a single spec by rule name. Returns null if not found. */\n");
-        code.append("    public Object get(String name) {\n");
-        code.append("        return specs.get(name);\n");
-        code.append("    }\n\n");
-
-        code.append("    /** All registered specs. */\n");
-        code.append("    public Collection<Object> getAll() {\n");
-        code.append("        return specs.values();\n");
-        code.append("    }\n\n");
-
-        // Build static target map: ruleName -> PascalCase model name
-        code.append("    private static final Map<String, String> SPEC_TARGETS = new java.util.HashMap<>();\n");
-        code.append("    static {\n");
-        for (RuleInfo rule : modelRules) {
-            ModelInfo model = modelIndex.get(rule.targetName);
-            String target = model != null ? pascalName(model) : JavaUtils.snakeToPascal(rule.targetName);
-            code.append("        SPEC_TARGETS.put(\"").append(rule.name).append("\", \"").append(target).append("\");\n");
-        }
-        code.append("    }\n\n");
-
-        code.append("    /**\n");
-        code.append("     * All specs whose target model matches the given class simple name.\n");
-        code.append("     */\n");
-        code.append("    public List<Object> getByTarget(String modelName) {\n");
-        code.append("        return specs.values().stream()\n");
-        code.append("            .filter(s -> modelName.equals(SPEC_TARGETS.get(s.getClass().getSimpleName())))\n");
-        code.append("            .collect(Collectors.toList());\n");
-        code.append("    }\n");
-        code.append("}\n");
-
-        writefile(outputDir, BASE_PACKAGE + ".service", "SpecificationRegistry", code.toString());
+        RuleEmitContext ctx = buildRuleEmitContext();
+        writefile(outputDir, BASE_PACKAGE + ".service", "SpecificationRegistry", emitter.emitSpecificationRegistry(BASE_PACKAGE, ctx));
     }
 
     private void generateRuleService(String outputDir) throws IOException {
-        // Collect model-targeting rules (skip views)
-        List<RuleInfo> modelRules = new ArrayList<>();
-        Map<String, Boolean> blockingMap = new HashMap<>();
+        RuleEmitContext ctx = buildRuleEmitContext();
+        writefile(outputDir, BASE_PACKAGE + ".service", "RuleService", emitter.emitRuleService(BASE_PACKAGE, ctx));
+    }
+
+    private RuleEmitContext buildRuleEmitContext() {
+        List<RuleEmitContext.RuleEntry> modelRules = new ArrayList<>();
+        Map<String, Boolean> blockingMap = new LinkedHashMap<>();
+        Map<String, String> ruleTargetMap = new LinkedHashMap<>();
+
         for (RuleInfo rule : rules) {
-            if (!"view".equals(rule.targetType)) {
-                modelRules.add(rule);
-                blockingMap.put(rule.name, rule.blocking);
+            if ("view".equals(rule.targetType)) continue;
+            modelRules.add(new RuleEmitContext.RuleEntry(
+                rule.name, rule.targetName, rule.targetDomain,
+                rule.requiresMetadata, rule.blocking));
+            blockingMap.put(rule.name, rule.blocking);
+            ModelInfo model = modelIndex.get(rule.targetName);
+            if (model != null) {
+                ruleTargetMap.put(rule.name, pascalName(model));
             }
         }
-
-        StringBuilder code = new StringBuilder();
-        code.append("package ").append(BASE_PACKAGE).append(".service;\n\n");
-
-        code.append("import dev.appget.specification.MetadataContext;\n");
-        code.append("import ").append(BASE_PACKAGE).append(".dto.RuleOutcome;\n");
-        code.append("import ").append(BASE_PACKAGE).append(".dto.RuleEvaluationResult;\n");
-        code.append("import org.springframework.stereotype.Service;\n");
-        code.append("import java.util.ArrayList;\n");
-        code.append("import java.util.HashMap;\n");
-        code.append("import java.util.List;\n");
-        code.append("import java.util.Map;\n\n");
-
-        code.append("/**\n");
-        code.append(" * Evaluates business rules using pre-compiled specification classes.\n");
-        code.append(" * Stable service that injects SpecificationRegistry for dynamic rule lookup.\n");
-        code.append(" * DO NOT EDIT MANUALLY - Generated from specs.yaml\n");
-        code.append(" */\n");
-        code.append("@Service\n");
-        code.append("public class RuleService {\n\n");
-
-        code.append("    private final SpecificationRegistry registry;\n");
-        code.append("    private static final Map<String, Boolean> BLOCKING_RULES = new HashMap<>();\n\n");
-
-        code.append("    static {\n");
-        for (Map.Entry<String, Boolean> entry : blockingMap.entrySet()) {
-            code.append("        BLOCKING_RULES.put(\"").append(entry.getKey()).append("\", ").append(entry.getValue()).append(");\n");
-        }
-        code.append("    }\n\n");
-
-        code.append("    public RuleService(SpecificationRegistry registry) {\n");
-        code.append("        this.registry = registry;\n");
-        code.append("    }\n\n");
-
-        // evaluateAll method
-        code.append("    public <T> RuleEvaluationResult evaluateAll(T target, MetadataContext metadata) {\n");
-        code.append("        List<RuleOutcome> outcomes = new ArrayList<>();\n");
-        code.append("        boolean hasFailures = false;\n\n");
-
-        code.append("        String modelName = target.getClass().getSimpleName();\n");
-        code.append("        List<Object> applicableSpecs = registry.getByTarget(modelName);\n\n");
-
-        code.append("        for (Object spec : applicableSpecs) {\n");
-        code.append("            String ruleName = getRuleName(spec);\n");
-        code.append("            RuleOutcome outcome = evaluate(spec, target, metadata, ruleName);\n");
-        code.append("            outcomes.add(outcome);\n\n");
-
-        code.append("            boolean isBlocking = BLOCKING_RULES.getOrDefault(ruleName, false);\n");
-        code.append("            if (isBlocking && !outcome.isSatisfied()) {\n");
-        code.append("                hasFailures = true;\n");
-        code.append("            }\n");
-        code.append("        }\n\n");
-
-        code.append("        return new RuleEvaluationResult(outcomes, hasFailures);\n");
-        code.append("    }\n\n");
-
-        code.append("    private String getRuleName(Object spec) {\n");
-        code.append("        return spec.getClass().getSimpleName();\n");
-        code.append("    }\n\n");
-
-        code.append("    private RuleOutcome evaluate(Object spec, Object target, MetadataContext metadata, String ruleName) {\n");
-        code.append("        boolean satisfied = evaluateSpec(spec, target, metadata);\n");
-        code.append("        String status = getSpecStatus(spec, target, metadata);\n");
-        code.append("        return RuleOutcome.builder()\n");
-        code.append("            .ruleName(ruleName)\n");
-        code.append("            .status(status)\n");
-        code.append("            .satisfied(satisfied)\n");
-        code.append("            .build();\n");
-        code.append("    }\n\n");
-
-        code.append("    private boolean evaluateSpec(Object spec, Object target, MetadataContext metadata) {\n");
-        code.append("        try {\n");
-        code.append("            // Find evaluate(T, MetadataContext) by parameter count — spec classes use typed params\n");
-        code.append("            for (java.lang.reflect.Method m : spec.getClass().getMethods()) {\n");
-        code.append("                if (\"evaluate\".equals(m.getName()) && m.getParameterCount() == 2) {\n");
-        code.append("                    return (boolean) m.invoke(spec, target, metadata);\n");
-        code.append("                }\n");
-        code.append("            }\n");
-        code.append("            // Fall back to evaluate(T)\n");
-        code.append("            for (java.lang.reflect.Method m : spec.getClass().getMethods()) {\n");
-        code.append("                if (\"evaluate\".equals(m.getName()) && m.getParameterCount() == 1) {\n");
-        code.append("                    return (boolean) m.invoke(spec, target);\n");
-        code.append("                }\n");
-        code.append("            }\n");
-        code.append("            return false;\n");
-        code.append("        } catch (Exception e) {\n");
-        code.append("            return false;\n");
-        code.append("        }\n");
-        code.append("    }\n\n");
-
-        code.append("    private String getSpecStatus(Object spec, Object target, MetadataContext metadata) {\n");
-        code.append("        try {\n");
-        code.append("            // Find getResult(T, MetadataContext) by parameter count\n");
-        code.append("            for (java.lang.reflect.Method m : spec.getClass().getMethods()) {\n");
-        code.append("                if (\"getResult\".equals(m.getName()) && m.getParameterCount() == 2) {\n");
-        code.append("                    return (String) m.invoke(spec, target, metadata);\n");
-        code.append("                }\n");
-        code.append("            }\n");
-        code.append("            // Fall back to getResult(T)\n");
-        code.append("            for (java.lang.reflect.Method m : spec.getClass().getMethods()) {\n");
-        code.append("                if (\"getResult\".equals(m.getName()) && m.getParameterCount() == 1) {\n");
-        code.append("                    return (String) m.invoke(spec, target);\n");
-        code.append("                }\n");
-        code.append("            }\n");
-        code.append("            return \"UNKNOWN\";\n");
-        code.append("        } catch (Exception e) {\n");
-        code.append("            return \"UNKNOWN\";\n");
-        code.append("        }\n");
-        code.append("    }\n");
-        code.append("}\n");
-
-        writefile(outputDir, BASE_PACKAGE + ".service", "RuleService", code.toString());
+        return new RuleEmitContext(modelRules, blockingMap, ruleTargetMap);
     }
 
     private void generateDTOs(String outputDir) throws IOException {
-        // RuleAwareResponse
-        {
-            StringBuilder code = new StringBuilder();
-            code.append("package ").append(BASE_PACKAGE).append(".dto;\n\n");
-
-            code.append("import lombok.AllArgsConstructor;\n");
-            code.append("import lombok.Builder;\n");
-            code.append("import lombok.Data;\n");
-            code.append("import lombok.NoArgsConstructor;\n\n");
-
-            code.append("/**\n");
-            code.append(" * HTTP response wrapper that includes rule evaluation results\n");
-            code.append(" * DO NOT EDIT MANUALLY - Generated from specs.yaml\n");
-            code.append(" */\n");
-            code.append("@Data\n");
-            code.append("@Builder\n");
-            code.append("@AllArgsConstructor\n");
-            code.append("@NoArgsConstructor\n");
-            code.append("public class RuleAwareResponse<T> {\n");
-            code.append("    private T data;\n");
-            code.append("    private RuleEvaluationResult ruleResults;\n");
-            code.append("}\n");
-
-            writefile(outputDir, BASE_PACKAGE + ".dto", "RuleAwareResponse", code.toString());
-        }
-
-        // RuleEvaluationResult
-        {
-            StringBuilder code = new StringBuilder();
-            code.append("package ").append(BASE_PACKAGE).append(".dto;\n\n");
-
-            code.append("import java.util.List;\n");
-            code.append("import lombok.AllArgsConstructor;\n");
-            code.append("import lombok.Builder;\n");
-            code.append("import lombok.Data;\n");
-            code.append("import lombok.NoArgsConstructor;\n\n");
-
-            code.append("/**\n");
-            code.append(" * Result of evaluating all applicable rules for a target\n");
-            code.append(" * DO NOT EDIT MANUALLY - Generated from specs.yaml\n");
-            code.append(" */\n");
-            code.append("@Data\n");
-            code.append("@Builder\n");
-            code.append("@AllArgsConstructor\n");
-            code.append("@NoArgsConstructor\n");
-            code.append("public class RuleEvaluationResult {\n");
-            code.append("    private List<RuleOutcome> outcomes;\n");
-            code.append("    private boolean hasFailures;\n");
-            code.append("}\n");
-
-            writefile(outputDir, BASE_PACKAGE + ".dto", "RuleEvaluationResult", code.toString());
-        }
-
-        // RuleOutcome
-        {
-            StringBuilder code = new StringBuilder();
-            code.append("package ").append(BASE_PACKAGE).append(".dto;\n\n");
-
-            code.append("import lombok.AllArgsConstructor;\n");
-            code.append("import lombok.Builder;\n");
-            code.append("import lombok.Data;\n");
-            code.append("import lombok.NoArgsConstructor;\n\n");
-
-            code.append("/**\n");
-            code.append(" * Outcome of evaluating a single business rule\n");
-            code.append(" * DO NOT EDIT MANUALLY - Generated from specs.yaml\n");
-            code.append(" */\n");
-            code.append("@Data\n");
-            code.append("@Builder\n");
-            code.append("@AllArgsConstructor\n");
-            code.append("@NoArgsConstructor\n");
-            code.append("public class RuleOutcome {\n");
-            code.append("    private String ruleName;\n");
-            code.append("    private String status;\n");
-            code.append("    private boolean satisfied;\n");
-            code.append("}\n");
-
-            writefile(outputDir, BASE_PACKAGE + ".dto", "RuleOutcome", code.toString());
-        }
-
-        // ErrorResponse
-        {
-            StringBuilder code = new StringBuilder();
-            code.append("package ").append(BASE_PACKAGE).append(".dto;\n\n");
-
-            code.append("import lombok.AllArgsConstructor;\n");
-            code.append("import lombok.Builder;\n");
-            code.append("import lombok.Data;\n");
-            code.append("import lombok.NoArgsConstructor;\n");
-            code.append("import java.time.OffsetDateTime;\n\n");
-
-            code.append("/**\n");
-            code.append(" * Standard error response format\n");
-            code.append(" * DO NOT EDIT MANUALLY - Generated from specs.yaml\n");
-            code.append(" */\n");
-            code.append("@Data\n");
-            code.append("@Builder\n");
-            code.append("@AllArgsConstructor\n");
-            code.append("@NoArgsConstructor\n");
-            code.append("public class ErrorResponse {\n");
-            code.append("    private String errorCode;\n");
-            code.append("    private String message;\n");
-            code.append("    private RuleEvaluationResult ruleResults;\n");
-            code.append("    private OffsetDateTime timestamp;\n");
-            code.append("}\n");
-
-            writefile(outputDir, BASE_PACKAGE + ".dto", "ErrorResponse", code.toString());
-        }
+        String dtoPkg = BASE_PACKAGE + ".dto";
+        writefile(outputDir, dtoPkg, "RuleAwareResponse", emitter.emitRuleAwareResponse(BASE_PACKAGE));
+        writefile(outputDir, dtoPkg, "RuleEvaluationResult", emitter.emitRuleEvaluationResult(BASE_PACKAGE));
+        writefile(outputDir, dtoPkg, "RuleOutcome", emitter.emitRuleOutcome(BASE_PACKAGE));
+        writefile(outputDir, dtoPkg, "ErrorResponse", emitter.emitErrorResponse(BASE_PACKAGE));
     }
 
     private void generateExceptionClasses(String outputDir) throws IOException {
-        // RuleViolationException
-        {
-            StringBuilder code = new StringBuilder();
-            code.append("package ").append(BASE_PACKAGE).append(".exception;\n\n");
-
-            code.append("import ").append(BASE_PACKAGE).append(".dto.RuleEvaluationResult;\n\n");
-
-            code.append("/**\n");
-            code.append(" * Thrown when business rule evaluation fails\n");
-            code.append(" * DO NOT EDIT MANUALLY - Generated from specs.yaml\n");
-            code.append(" */\n");
-            code.append("public class RuleViolationException extends RuntimeException {\n");
-            code.append("    private final RuleEvaluationResult results;\n\n");
-
-            code.append("    public RuleViolationException(String message, RuleEvaluationResult results) {\n");
-            code.append("        super(message);\n");
-            code.append("        this.results = results;\n");
-            code.append("    }\n\n");
-
-            code.append("    public RuleEvaluationResult getResults() {\n");
-            code.append("        return results;\n");
-            code.append("    }\n");
-            code.append("}\n");
-
-            writefile(outputDir, BASE_PACKAGE + ".exception", "RuleViolationException", code.toString());
-        }
-
-        // ResourceNotFoundException
-        {
-            StringBuilder code = new StringBuilder();
-            code.append("package ").append(BASE_PACKAGE).append(".exception;\n\n");
-
-            code.append("/**\n");
-            code.append(" * Thrown when a requested resource is not found\n");
-            code.append(" * DO NOT EDIT MANUALLY - Generated from specs.yaml\n");
-            code.append(" */\n");
-            code.append("public class ResourceNotFoundException extends RuntimeException {\n");
-            code.append("    public ResourceNotFoundException(String message) {\n");
-            code.append("        super(message);\n");
-            code.append("    }\n");
-            code.append("}\n");
-
-            writefile(outputDir, BASE_PACKAGE + ".exception", "ResourceNotFoundException", code.toString());
-        }
-
-        // MetadataParsingException
-        {
-            StringBuilder code = new StringBuilder();
-            code.append("package ").append(BASE_PACKAGE).append(".exception;\n\n");
-
-            code.append("/**\n");
-            code.append(" * Thrown when a metadata header value cannot be parsed to the expected type\n");
-            code.append(" * DO NOT EDIT MANUALLY - Generated from specs.yaml\n");
-            code.append(" */\n");
-            code.append("public class MetadataParsingException extends RuntimeException {\n");
-            code.append("    public MetadataParsingException(String message) {\n");
-            code.append("        super(message);\n");
-            code.append("    }\n");
-            code.append("}\n");
-
-            writefile(outputDir, BASE_PACKAGE + ".exception", "MetadataParsingException", code.toString());
-        }
+        String exPkg = BASE_PACKAGE + ".exception";
+        writefile(outputDir, exPkg, "RuleViolationException", emitter.emitRuleViolationException(BASE_PACKAGE));
+        writefile(outputDir, exPkg, "ResourceNotFoundException", emitter.emitResourceNotFoundException(BASE_PACKAGE));
+        writefile(outputDir, exPkg, "MetadataParsingException", emitter.emitMetadataParsingException(BASE_PACKAGE));
     }
 
     private void generateGlobalExceptionHandler(String outputDir) throws IOException {
-        StringBuilder code = new StringBuilder();
-        code.append("package ").append(BASE_PACKAGE).append(".exception;\n\n");
+        writefile(outputDir, BASE_PACKAGE + ".exception", "GlobalExceptionHandler", emitter.emitGlobalExceptionHandler(BASE_PACKAGE));
+    }
 
-        code.append("import ").append(BASE_PACKAGE).append(".dto.ErrorResponse;\n");
-        code.append("import org.springframework.http.HttpStatus;\n");
-        code.append("import org.springframework.http.ResponseEntity;\n");
-        code.append("import org.springframework.http.converter.HttpMessageNotReadableException;\n");
-        code.append("import org.springframework.web.bind.annotation.ControllerAdvice;\n");
-        code.append("import org.springframework.web.bind.annotation.ExceptionHandler;\n");
-        code.append("import java.time.OffsetDateTime;\n\n");
-
-        code.append("/**\n");
-        code.append(" * Global exception handler for REST API\n");
-        code.append(" * DO NOT EDIT MANUALLY - Generated from specs.yaml\n");
-        code.append(" */\n");
-        code.append("@ControllerAdvice\n");
-        code.append("public class GlobalExceptionHandler {\n\n");
-
-        code.append("    @ExceptionHandler(RuleViolationException.class)\n");
-        code.append("    public ResponseEntity<ErrorResponse> handleRuleViolation(RuleViolationException ex) {\n");
-        code.append("        ErrorResponse response = ErrorResponse.builder()\n");
-        code.append("            .errorCode(\"RULE_VIOLATION\")\n");
-        code.append("            .message(ex.getMessage())\n");
-        code.append("            .ruleResults(ex.getResults())\n");
-        code.append("            .timestamp(OffsetDateTime.now())\n");
-        code.append("            .build();\n");
-        code.append("        return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(response);\n");
-        code.append("    }\n\n");
-
-        code.append("    @ExceptionHandler(ResourceNotFoundException.class)\n");
-        code.append("    public ResponseEntity<ErrorResponse> handleNotFound(ResourceNotFoundException ex) {\n");
-        code.append("        ErrorResponse response = ErrorResponse.builder()\n");
-        code.append("            .errorCode(\"NOT_FOUND\")\n");
-        code.append("            .message(ex.getMessage())\n");
-        code.append("            .timestamp(OffsetDateTime.now())\n");
-        code.append("            .build();\n");
-        code.append("        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);\n");
-        code.append("    }\n\n");
-
-        code.append("    @ExceptionHandler(MetadataParsingException.class)\n");
-        code.append("    public ResponseEntity<ErrorResponse> handleMetadataParsing(MetadataParsingException ex) {\n");
-        code.append("        ErrorResponse response = ErrorResponse.builder()\n");
-        code.append("            .errorCode(\"INVALID_METADATA\")\n");
-        code.append("            .message(ex.getMessage())\n");
-        code.append("            .timestamp(OffsetDateTime.now())\n");
-        code.append("            .build();\n");
-        code.append("        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);\n");
-        code.append("    }\n\n");
-
-        code.append("    @ExceptionHandler(HttpMessageNotReadableException.class)\n");
-        code.append("    public ResponseEntity<ErrorResponse> handleBadRequest(HttpMessageNotReadableException ex) {\n");
-        code.append("        ErrorResponse response = ErrorResponse.builder()\n");
-        code.append("            .errorCode(\"BAD_REQUEST\")\n");
-        code.append("            .message(\"Invalid request body: \" + ex.getMostSpecificCause().getMessage())\n");
-        code.append("            .timestamp(OffsetDateTime.now())\n");
-        code.append("            .build();\n");
-        code.append("        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);\n");
-        code.append("    }\n\n");
-
-        code.append("    @ExceptionHandler(Exception.class)\n");
-        code.append("    public ResponseEntity<ErrorResponse> handleGeneral(Exception ex) {\n");
-        code.append("        ErrorResponse response = ErrorResponse.builder()\n");
-        code.append("            .errorCode(\"INTERNAL_ERROR\")\n");
-        code.append("            .message(ex.getMessage())\n");
-        code.append("            .timestamp(OffsetDateTime.now())\n");
-        code.append("            .build();\n");
-        code.append("        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);\n");
-        code.append("    }\n");
-        code.append("}\n");
-
-        writefile(outputDir, BASE_PACKAGE + ".exception", "GlobalExceptionHandler", code.toString());
+    private EntityContext buildEntityContext(ModelInfo model) {
+        return new EntityContext(
+            model.name,
+            pascalName(model),
+            model.domain,
+            model.namespace,
+            model.fields,
+            model.isView,
+            isCompositeKey(model),
+            model.fields.stream().anyMatch(f -> "id".equals(f.get("name"))),
+            getPrimaryKeyFields(model),
+            model.isView ? toViewResourceName(model.name) : toResourceName(model.name),
+            buildIdParams(model),
+            buildIdArgs(model),
+            buildCompositeKeyExpr(model),
+            buildEntityCompositeKeyExpr(model),
+            buildLogPattern(model),
+            buildLogArgs(model),
+            buildNotFoundMsg(model, model.name),
+            buildPathVariableSegment(model),
+            buildPathVariableParams(model)
+        );
     }
 
     private void generateRepositoryInterface(ModelInfo model, String outputDir) throws IOException {
-        String interfaceName = pascalName(model) + "Repository";
-        String packageName = BASE_PACKAGE + ".repository";
-        String idParams = buildIdParams(model);
-
-        StringBuilder code = new StringBuilder();
-        code.append("package ").append(packageName).append(";\n\n");
-
-        code.append("import ").append(model.namespace).append(".model.").append(pascalName(model)).append(";\n");
-        code.append("import java.util.List;\n");
-        code.append("import java.util.Optional;\n\n");
-
-        code.append("/**\n");
-        code.append(" * Repository interface for ").append(model.name).append(" entities\n");
-        code.append(" * Implement this interface to provide custom data access (database, cache, etc.)\n");
-        code.append(" * DO NOT EDIT MANUALLY - Generated from models.yaml\n");
-        code.append(" */\n");
-        code.append("public interface ").append(interfaceName).append(" {\n\n");
-
-        code.append("    ").append(pascalName(model)).append(" save(").append(pascalName(model)).append(" entity);\n\n");
-        code.append("    Optional<").append(pascalName(model)).append("> findById(").append(idParams).append(");\n\n");
-        code.append("    List<").append(pascalName(model)).append("> findAll();\n\n");
-        code.append("    void deleteById(").append(idParams).append(");\n\n");
-        code.append("    boolean existsById(").append(idParams).append(");\n");
-        code.append("}\n");
-
-        writefile(outputDir, packageName, interfaceName, code.toString());
+        EntityContext ctx = buildEntityContext(model);
+        String interfaceName = ctx.pascalName + "Repository";
+        writefile(outputDir, BASE_PACKAGE + ".repository", interfaceName, emitter.emitRepositoryInterface(BASE_PACKAGE, ctx));
     }
 
     private void generateInMemoryRepository(ModelInfo model, String outputDir) throws IOException {
-        String className = "InMemory" + pascalName(model) + "Repository";
-        String interfaceName = pascalName(model) + "Repository";
-        String packageName = BASE_PACKAGE + ".repository";
-        boolean compositeKey = isCompositeKey(model);
-        String idParams = buildIdParams(model);
-        String compositeKeyExpr = buildCompositeKeyExpr(model);
-        String entityKeyExpr = buildEntityCompositeKeyExpr(model);
-        String logPattern = buildLogPattern(model);
-        String logArgs = buildLogArgs(model);
-
-        StringBuilder code = new StringBuilder();
-        code.append("package ").append(packageName).append(";\n\n");
-
-        code.append("import ").append(model.namespace).append(".model.").append(pascalName(model)).append(";\n");
-        code.append("import org.springframework.stereotype.Component;\n");
-        code.append("import lombok.extern.log4j.Log4j2;\n");
-        code.append("import java.util.Map;\n");
-        code.append("import java.util.Optional;\n");
-        code.append("import java.util.List;\n");
-        code.append("import java.util.concurrent.ConcurrentHashMap;\n");
-        code.append("import java.util.concurrent.atomic.AtomicLong;\n");
-        code.append("import java.util.stream.Collectors;\n\n");
-
-        code.append("/**\n");
-        code.append(" * Default in-memory repository for ").append(model.name).append(" entities\n");
-        code.append(" * Replace by providing a @Primary bean of type ").append(interfaceName).append("\n");
-        code.append(" * DO NOT EDIT MANUALLY - Generated from models.yaml\n");
-        code.append(" */\n");
-        code.append("@Log4j2\n");
-        code.append("@Component\n");
-        code.append("public class ").append(className).append(" implements ").append(interfaceName).append(" {\n\n");
-
-        // Check if model has an 'id' field (only relevant for non-composite keys)
-        boolean hasIdField = model.fields.stream()
-            .anyMatch(f -> "id".equals(f.get("name")));
-
-        code.append("    private final Map<String, ").append(pascalName(model)).append("> store = new ConcurrentHashMap<>();\n");
-        if (!hasIdField && !compositeKey) {
-            code.append("    private final AtomicLong idGenerator = new AtomicLong();\n");
-        }
-        code.append("\n");
-
-        // save method
-        code.append("    @Override\n");
-        code.append("    public ").append(pascalName(model)).append(" save(").append(pascalName(model)).append(" entity) {\n");
-        if (compositeKey) {
-            code.append("        String key = ").append(entityKeyExpr).append(";\n");
-            code.append("        log.debug(\"Saving ").append(model.name).append(" with key: {}\", key);\n");
-            code.append("        store.put(key, entity);\n");
-            code.append("        log.info(\"Successfully saved ").append(model.name).append(" with key: {}\", key);\n");
-        } else if (hasIdField) {
-            code.append("        String id = entity.getId();\n");
-            code.append("        log.debug(\"Saving ").append(model.name).append(" with id: {}\", id);\n");
-            code.append("        store.put(id, entity);\n");
-            code.append("        log.info(\"Successfully saved ").append(model.name).append(" with id: {}\", id);\n");
-        } else {
-            code.append("        String id = String.valueOf(idGenerator.incrementAndGet());\n");
-            code.append("        log.debug(\"Saving ").append(model.name).append(" with id: {}\", id);\n");
-            code.append("        store.put(id, entity);\n");
-            code.append("        log.info(\"Successfully saved ").append(model.name).append(" with id: {}\", id);\n");
-        }
-        code.append("        return entity;\n");
-        code.append("    }\n\n");
-
-        // findById method
-        code.append("    @Override\n");
-        code.append("    public Optional<").append(pascalName(model)).append("> findById(").append(idParams).append(") {\n");
-        if (compositeKey) {
-            code.append("        String key = ").append(compositeKeyExpr).append(";\n");
-            code.append("        log.debug(\"Looking up ").append(model.name).append(" with ").append(logPattern).append("\", ").append(logArgs).append(");\n");
-            code.append("        Optional<").append(pascalName(model)).append("> result = Optional.ofNullable(store.get(key));\n");
-        } else {
-            code.append("        log.debug(\"Looking up ").append(model.name).append(" with id: {}\", id);\n");
-            code.append("        Optional<").append(pascalName(model)).append("> result = Optional.ofNullable(store.get(id));\n");
-        }
-        code.append("        if (result.isPresent()) {\n");
-        code.append("            log.debug(\"Found ").append(model.name).append(" with ").append(logPattern).append("\", ").append(logArgs).append(");\n");
-        code.append("        } else {\n");
-        code.append("            log.debug(\"").append(model.name).append(" not found with ").append(logPattern).append("\", ").append(logArgs).append(");\n");
-        code.append("        }\n");
-        code.append("        return result;\n");
-        code.append("    }\n\n");
-
-        // findAll method
-        code.append("    @Override\n");
-        code.append("    public List<").append(pascalName(model)).append("> findAll() {\n");
-        code.append("        log.debug(\"Retrieving all ").append(model.name).append(" entities\");\n");
-        code.append("        List<").append(pascalName(model)).append("> results = new java.util.ArrayList<>(store.values());\n");
-        code.append("        log.debug(\"Found {} ").append(model.name).append(" entities\", results.size());\n");
-        code.append("        return results;\n");
-        code.append("    }\n\n");
-
-        // deleteById method
-        code.append("    @Override\n");
-        code.append("    public void deleteById(").append(idParams).append(") {\n");
-        if (compositeKey) {
-            code.append("        String key = ").append(compositeKeyExpr).append(";\n");
-            code.append("        log.debug(\"Deleting ").append(model.name).append(" with ").append(logPattern).append("\", ").append(logArgs).append(");\n");
-            code.append("        store.remove(key);\n");
-            code.append("        log.info(\"Successfully deleted ").append(model.name).append(" with ").append(logPattern).append("\", ").append(logArgs).append(");\n");
-        } else {
-            code.append("        log.debug(\"Deleting ").append(model.name).append(" with id: {}\", id);\n");
-            code.append("        store.remove(id);\n");
-            code.append("        log.info(\"Successfully deleted ").append(model.name).append(" with id: {}\", id);\n");
-        }
-        code.append("    }\n\n");
-
-        // existsById method
-        code.append("    @Override\n");
-        code.append("    public boolean existsById(").append(idParams).append(") {\n");
-        if (compositeKey) {
-            code.append("        String key = ").append(compositeKeyExpr).append(";\n");
-            code.append("        boolean exists = store.containsKey(key);\n");
-            code.append("        log.debug(\"Checking existence of ").append(model.name).append(" with ").append(logPattern).append(", exists: {}\", ").append(logArgs).append(", exists);\n");
-        } else {
-            code.append("        boolean exists = store.containsKey(id);\n");
-            code.append("        log.debug(\"Checking existence of ").append(model.name).append(" with id: {}, exists: {}\", id, exists);\n");
-        }
-        code.append("        return exists;\n");
-        code.append("    }\n");
-        code.append("}\n");
-
-        writefile(outputDir, packageName, className, code.toString());
+        EntityContext ctx = buildEntityContext(model);
+        String className = "InMemory" + ctx.pascalName + "Repository";
+        writefile(outputDir, BASE_PACKAGE + ".repository", className, emitter.emitInMemoryRepository(BASE_PACKAGE, ctx));
     }
 
     private void generateService(ModelInfo model, String outputDir) throws IOException {
-        String className = pascalName(model) + "Service";
-        String packageName = BASE_PACKAGE + ".service";
-        String repositoryClass = pascalName(model) + "Repository";
-        boolean compositeKey = isCompositeKey(model);
-        String idParams = buildIdParams(model);
-        String idArgs = buildIdArgs(model);
-        String logPattern = buildLogPattern(model);
-        String logArgs = buildLogArgs(model);
-        String notFoundMsg = buildNotFoundMsg(model, model.name);
-
-        StringBuilder code = new StringBuilder();
-        code.append("package ").append(packageName).append(";\n\n");
-
-        code.append("import ").append(model.namespace).append(".model.").append(pascalName(model)).append(";\n");
-        code.append("import ").append(BASE_PACKAGE).append(".repository.").append(repositoryClass).append(";\n");
-        code.append("import ").append(BASE_PACKAGE).append(".dto.RuleAwareResponse;\n");
-        code.append("import ").append(BASE_PACKAGE).append(".dto.RuleEvaluationResult;\n");
-        code.append("import ").append(BASE_PACKAGE).append(".exception.ResourceNotFoundException;\n");
-        code.append("import ").append(BASE_PACKAGE).append(".exception.RuleViolationException;\n");
-        code.append("import dev.appget.specification.MetadataContext;\n");
-        code.append("import lombok.extern.log4j.Log4j2;\n");
-        code.append("import org.springframework.stereotype.Service;\n");
-        code.append("import java.util.List;\n\n");
-
-        code.append("/**\n");
-        code.append(" * Business logic service for ").append(model.name).append(" with rule evaluation\n");
-        code.append(" * DO NOT EDIT MANUALLY - Generated from models.yaml and specs.yaml\n");
-        code.append(" */\n");
-        code.append("@Log4j2\n");
-        code.append("@Service\n");
-        code.append("public class ").append(className).append(" {\n\n");
-
-        code.append("    private final ").append(repositoryClass).append(" repository;\n");
-        code.append("    private final RuleService ruleService;\n\n");
-
-        code.append("    public ").append(className).append("(").append(repositoryClass).append(" repository, RuleService ruleService) {\n");
-        code.append("        this.repository = repository;\n");
-        code.append("        this.ruleService = ruleService;\n");
-        code.append("    }\n\n");
-
-        // create method (unchanged — always takes entity, no ID params)
-        code.append("    public RuleAwareResponse<").append(pascalName(model)).append("> create(").append(pascalName(model)).append(" entity, MetadataContext metadata) {\n");
-        code.append("        log.info(\"Creating new ").append(model.name).append(" entity\");\n");
-        code.append("        log.debug(\"Entity data: {}\", entity);\n");
-        code.append("        RuleEvaluationResult ruleResult = ruleService.evaluateAll(entity, metadata);\n");
-        code.append("        log.debug(\"Rule evaluation completed with hasFailures: {}\", ruleResult.isHasFailures());\n");
-        code.append("        if (ruleResult.isHasFailures()) {\n");
-        code.append("            log.warn(\"").append(model.name).append(" creation failed validation\");\n");
-        code.append("            throw new RuleViolationException(\"Validation failed\", ruleResult);\n");
-        code.append("        }\n");
-        code.append("        ").append(pascalName(model)).append(" saved = repository.save(entity);\n");
-        code.append("        log.info(\"Successfully created ").append(model.name).append(" entity\");\n");
-        code.append("        return RuleAwareResponse.<").append(pascalName(model)).append(">builder()\n");
-        code.append("            .data(saved)\n");
-        code.append("            .ruleResults(ruleResult)\n");
-        code.append("            .build();\n");
-        code.append("    }\n\n");
-
-        // findById method
-        code.append("    public ").append(pascalName(model)).append(" findById(").append(idParams).append(") {\n");
-        code.append("        log.debug(\"Fetching ").append(model.name).append(" by ").append(logPattern).append("\", ").append(logArgs).append(");\n");
-        code.append("        return repository.findById(").append(idArgs).append(")\n");
-        code.append("            .orElseThrow(() -> {\n");
-        code.append("                log.warn(\"").append(model.name).append(" not found with ").append(logPattern).append("\", ").append(logArgs).append(");\n");
-        code.append("                return new ResourceNotFoundException(").append(notFoundMsg).append(");\n");
-        code.append("            });\n");
-        code.append("    }\n\n");
-
-        // findAll method
-        code.append("    public List<").append(pascalName(model)).append("> findAll() {\n");
-        code.append("        log.debug(\"Fetching all ").append(model.name).append(" entities\");\n");
-        code.append("        return repository.findAll();\n");
-        code.append("    }\n\n");
-
-        // update method
-        code.append("    public RuleAwareResponse<").append(pascalName(model)).append("> update(").append(idParams).append(", ").append(pascalName(model)).append(" entity, MetadataContext metadata) {\n");
-        code.append("        log.info(\"Updating ").append(model.name).append(" with ").append(logPattern).append("\", ").append(logArgs).append(");\n");
-        code.append("        if (!repository.existsById(").append(idArgs).append(")) {\n");
-        code.append("            log.warn(\"").append(model.name).append(" not found for update with ").append(logPattern).append("\", ").append(logArgs).append(");\n");
-        code.append("            throw new ResourceNotFoundException(").append(notFoundMsg).append(");\n");
-        code.append("        }\n");
-        code.append("        log.debug(\"Entity data: {}\", entity);\n");
-        code.append("        RuleEvaluationResult ruleResult = ruleService.evaluateAll(entity, metadata);\n");
-        code.append("        log.debug(\"Rule evaluation completed with hasFailures: {}\", ruleResult.isHasFailures());\n");
-        code.append("        if (ruleResult.isHasFailures()) {\n");
-        code.append("            log.warn(\"").append(model.name).append(" update failed validation for ").append(logPattern).append("\", ").append(logArgs).append(");\n");
-        code.append("            throw new RuleViolationException(\"Validation failed\", ruleResult);\n");
-        code.append("        }\n");
-        code.append("        ").append(pascalName(model)).append(" updated = repository.save(entity);\n");
-        code.append("        log.info(\"Successfully updated ").append(model.name).append(" with ").append(logPattern).append("\", ").append(logArgs).append(");\n");
-        code.append("        return RuleAwareResponse.<").append(pascalName(model)).append(">builder()\n");
-        code.append("            .data(updated)\n");
-        code.append("            .ruleResults(ruleResult)\n");
-        code.append("            .build();\n");
-        code.append("    }\n\n");
-
-        // deleteById method
-        code.append("    public void deleteById(").append(idParams).append(") {\n");
-        code.append("        log.info(\"Deleting ").append(model.name).append(" with ").append(logPattern).append("\", ").append(logArgs).append(");\n");
-        code.append("        if (!repository.existsById(").append(idArgs).append(")) {\n");
-        code.append("            log.warn(\"").append(model.name).append(" not found for deletion with ").append(logPattern).append("\", ").append(logArgs).append(");\n");
-        code.append("            throw new ResourceNotFoundException(").append(notFoundMsg).append(");\n");
-        code.append("        }\n");
-        code.append("        repository.deleteById(").append(idArgs).append(");\n");
-        code.append("        log.info(\"Successfully deleted ").append(model.name).append(" with ").append(logPattern).append("\", ").append(logArgs).append(");\n");
-        code.append("    }\n");
-        code.append("}\n");
-
-        writefile(outputDir, packageName, className, code.toString());
+        EntityContext ctx = buildEntityContext(model);
+        String className = ctx.pascalName + "Service";
+        writefile(outputDir, BASE_PACKAGE + ".service", className, emitter.emitService(BASE_PACKAGE, ctx));
     }
 
     private void generateController(ModelInfo model, String outputDir) throws IOException {
-        String className = pascalName(model) + "Controller";
-        String packageName = BASE_PACKAGE + ".controller";
-        String serviceClass = pascalName(model) + "Service";
-        String resourcePath = "/" + toResourceName(model.name);
-        boolean compositeKey = isCompositeKey(model);
-        String pathVarSegment = buildPathVariableSegment(model);
-        String pathVarParams = buildPathVariableParams(model);
-        String idArgs = buildIdArgs(model);
-        String logPattern = buildLogPattern(model);
-        String logArgs = buildLogArgs(model);
-
-        StringBuilder code = new StringBuilder();
-        code.append("package ").append(packageName).append(";\n\n");
-
-        code.append("import ").append(model.namespace).append(".model.").append(pascalName(model)).append(";\n");
-        code.append("import ").append(BASE_PACKAGE).append(".service.").append(serviceClass).append(";\n");
-        code.append("import ").append(BASE_PACKAGE).append(".config.MetadataExtractor;\n");
-        code.append("import ").append(BASE_PACKAGE).append(".dto.RuleAwareResponse;\n");
-        code.append("import dev.appget.specification.MetadataContext;\n");
-        code.append("import lombok.extern.log4j.Log4j2;\n");
-        code.append("import org.springframework.http.HttpStatus;\n");
-        code.append("import org.springframework.http.ResponseEntity;\n");
-        code.append("import org.springframework.web.bind.annotation.*;\n");
-        code.append("import jakarta.servlet.http.HttpServletRequest;\n");
-        code.append("import jakarta.validation.Valid;\n");
-        code.append("import java.util.List;\n\n");
-
-        code.append("/**\n");
-        code.append(" * REST API endpoints for ").append(model.name).append(" entities\n");
-        code.append(" * DO NOT EDIT MANUALLY - Generated from models.yaml and specs.yaml\n");
-        code.append(" */\n");
-        code.append("@Log4j2\n");
-        code.append("@RestController\n");
-        code.append("@RequestMapping(\"").append(resourcePath).append("\")\n");
-        code.append("public class ").append(className).append(" {\n\n");
-
-        code.append("    private final ").append(serviceClass).append(" service;\n");
-        code.append("    private final MetadataExtractor metadataExtractor;\n\n");
-
-        code.append("    public ").append(className).append("(").append(serviceClass).append(" service, MetadataExtractor metadataExtractor) {\n");
-        code.append("        this.service = service;\n");
-        code.append("        this.metadataExtractor = metadataExtractor;\n");
-        code.append("    }\n\n");
-
-        // POST /entities
-        code.append("    @PostMapping\n");
-        code.append("    public ResponseEntity<RuleAwareResponse<").append(pascalName(model)).append(">> create(\n");
-        code.append("            @Valid @RequestBody ").append(pascalName(model)).append(" entity,\n");
-        code.append("            HttpServletRequest request) {\n");
-        code.append("        log.info(\"POST ").append(resourcePath).append(" - Creating new ").append(model.name).append("\");\n");
-        code.append("        log.debug(\"Request headers: {} {}\", request.getMethod(), request.getRequestURI());\n");
-        code.append("        MetadataContext metadata = metadataExtractor.extractFromHeaders(request);\n");
-        code.append("        RuleAwareResponse<").append(pascalName(model)).append("> response = service.create(entity, metadata);\n");
-        code.append("        log.info(\"Successfully created ").append(model.name).append(" with status 201\");\n");
-        code.append("        return ResponseEntity.status(HttpStatus.CREATED).body(response);\n");
-        code.append("    }\n\n");
-
-        // GET /entities
-        code.append("    @GetMapping\n");
-        code.append("    public ResponseEntity<List<").append(pascalName(model)).append(">> list() {\n");
-        code.append("        log.info(\"GET ").append(resourcePath).append(" - Retrieving all ").append(model.name).append(" entities\");\n");
-        code.append("        List<").append(pascalName(model)).append("> results = service.findAll();\n");
-        code.append("        log.info(\"Retrieved {} ").append(model.name).append(" entities\", results.size());\n");
-        code.append("        return ResponseEntity.ok(results);\n");
-        code.append("    }\n\n");
-
-        // GET /entities/{id} or /entities/{pk1}/{pk2}
-        code.append("    @GetMapping(\"").append(pathVarSegment).append("\")\n");
-        code.append("    public ResponseEntity<").append(pascalName(model)).append("> get(").append(pathVarParams).append(") {\n");
-        code.append("        log.info(\"GET ").append(resourcePath).append(pathVarSegment).append(" - Retrieving ").append(model.name).append(" with ").append(logPattern).append("\", ").append(logArgs).append(");\n");
-        code.append("        ").append(pascalName(model)).append(" result = service.findById(").append(idArgs).append(");\n");
-        code.append("        log.info(\"Found ").append(model.name).append(" with ").append(logPattern).append("\", ").append(logArgs).append(");\n");
-        code.append("        return ResponseEntity.ok(result);\n");
-        code.append("    }\n\n");
-
-        // PUT /entities/{id} or /entities/{pk1}/{pk2}
-        code.append("    @PutMapping(\"").append(pathVarSegment).append("\")\n");
-        code.append("    public ResponseEntity<RuleAwareResponse<").append(pascalName(model)).append(">> update(\n");
-        code.append("            ").append(pathVarParams).append(",\n");
-        code.append("            @Valid @RequestBody ").append(pascalName(model)).append(" entity,\n");
-        code.append("            HttpServletRequest request) {\n");
-        code.append("        log.info(\"PUT ").append(resourcePath).append(pathVarSegment).append(" - Updating ").append(model.name).append(" with ").append(logPattern).append("\", ").append(logArgs).append(");\n");
-        code.append("        log.debug(\"Request headers: {} {}\", request.getMethod(), request.getRequestURI());\n");
-        code.append("        MetadataContext metadata = metadataExtractor.extractFromHeaders(request);\n");
-        code.append("        RuleAwareResponse<").append(pascalName(model)).append("> response = service.update(").append(idArgs).append(", entity, metadata);\n");
-        code.append("        log.info(\"Successfully updated ").append(model.name).append(" with ").append(logPattern).append("\", ").append(logArgs).append(");\n");
-        code.append("        return ResponseEntity.ok(response);\n");
-        code.append("    }\n\n");
-
-        // DELETE /entities/{id} or /entities/{pk1}/{pk2}
-        code.append("    @DeleteMapping(\"").append(pathVarSegment).append("\")\n");
-        code.append("    public ResponseEntity<Void> delete(").append(pathVarParams).append(") {\n");
-        code.append("        log.info(\"DELETE ").append(resourcePath).append(pathVarSegment).append(" - Deleting ").append(model.name).append(" with ").append(logPattern).append("\", ").append(logArgs).append(");\n");
-        code.append("        service.deleteById(").append(idArgs).append(");\n");
-        code.append("        log.info(\"Successfully deleted ").append(model.name).append(" with ").append(logPattern).append("\", ").append(logArgs).append(");\n");
-        code.append("        return ResponseEntity.noContent().build();\n");
-        code.append("    }\n");
-        code.append("}\n");
-
-        writefile(outputDir, packageName, className, code.toString());
+        EntityContext ctx = buildEntityContext(model);
+        String className = ctx.pascalName + "Controller";
+        writefile(outputDir, BASE_PACKAGE + ".controller", className, emitter.emitController(BASE_PACKAGE, ctx));
     }
 
+    private static final String VIEW_REPO_SPLIT = "\n// ---FILE_SPLIT---\n";
+
     private void generateViewRepository(ModelInfo view, String outputDir) throws IOException {
-        String interfaceName = pascalName(view) + "Repository";
-        String className = "InMemory" + pascalName(view) + "Repository";
-        String packageName = BASE_PACKAGE + ".repository";
-        String viewImport = view.namespace + ".view." + pascalName(view);
-
-        // Interface (read-only: save for seeding, findById, findAll — no deleteById, no existsById)
-        StringBuilder iface = new StringBuilder();
-        iface.append("package ").append(packageName).append(";\n\n");
-        iface.append("import ").append(viewImport).append(";\n");
-        iface.append("import java.util.List;\n");
-        iface.append("import java.util.Optional;\n\n");
-        iface.append("/**\n");
-        iface.append(" * Read-only repository interface for ").append(view.name).append(" view\n");
-        iface.append(" * Views expose GET only — no create/update/delete operations\n");
-        iface.append(" * DO NOT EDIT MANUALLY - Generated from models.yaml\n");
-        iface.append(" */\n");
-        iface.append("public interface ").append(interfaceName).append(" {\n\n");
-        iface.append("    ").append(pascalName(view)).append(" save(").append(pascalName(view)).append(" entity);\n\n");
-        iface.append("    Optional<").append(pascalName(view)).append("> findById(String id);\n\n");
-        iface.append("    List<").append(pascalName(view)).append("> findAll();\n");
-        iface.append("}\n");
-        writefile(outputDir, packageName, interfaceName, iface.toString());
-
-        // In-memory implementation
-        StringBuilder impl = new StringBuilder();
-        impl.append("package ").append(packageName).append(";\n\n");
-        impl.append("import ").append(viewImport).append(";\n");
-        impl.append("import org.springframework.stereotype.Component;\n");
-        impl.append("import lombok.extern.log4j.Log4j2;\n");
-        impl.append("import java.util.List;\n");
-        impl.append("import java.util.Map;\n");
-        impl.append("import java.util.Optional;\n");
-        impl.append("import java.util.concurrent.ConcurrentHashMap;\n");
-        impl.append("import java.util.concurrent.atomic.AtomicLong;\n\n");
-        impl.append("/**\n");
-        impl.append(" * Default in-memory repository for ").append(view.name).append(" view\n");
-        impl.append(" * DO NOT EDIT MANUALLY - Generated from models.yaml\n");
-        impl.append(" */\n");
-        impl.append("@Log4j2\n");
-        impl.append("@Component\n");
-        impl.append("public class ").append(className).append(" implements ").append(interfaceName).append(" {\n\n");
-        impl.append("    private final Map<String, ").append(pascalName(view)).append("> store = new ConcurrentHashMap<>();\n");
-        impl.append("    private final AtomicLong idGenerator = new AtomicLong();\n\n");
-        impl.append("    @Override\n");
-        impl.append("    public ").append(pascalName(view)).append(" save(").append(pascalName(view)).append(" entity) {\n");
-        impl.append("        String id = String.valueOf(idGenerator.incrementAndGet());\n");
-        impl.append("        log.debug(\"Saving ").append(view.name).append(" view entry with id: {}\", id);\n");
-        impl.append("        store.put(id, entity);\n");
-        impl.append("        return entity;\n");
-        impl.append("    }\n\n");
-        impl.append("    @Override\n");
-        impl.append("    public Optional<").append(pascalName(view)).append("> findById(String id) {\n");
-        impl.append("        log.debug(\"Looking up ").append(view.name).append(" with id: {}\", id);\n");
-        impl.append("        return Optional.ofNullable(store.get(id));\n");
-        impl.append("    }\n\n");
-        impl.append("    @Override\n");
-        impl.append("    public List<").append(pascalName(view)).append("> findAll() {\n");
-        impl.append("        log.debug(\"Retrieving all ").append(view.name).append(" entries\");\n");
-        impl.append("        return new java.util.ArrayList<>(store.values());\n");
-        impl.append("    }\n");
-        impl.append("}\n");
-        writefile(outputDir, packageName, className, impl.toString());
+        EntityContext ctx = buildEntityContext(view);
+        String interfaceName = ctx.pascalName + "Repository";
+        String className = "InMemory" + ctx.pascalName + "Repository";
+        String combined = emitter.emitViewRepository(BASE_PACKAGE, ctx);
+        String[] parts = combined.split(VIEW_REPO_SPLIT, 2);
+        writefile(outputDir, BASE_PACKAGE + ".repository", interfaceName, parts[0]);
+        writefile(outputDir, BASE_PACKAGE + ".repository", className, parts[1]);
     }
 
     private void generateViewService(ModelInfo view, String outputDir) throws IOException {
-        String className = pascalName(view) + "Service";
-        String repositoryClass = pascalName(view) + "Repository";
-        String packageName = BASE_PACKAGE + ".service";
-        String viewImport = view.namespace + ".view." + pascalName(view);
-
-        StringBuilder code = new StringBuilder();
-        code.append("package ").append(packageName).append(";\n\n");
-        code.append("import ").append(viewImport).append(";\n");
-        code.append("import ").append(BASE_PACKAGE).append(".repository.").append(repositoryClass).append(";\n");
-        code.append("import ").append(BASE_PACKAGE).append(".exception.ResourceNotFoundException;\n");
-        code.append("import lombok.extern.log4j.Log4j2;\n");
-        code.append("import org.springframework.stereotype.Service;\n");
-        code.append("import java.util.List;\n\n");
-        code.append("/**\n");
-        code.append(" * Read-only service for ").append(view.name).append(" view\n");
-        code.append(" * Views expose GET only — no rule evaluation, no write operations\n");
-        code.append(" * DO NOT EDIT MANUALLY - Generated from models.yaml\n");
-        code.append(" */\n");
-        code.append("@Log4j2\n");
-        code.append("@Service\n");
-        code.append("public class ").append(className).append(" {\n\n");
-        code.append("    private final ").append(repositoryClass).append(" repository;\n\n");
-        code.append("    public ").append(className).append("(").append(repositoryClass).append(" repository) {\n");
-        code.append("        this.repository = repository;\n");
-        code.append("    }\n\n");
-        code.append("    public ").append(pascalName(view)).append(" findById(String id) {\n");
-        code.append("        log.debug(\"Fetching ").append(view.name).append(" by id: {}\", id);\n");
-        code.append("        return repository.findById(id)\n");
-        code.append("            .orElseThrow(() -> {\n");
-        code.append("                log.warn(\"").append(view.name).append(" not found with id: {}\", id);\n");
-        code.append("                return new ResourceNotFoundException(\"").append(view.name).append(" not found: \" + id);\n");
-        code.append("            });\n");
-        code.append("    }\n\n");
-        code.append("    public List<").append(pascalName(view)).append("> findAll() {\n");
-        code.append("        log.debug(\"Fetching all ").append(view.name).append(" entries\");\n");
-        code.append("        return repository.findAll();\n");
-        code.append("    }\n");
-        code.append("}\n");
-
-        writefile(outputDir, packageName, className, code.toString());
+        EntityContext ctx = buildEntityContext(view);
+        String className = ctx.pascalName + "Service";
+        writefile(outputDir, BASE_PACKAGE + ".service", className, emitter.emitViewService(BASE_PACKAGE, ctx));
     }
 
     private void generateViewController(ModelInfo view, String outputDir) throws IOException {
-        String className = pascalName(view) + "Controller";
-        String serviceClass = pascalName(view) + "Service";
-        String packageName = BASE_PACKAGE + ".controller";
-        String viewImport = view.namespace + ".view." + pascalName(view);
-        String resourcePath = "/views/" + toViewResourceName(view.name);
-
-        StringBuilder code = new StringBuilder();
-        code.append("package ").append(packageName).append(";\n\n");
-        code.append("import ").append(viewImport).append(";\n");
-        code.append("import ").append(BASE_PACKAGE).append(".service.").append(serviceClass).append(";\n");
-        code.append("import lombok.extern.log4j.Log4j2;\n");
-        code.append("import org.springframework.http.ResponseEntity;\n");
-        code.append("import org.springframework.web.bind.annotation.*;\n");
-        code.append("import java.util.List;\n\n");
-        code.append("/**\n");
-        code.append(" * Read-only REST endpoints for ").append(view.name).append(" view\n");
-        code.append(" * Views expose GET only (list + by ID) — no create/update/delete\n");
-        code.append(" * DO NOT EDIT MANUALLY - Generated from models.yaml\n");
-        code.append(" */\n");
-        code.append("@Log4j2\n");
-        code.append("@RestController\n");
-        code.append("@RequestMapping(\"").append(resourcePath).append("\")\n");
-        code.append("public class ").append(className).append(" {\n\n");
-        code.append("    private final ").append(serviceClass).append(" service;\n\n");
-        code.append("    public ").append(className).append("(").append(serviceClass).append(" service) {\n");
-        code.append("        this.service = service;\n");
-        code.append("    }\n\n");
-        code.append("    @GetMapping\n");
-        code.append("    public ResponseEntity<List<").append(pascalName(view)).append(">> list() {\n");
-        code.append("        log.info(\"GET ").append(resourcePath).append(" - Retrieving all ").append(view.name).append(" entries\");\n");
-        code.append("        return ResponseEntity.ok(service.findAll());\n");
-        code.append("    }\n\n");
-        code.append("    @GetMapping(\"/{id}\")\n");
-        code.append("    public ResponseEntity<").append(pascalName(view)).append("> get(@PathVariable String id) {\n");
-        code.append("        log.info(\"GET ").append(resourcePath).append("/{id} - Retrieving ").append(view.name).append(" with id: {}\", id);\n");
-        code.append("        return ResponseEntity.ok(service.findById(id));\n");
-        code.append("    }\n");
-        code.append("}\n");
-
-        writefile(outputDir, packageName, className, code.toString());
+        EntityContext ctx = buildEntityContext(view);
+        String className = ctx.pascalName + "Controller";
+        writefile(outputDir, BASE_PACKAGE + ".controller", className, emitter.emitViewController(BASE_PACKAGE, ctx));
     }
 
     private String pascalName(ModelInfo model) {
@@ -1608,24 +411,6 @@ public class AppServerGenerator {
         return base.replace('_', '-');
     }
 
-
-    private String parseHeaderValue(String varName, String type, String headerName) {
-        // Support both neutral types (bool, int32, int64, float64) and legacy Java types
-        // Boolean.parseBoolean never throws, so no safe wrapper needed
-        if ("boolean".equals(type) || "bool".equals(type)) {
-            return varName + " != null ? Boolean.parseBoolean(" + varName + ") : false";
-        } else if ("int".equals(type) || "int32".equals(type)) {
-            return "safeParseInt(" + varName + ", \"" + headerName + "\")";
-        } else if ("long".equals(type) || "int64".equals(type)) {
-            return "safeParseLong(" + varName + ", \"" + headerName + "\")";
-        } else if ("float".equals(type)) {
-            return "safeParseFloat(" + varName + ", \"" + headerName + "\")";
-        } else if ("double".equals(type) || "float64".equals(type)) {
-            return "safeParseDouble(" + varName + ", \"" + headerName + "\")";
-        } else {
-            return varName + " != null ? " + varName + " : \"\"";
-        }
-    }
 
     private void deleteDirectory(Path path) throws IOException {
         Files.walk(path)
