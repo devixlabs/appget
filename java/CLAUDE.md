@@ -24,6 +24,7 @@ Java-specific guidance for the appget.dev/java SQL-first code generation system.
 4. **Protobuf as universal schema layer** — All languages share the same `.proto` files from models.yaml. See REFERENCE.md §Protocol Buffers.
 5. **Intermediates are snake_case** — `models.yaml` and `specs.yaml` store snake_case. Language-specific casing applied at codegen time only.
 6. **ServerEmitter abstraction** — `AppServerGenerator` orchestrates; `SpringBootEmitter` emits. To add a framework, implement `ServerEmitter`. Never edit `AppServerGenerator` for output changes.
+7. **Build-time over runtime** — Generate PageRenderer classes and HTML template files rather than depending on framework templating engines (Thymeleaf, Jinja2). Centralize HTML escaping in `HtmlEscapeUtils`. See root CLAUDE.md Design Principle #0.
 
 ### Portability Anti-Patterns (Avoid)
 
@@ -209,7 +210,7 @@ DO commit:   features/*.feature, metadata.yaml, schema.sql, views.sql,
              src/main/java/, src/test/, build.gradle, Makefile, docs
 
 DON'T commit: specs.yaml, models.yaml, openapi.yaml, src/main/java-generated/,
-              generated-server/, generated-html/, build/, .gradle/
+              generated-server/, generated-html/, templates/, build/, .gradle/
 ```
 
 ---

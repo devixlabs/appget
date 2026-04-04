@@ -38,12 +38,13 @@ Goal: the Java subproject is clean, well-abstracted, and establishes every struc
 
 ### 0f. Content Negotiation — Accept-Header-Driven Response Formats
 - **Doc**: [SPEC-content-negotiation.md](SPEC-content-negotiation.md)
-- **What**: Framework handles content negotiation (Accept header parsing, format routing). appget generates `ContentTransform` implementation (JSON ↔ HTML conversion) and framework-specific wiring (`HttpMessageConverter` for Spring Boot, equivalent for other frameworks). Controllers gain `produces` annotations but remain format-unaware.
-- **Why**: Browsers get server-rendered HTML (old-fashioned GET/POST, no JS). API clients get JSON. Same endpoints, same controllers, no proxies.
-- **Research**: ✅ Complete (2026-04-03) — Decision: Hybrid (framework conneg + generated transforms). No existing tool generates JSON→HTML transforms. All target frameworks confirmed to use similar declarative request mapping annotations. See [RESEARCH-content-negotiation-survey.md](RESEARCH-content-negotiation-survey.md).
+- **What**: Framework handles content negotiation (Accept header parsing, format routing). appget generates per-model `*PageRenderer` classes and static HTML template files with `{{CONTENT}}` placeholders. No framework templating engines (Thymeleaf, Jinja2, ERB). Controllers gain `produces` annotations and separate handler methods per format. Centralized `HtmlEscapeUtils` for XSS prevention.
+- **Why**: Browsers get server-rendered HTML (old-fashioned GET/POST, no JS). API clients get JSON. Same endpoints. No framework templating dependency — build-time generated, auditable, fuzz-testable, portable across all target languages.
+- **Research**: ✅ Complete (2026-04-03) — See [RESEARCH-content-negotiation-survey.md](RESEARCH-content-negotiation-survey.md).
+- **Architecture**: ✅ Revised (2026-04-03) — PageRenderer + templates replaces original ContentTransform approach. Templates are pipeline-level artifacts (like `.proto`, `openapi.yaml`). PageRenderers are generated per-model at build time with all field metadata baked in.
 - **Blocked by**: Nothing — ready for implementation
-- **Effort**: Medium-Large (HTML transform + wiring + structural diff tests + error re-rendering)
-- **MVP**: JSON ↔ HTML only. XML and CSV follow same `ContentTransform` pattern post-MVP.
+- **Effort**: Medium-Large (PageRenderers + templates + controller changes + structural diff tests + error re-rendering)
+- **MVP**: JSON + HTML only. XML and CSV follow same PageRenderer pattern post-MVP.
 
 ### Suggested order: ~~0a~~ → ~~0b~~ → ~~0d~~ → 0f → 0e → 0c
 

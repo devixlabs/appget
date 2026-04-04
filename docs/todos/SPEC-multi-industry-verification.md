@@ -200,7 +200,7 @@ For the initial implementation, the loop runs as an interactive Claude Code sess
 
 | Dependency | Status | Blocks |
 |-----------|--------|--------|
-| HTML CRUD code generation (Phase 0d) | Specced, not started | HTML verification checks |
+| HTML CRUD code generation (Phase 0d) | Done (2026-04-02) | HTML verification checks |
 | `make verify` script generation | Done | API verification |
 | Domain-architect agent | Done (tested today) | Scenario generation |
 | Feature-engineer agent | Done (tested today) | Rule auditing |
@@ -211,7 +211,6 @@ For the initial implementation, the loop runs as an interactive Claude Code sess
 
 | File | Relevance |
 |------|-----------|
-| `docs/todos/SPEC-html-crud-codegen.md` | HTML generation spec (prerequisite) |
 | `.claude/agents/domain-architect.md` | Generates industry scenarios |
 | `.claude/agents/feature-engineer.md` | Audits generated rules |
 | `java/Makefile` | Build targets (`make all`, `make verify`) |

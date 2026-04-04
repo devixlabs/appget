@@ -52,9 +52,9 @@ Implemented in Java today. All future language targets must conform. Minor gaps 
 | ~~TODO-naming-convention-interface.md~~ (deleted) | 0a | **Done** (2026-03-29) | NamingConvention interface — `dev.appget.naming` package with cross-language field-name resolution pattern |
 | ~~SPEC-server-framework-abstraction.md~~ (deleted) | 0b | **Done** (2026-04-02) | ServerEmitter interface + SpringBootEmitter — AppServerGenerator is now a framework-agnostic orchestrator |
 | [GRPC_CONTRACT.md](todos/GRPC_CONTRACT.md) | 0c | Pending | gRPC server implementation (proto stubs exist, server pending) |
-| [SPEC-html-crud-codegen.md](todos/SPEC-html-crud-codegen.md) | 0d | **Done** (2026-04-02) | Static HTML CRUD pages — HtmlCrudGenerator, 67 pages, 23 tests |
-| [SPEC-multi-industry-verification.md](todos/SPEC-multi-industry-verification.md) | 0e | Pending | Multi-industry verification harness — prove Java works across verticals (depends on 0d) |
-| [SPEC-content-negotiation.md](todos/SPEC-content-negotiation.md) | 0f | **Research** | Accept-header content negotiation — JSON/HTML/XML from same endpoints (research required before implementation) |
+| ~~SPEC-html-crud-codegen.md~~ (deleted) | 0d | **Done** (2026-04-02) | Static HTML CRUD pages — HtmlCrudGenerator, 67 pages, 23 tests |
+| [SPEC-multi-industry-verification.md](todos/SPEC-multi-industry-verification.md) | 0e | Pending | Multi-industry verification harness — prove Java works across verticals (depends on 0f) |
+| [SPEC-content-negotiation.md](todos/SPEC-content-negotiation.md) | 0f | **Ready** | Accept-header content negotiation — PageRenderer + templates architecture (research complete, spec finalized 2026-04-03) |
 
 ### Phase 1+ — Cross-Language Rollout
 

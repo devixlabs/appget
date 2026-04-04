@@ -25,9 +25,13 @@ GENERATION:
   models.yaml              → DescriptorRegistryGenerator → DescriptorRegistry.java
   .proto files             → ProtoOpenAPIGenerator → openapi.yaml
   models.yaml + specs.yaml → AppServerGenerator → generated-server/
+  models.yaml + specs.yaml → HtmlCrudGenerator  → generated-html/ (static pages)
+  models.yaml + specs.yaml → HtmlCrudGenerator  → templates/ ({{CONTENT}} placeholders)
+  models.yaml + specs.yaml → AppServerGenerator → *PageRenderer + HtmlEscapeUtils (via ServerEmitter)
 
 RUNTIME:
   DescriptorRegistry + RuleInterceptor + RuleEngine + Specification → evaluate(target, metadata)
+  *PageRenderer + templates/ + HtmlEscapeUtils → HTML responses (Accept: text/html)
 ```
 
 **Critical dependency rule**: `generateProto` depends on `parseSchema` only — NOT on `featuresToSpecs`. Proto files contain schema only; rules travel separately in specs.yaml.
@@ -48,7 +52,8 @@ All generated files are git-ignored. Regenerate with `make all` — never hand-e
 | `make generate-registry` | models.yaml → DescriptorRegistry.java |
 | `make generate-openapi` | .proto files → openapi.yaml |
 | `make generate-server` | models.yaml + specs.yaml → complete Spring Boot server |
-| `make generate` | All of the above (features-to-specs through generate-server) |
+| `make generate-html` | models.yaml + specs.yaml → static HTML CRUD pages + template files |
+| `make generate` | All of the above (features-to-specs through generate-html) |
 | `make test` | Run JUnit 5 tests (expect 0 failures, 0 errors) |
 | `make build` | Full build: parse schema → generate → compile → package |
 | `make clean` | Remove build/, src/main/java-generated/, specs.yaml |
@@ -73,7 +78,9 @@ All generated files are git-ignored. Regenerate with `make all` — never hand-e
 **Never edit these (generated, git-ignored):**
 - `specs.yaml`, `models.yaml`, `openapi.yaml` (regenerate from sources)
 - `src/main/java-generated/` (generated models, specs, DescriptorRegistry)
-- `generated-server/` (generated Spring Boot server)
+- `generated-server/` (generated Spring Boot server + PageRenderers + HtmlEscapeUtils)
+- `generated-html/` (static HTML CRUD pages)
+- `templates/` (HTML template files with `{{CONTENT}}` placeholders — pipeline artifact)
 - `build/` (compiled artifacts)
 
 ---

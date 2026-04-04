@@ -42,6 +42,7 @@ Each subproject is **self-contained** with:
 - Protocol Buffer models from SQL schema
 - Business rule specifications from Gherkin `.feature` files
 - Spring Boot REST API servers
+- HTML template files + PageRenderer classes (content negotiation)
 - gRPC service stubs
 - OpenAPI 3.0 specifications
 
@@ -50,6 +51,13 @@ Each subproject is **self-contained** with:
 ---
 
 ## Design Principles
+
+### 0. Build-Time Code Generation Over Runtime Framework Features
+Where behavior can be determined at build time and the security surface is small enough to audit and fuzz-test exhaustively, generate the code directly rather than depending on framework libraries. Reserve framework dependencies for infrastructure concerns (HTTP serving, TLS, connection pooling) that are genuinely hard to implement correctly and where the security surface is too large to own.
+
+**Rationale**: Framework-specific libraries (templating engines, format converters, middleware) introduce version coupling, CVE exposure, and lock each generated server to a single ecosystem. Generated code with centralized security utilities (e.g., `HtmlEscapeUtils`) is auditable in seconds, fuzz-testable, and portable across all target languages without upstream dependencies. LLMs can generate and maintain this code more reliably than tracking framework version schedules.
+
+**Applies to**: HTML rendering (PageRenderer + templates, not Thymeleaf/Jinja2), content transformation, output formatting. **Does NOT apply to**: HTTP serving, TLS, connection pooling, database drivers — use framework/library for these.
 
 ### 1. Language-First Code Generation
 Java is the **reference implementation**. Design patterns in java/ set the structural template that all future language subprojects (Go, Python, Rust) replicate. When making architecture decisions, optimize for cross-language structural consistency — not just Java's immediate needs.
@@ -100,6 +108,8 @@ Only source files are committed:
 - ❌ models.yaml, specs.yaml (generated intermediates)
 - ❌ src/main/java-generated/ (generated code)
 - ❌ build/ directory (artifacts)
+- ❌ generated-html/ (generated static HTML pages — pipeline artifact)
+- ❌ templates/ (generated HTML templates — pipeline artifact)
 
 ---
 
@@ -275,5 +285,5 @@ All pending work is tracked in two systems. Every session and sub-agent should k
 
 ---
 
-**Last Updated**: 2026-03-29
+**Last Updated**: 2026-04-03
 **Status**: Language-agnostic guidance (Java details in java/CLAUDE.md)
