@@ -34,16 +34,19 @@ public class FeatureToSpecsConverter {
     private static final Logger logger = LogManager.getLogger(FeatureToSpecsConverter.class);
 
     // Operator phrase → symbol mapping (longest phrases first to avoid partial matches)
-    private static final LinkedHashMap<String, String> OPERATOR_MAP = new LinkedHashMap<>();
-    static {
-        OPERATOR_MAP.put("does not equal", "!=");
-        OPERATOR_MAP.put("is greater than", ">");
-        OPERATOR_MAP.put("is less than", "<");
-        OPERATOR_MAP.put("is at least", ">=");
-        OPERATOR_MAP.put("is at most", "<=");
-        OPERATOR_MAP.put("equals", "==");
-        OPERATOR_MAP.put("is not null", "IS_NOT_NULL");
-        OPERATOR_MAP.put("is null", "IS_NULL");
+    private static final LinkedHashMap<String, String> OPERATOR_MAP = createOperatorMap();
+
+    private static LinkedHashMap<String, String> createOperatorMap() {
+        LinkedHashMap<String, String> map = new LinkedHashMap<>();
+        map.put("does not equal", "!=");
+        map.put("is greater than", ">");
+        map.put("is less than", "<");
+        map.put("is at least", ">=");
+        map.put("is at most", "<=");
+        map.put("equals", "==");
+        map.put("is not null", "IS_NOT_NULL");
+        map.put("is null", "IS_NULL");
+        return map;
     }
 
     // Build regex alternation from operator phrases
@@ -209,43 +212,38 @@ public class FeatureToSpecsConverter {
             String keyword = step.getKeyword().trim();
             String text = step.getText();
 
-            switch (keyword) {
-                case "Given", "And" -> {
-                    Matcher m = METADATA_PATTERN.matcher(text);
-                    if (m.matches()) {
-                        String category = m.group(1);
-                        Optional<DataTable> dt = step.getDataTable();
-                        if (dt.isPresent()) {
-                            requires.put(category, parseConditionTable(dt.get()));
-                        }
+            if ("Given".equals(keyword) || "And".equals(keyword)) {
+                Matcher m = METADATA_PATTERN.matcher(text);
+                if (m.matches()) {
+                    String category = m.group(1);
+                    Optional<DataTable> dt = step.getDataTable();
+                    if (dt.isPresent()) {
+                        requires.put(category, parseConditionTable(dt.get()));
                     }
                 }
-                case "When" -> {
-                    if (text.startsWith("all conditions are met")) {
-                        Optional<DataTable> dt = step.getDataTable();
-                        if (dt.isPresent()) {
-                            conditions = parseCompoundCondition("AND", dt.get());
-                        }
-                    } else if (text.startsWith("any condition is met")) {
-                        Optional<DataTable> dt = step.getDataTable();
-                        if (dt.isPresent()) {
-                            conditions = parseCompoundCondition("OR", dt.get());
-                        }
-                    } else {
-                        conditions = parseSimpleCondition(text);
+            } else if ("When".equals(keyword)) {
+                if (text.startsWith("all conditions are met")) {
+                    Optional<DataTable> dt = step.getDataTable();
+                    if (dt.isPresent()) {
+                        conditions = parseCompoundCondition("AND", dt.get());
                     }
+                } else if (text.startsWith("any condition is met")) {
+                    Optional<DataTable> dt = step.getDataTable();
+                    if (dt.isPresent()) {
+                        conditions = parseCompoundCondition("OR", dt.get());
+                    }
+                } else {
+                    conditions = parseSimpleCondition(text);
                 }
-                case "Then" -> {
-                    Matcher m = STATUS_PATTERN.matcher(text);
-                    if (m.matches()) {
-                        thenStatus = m.group(1);
-                    }
+            } else if ("Then".equals(keyword)) {
+                Matcher m = STATUS_PATTERN.matcher(text);
+                if (m.matches()) {
+                    thenStatus = m.group(1);
                 }
-                case "But" -> {
-                    Matcher m = OTHERWISE_PATTERN.matcher(text);
-                    if (m.matches()) {
-                        elseStatus = m.group(1);
-                    }
+            } else if ("But".equals(keyword)) {
+                Matcher m = OTHERWISE_PATTERN.matcher(text);
+                if (m.matches()) {
+                    elseStatus = m.group(1);
                 }
             }
         }

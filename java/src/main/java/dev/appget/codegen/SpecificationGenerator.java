@@ -1,7 +1,8 @@
 package dev.appget.codegen;
 
 import org.yaml.snakeyaml.Yaml;
-import java.io.*;
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -77,7 +78,7 @@ public class SpecificationGenerator {
     public void loadModelsYaml(String modelsPath) throws IOException {
         Yaml yaml = new Yaml();
         Map<String, Object> data;
-        try (InputStream in = new FileInputStream(new File(modelsPath))) {
+        try (InputStream in = Files.newInputStream(Path.of(modelsPath))) {
             data = yaml.load(in);
         }
 
@@ -115,7 +116,7 @@ public class SpecificationGenerator {
     public void generateSpecifications(String yamlPath, String outputDir) throws IOException {
         Yaml yaml = new Yaml();
         Map<String, Object> data;
-        try (InputStream inputStream = new FileInputStream(new File(yamlPath))) {
+        try (InputStream inputStream = Files.newInputStream(Path.of(yamlPath))) {
             data = yaml.load(inputStream);
         }
 
@@ -181,7 +182,7 @@ public class SpecificationGenerator {
         for (Map<String, Object> field : fields) {
             String rawType = (String) field.get("type");
             // Convert neutral type to Java type; fall back to raw if already Java
-            String javaType = JavaTypeRegistry.INSTANCE.neutralToJava(rawType);
+            String javaType = JavaTypeRegistry.neutralToJava(rawType);
             if (typeImports.containsKey(javaType)) {
                 imports.add(typeImports.get(javaType));
             }
@@ -280,17 +281,14 @@ public class SpecificationGenerator {
         // Group metadata reqs by category for template
         Map<String, Object> metadataReqsByCategory = new LinkedHashMap<>();
         for (MetadataReqInfo mri : metadataReqs) {
-            metadataReqsByCategory.computeIfAbsent(mri.category, k -> {
+            metadataReqsByCategory.computeIfAbsent(mri.category(), k -> {
                 Map<String, Object> catMap = new LinkedHashMap<>();
-                catMap.put("category", mri.category);
+                catMap.put("category", mri.category());
                 catMap.put("reqs", new ArrayList<>());
                 return catMap;
             });
-            ((List<Map<String, Object>>) ((Map<String, Object>) metadataReqsByCategory.get(mri.category)).get("reqs")).add(
-                new HashMap<String, Object>() {{
-                    put("fieldName", mri.fieldName);
-                    put("category", mri.category);
-                }}
+            ((List<Map<String, Object>>) ((Map<String, Object>) metadataReqsByCategory.get(mri.category())).get("reqs")).add(
+                Map.of("fieldName", mri.fieldName(), "category", mri.category())
             );
         }
 
@@ -352,15 +350,7 @@ public class SpecificationGenerator {
         }
     }
 
-    private static class MetadataReqInfo {
-        final String category;
-        final String fieldName;
-        final Map<String, Object> condition;
-
-        MetadataReqInfo(String category, String fieldName, Map<String, Object> condition) {
-            this.category = category;
-            this.fieldName = fieldName;
-            this.condition = condition;
-        }
+    // Per EJ Item 17: immutable data carrier for metadata requirement info
+    private record MetadataReqInfo(String category, String fieldName, Map<String, Object> condition) {
     }
 }

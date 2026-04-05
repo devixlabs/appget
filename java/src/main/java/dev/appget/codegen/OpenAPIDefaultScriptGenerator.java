@@ -1,7 +1,8 @@
 package dev.appget.codegen;
 
 import org.yaml.snakeyaml.Yaml;
-import java.io.*;
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -25,8 +26,9 @@ public class OpenAPIDefaultScriptGenerator {
     private static final Logger logger = LogManager.getLogger(OpenAPIDefaultScriptGenerator.class);
     private static final String DEFAULT_BASE_URL = "http://localhost:8080";
 
-    private Map<String, Map<String, Object>> schemas = new LinkedHashMap<>();
-    private List<EndpointInfo> endpoints = new ArrayList<>();
+    // Per EJ Item 17: fields are final — collections are populated but references never reassigned
+    private final Map<String, Map<String, Object>> schemas = new LinkedHashMap<>();
+    private final List<EndpointInfo> endpoints = new ArrayList<>();
     private String baseUrl = DEFAULT_BASE_URL;
 
     public static void main(String[] args) {
@@ -62,7 +64,7 @@ public class OpenAPIDefaultScriptGenerator {
         // Load OpenAPI spec
         Yaml yaml = new Yaml();
         Map<String, Object> openapi;
-        try (InputStream in = new FileInputStream(new File(openapiPath))) {
+        try (InputStream in = Files.newInputStream(Path.of(openapiPath))) {
             openapi = yaml.load(in);
         }
 
@@ -322,7 +324,7 @@ public class OpenAPIDefaultScriptGenerator {
         script.append("if [ -n \"$").append(tag.toUpperCase()).append("_ID\" ]; then\n");
         script.append("  echo -e \"${BLUE}Testing: ").append(endpoint.summary).append("${NC}\"\n");
 
-        String sampleJson = generateSampleJson(endpoint.schemaRef, "Updated");
+        String sampleJson = generateSampleJsonWithPrefix(endpoint.schemaRef, "Updated");
         String path = endpoint.path.replace("{id}", "$" + tag.toUpperCase() + "_ID");
 
         script.append("  RESPONSE=$(curl -s -w \"\\n%{http_code}\" -X PUT \"$BASE_URL").append(path).append("\" \\\n");
@@ -441,11 +443,12 @@ public class OpenAPIDefaultScriptGenerator {
 
     @SuppressWarnings("unchecked")
     private String generateSampleJson(String schemaName) {
-        return generateSampleJson(schemaName, "");
+        return generateSampleJsonWithPrefix(schemaName, "");
     }
 
+    // No method overloading — use distinct method names (per java/CLAUDE.md)
     @SuppressWarnings("unchecked")
-    private String generateSampleJson(String schemaName, String prefix) {
+    private String generateSampleJsonWithPrefix(String schemaName, String prefix) {
         if (schemaName == null || !schemas.containsKey(schemaName)) {
             return "{}";
         }
@@ -477,7 +480,7 @@ public class OpenAPIDefaultScriptGenerator {
             } else if ("string".equals(type) && "date".equals(format)) {
                 json.append("\"2024-01-15\"");
             } else if ("string".equals(type)) {
-                json.append("\"").append(prefix).append(capitalize(propName)).append("\"");
+                json.append("\"").append(prefix).append(CodeGenUtils.capitalize(propName)).append("\"");
             } else if ("integer".equals(type)) {
                 json.append(propName.toLowerCase().contains("id") ? "1" : "42");
             } else if ("number".equals(type)) {
@@ -491,11 +494,6 @@ public class OpenAPIDefaultScriptGenerator {
 
         json.append("}");
         return json.toString();
-    }
-
-    private String capitalize(String str) {
-        if (str == null || str.isEmpty()) return str;
-        return str.substring(0, 1).toUpperCase() + str.substring(1);
     }
 
     private static class EndpointInfo {

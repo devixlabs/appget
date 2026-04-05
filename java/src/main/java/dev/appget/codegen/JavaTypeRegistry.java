@@ -4,27 +4,28 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Java implementation of TypeRegistry.
+ * Static utility class for Java type mappings.
  *
  * Maps language-neutral types (stored in models.yaml) to Java-specific types,
  * proto types, and OpenAPI types.
  *
  * This is the single source of truth for all type mappings in the Java subproject.
- * Use INSTANCE singleton to access this registry.
+ * All methods are static — no instances.
  *
  * Neutral type set: string, int32, int64, float64, bool, date, datetime, decimal
  */
-public class JavaTypeRegistry implements TypeRegistry {
-
-    /** Singleton instance — the single source of truth for Java type mappings. */
-    public static final JavaTypeRegistry INSTANCE = new JavaTypeRegistry();
+// Per EJ Item 4: noninstantiable utility class
+public final class JavaTypeRegistry {
 
     private static final Map<String, String> NEUTRAL_TO_PROTO = createNeutralToProtoMapping();
     private static final Map<String, String[]> NEUTRAL_TO_OPENAPI = createNeutralToOpenApiMapping();
     private static final Map<String, String> NEUTRAL_TO_JAVA = createNeutralToJavaMapping();
     private static final Map<String, String> NEUTRAL_TO_JAVA_BOXED = createNeutralToJavaBoxedMapping();
+    private static final Map<String, String> PROTO_TO_NEUTRAL = createProtoToNeutralMapping();
 
+    /** Suppress default constructor — noninstantiable. */
     private JavaTypeRegistry() {
+        throw new AssertionError("No instances");
     }
 
     // ---- Proto Mapping ----
@@ -89,15 +90,31 @@ public class JavaTypeRegistry implements TypeRegistry {
         return map;
     }
 
-    // ---- TypeRegistry implementation ----
+    // ---- Proto-to-Neutral Reverse Mapping ----
+    // Derived from NEUTRAL_TO_PROTO with special-case handling for proto types
+    // that have no neutral equivalent (float, bytes) and for Timestamp which maps
+    // to two neutral types (date, datetime) — we prefer "datetime" for date-time format.
 
-    @Override
-    public String neutralToProto(String neutralType) {
+    private static Map<String, String> createProtoToNeutralMapping() {
+        Map<String, String> map = new HashMap<>();
+        // Invert the neutral-to-proto map; last-write-wins for duplicates,
+        // so insert "date" first, then "datetime" overwrites for Timestamp -> datetime.
+        for (Map.Entry<String, String> entry : NEUTRAL_TO_PROTO.entrySet()) {
+            map.put(entry.getValue(), entry.getKey());
+        }
+        // Guarantee that google.protobuf.Timestamp maps to "datetime" (not "date"),
+        // producing OpenAPI format "date-time" — matching the original behavior.
+        map.put("google.protobuf.Timestamp", "datetime");
+        return map;
+    }
+
+    // ---- Public static methods ----
+
+    public static String neutralToProto(String neutralType) {
         return NEUTRAL_TO_PROTO.getOrDefault(neutralType, "string");
     }
 
-    @Override
-    public String[] neutralToOpenApi(String neutralType) {
+    public static String[] neutralToOpenApi(String neutralType) {
         String[] result = NEUTRAL_TO_OPENAPI.get(neutralType);
         if (result == null) {
             return new String[]{"string", null};
@@ -105,26 +122,60 @@ public class JavaTypeRegistry implements TypeRegistry {
         return result;
     }
 
-    @Override
-    public String neutralToJava(String neutralType) {
+    public static String neutralToJava(String neutralType) {
         return NEUTRAL_TO_JAVA.getOrDefault(neutralType, "String");
     }
 
-    @Override
-    public String neutralToJava(String neutralType, boolean nullable) {
+    // No method overloading — use distinct method names (per java/CLAUDE.md)
+    public static String neutralToJavaNullable(String neutralType, boolean nullable) {
         if (nullable) {
             return NEUTRAL_TO_JAVA_BOXED.getOrDefault(neutralType, "String");
         }
         return neutralToJava(neutralType);
     }
 
-    @Override
-    public boolean isTimestampType(String neutralType) {
+    /**
+     * Map a proto type directly to its OpenAPI [type, format] pair.
+     *
+     * Chain: proto type -> neutral type (via reverse map) -> OpenAPI pair.
+     * Handles proto-only types (float, bytes) that have no neutral equivalent.
+     * Falls back to ["string", null] for unknown types.
+     *
+     * @param protoType the protobuf type name (e.g. "int32", "double", "appget.common.Decimal")
+     * @return a two-element array [openApiType, openApiFormat]; format may be null
+     */
+    public static String[] protoToOpenApi(final String protoType) {
+        // Proto-only types with no neutral equivalent
+        if ("float".equals(protoType)) {
+            return new String[]{"number", "float"};
+        }
+        if ("bytes".equals(protoType)) {
+            return new String[]{"string", "byte"};
+        }
+        final String neutralType = PROTO_TO_NEUTRAL.get(protoType);
+        if (neutralType == null) {
+            return new String[]{"string", null};
+        }
+        final String[] result = NEUTRAL_TO_OPENAPI.get(neutralType);
+        if (result == null) {
+            return new String[]{"string", null};
+        }
+        return result;
+    }
+
+    /**
+     * Check if the given type is a known neutral type in the registry.
+     * Delegates to the NEUTRAL_TO_PROTO map — the canonical set of neutral types.
+     */
+    public static boolean isKnownNeutralType(String type) {
+        return type != null && NEUTRAL_TO_PROTO.containsKey(type);
+    }
+
+    public static boolean isTimestampType(String neutralType) {
         return "date".equals(neutralType) || "datetime".equals(neutralType);
     }
 
-    @Override
-    public boolean isDecimalType(String neutralType) {
+    public static boolean isDecimalType(String neutralType) {
         return "decimal".equals(neutralType);
     }
 

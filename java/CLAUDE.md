@@ -36,6 +36,12 @@ Java-specific guidance for the appget.dev/java SQL-first code generation system.
 | Method overloading | Builder pattern |
 | Singleton pattern | Static utility class (no instances) |
 
+**Established patterns** (enforced in codegen package):
+- Data carriers use Java records (`ModelInfo`, `RuleInfo`, `ColumnInfo`, `RegistryEntry`, `MetadataReqInfo`)
+- Shared utilities in `CodeGenUtils` (including `deleteDirectory(Path)`)
+- All type mappings consolidated in `JavaTypeRegistry` (including `protoToOpenApi()`)
+- Generated specs implement `EvaluableRule` for typed dispatch (no reflection)
+
 See REFERENCE.md §Portability for code examples.
 
 ---
@@ -230,7 +236,10 @@ DON'T commit: specs.yaml, models.yaml, openapi.yaml, src/main/java-generated/,
 | `src/main/java/dev/appget/model/Rule.java` | Generic rule with metadata support |
 | `src/main/java/dev/appget/RuleEngine.java` | specs.yaml-driven rule evaluation |
 | `src/main/java/dev/appget/codegen/TypeRegistry.java` | Type mapping interface |
-| `src/main/java/dev/appget/codegen/JavaTypeRegistry.java` | Java type mappings |
+| `src/main/java/dev/appget/codegen/JavaTypeRegistry.java` | Java type mappings (static utility, no instances) |
+| `src/main/java/dev/appget/codegen/ModelInfo.java` | Shared record: parsed domain model/view data carrier |
+| `src/main/java/dev/appget/codegen/RuleInfo.java` | Shared record: parsed business rule data carrier |
+| `src/main/java/dev/appget/specification/EvaluableRule.java` | Typed bridge interface for spec evaluation (replaces reflection in generated RuleService) |
 | `src/main/java/dev/appget/naming/JavaNaming.java` | Runtime naming (snake_case → camelCase) |
 | `src/main/java/dev/appget/codegen/JavaUtils.java` | Codegen-only transforms |
 | `src/main/java/dev/appget/codegen/CodeGenUtils.java` | Language-agnostic string ops |

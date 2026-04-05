@@ -46,9 +46,12 @@ Goal: the Java subproject is clean, well-abstracted, and establishes every struc
 - **Effort**: Medium-Large (PageRenderers + templates + controller changes + structural diff tests + error re-rendering)
 - **MVP**: JSON + HTML only. XML and CSV follow same PageRenderer pattern post-MVP.
 
-### Suggested order: ~~0a~~ → ~~0b~~ → ~~0d~~ → 0f → 0e → 0c
+### 0g. Java Codegen Package Refactoring — **Done** (2026-04-05)
+- **Follow-up**: Verify W8 logging in emitted RuleService catch blocks — W7 replaced reflection with typed `EvaluableRule` dispatch, so the `log.warn` calls added in W8 may now be in dead catch blocks. Check `SpringBootEmitter.emitRuleService()` and remove if unreachable.
 
-0a, 0b, and 0d are done. 0f (content negotiation) is next — research complete, ready for implementation. 0e (multi-industry) validates everything. 0c (gRPC/GraphQL) deferred until REST pipeline is proven.
+### Suggested order: ~~0a~~ → ~~0b~~ → ~~0d~~ → ~~0g~~ → 0f → 0e → 0c
+
+0a, 0b, 0d, and 0g are done. 0f (content negotiation) is next — research complete, ready for implementation. 0e (multi-industry) validates everything. 0c (gRPC/GraphQL) deferred until REST pipeline is proven.
 
 ---
 

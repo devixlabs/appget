@@ -1,7 +1,8 @@
 package dev.appget.codegen;
 
 import org.yaml.snakeyaml.Yaml;
-import java.io.*;
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -32,11 +33,12 @@ public class AppServerGenerator {
 
     private static final Logger logger = LogManager.getLogger(AppServerGenerator.class);
     private static final String BASE_PACKAGE = "dev.appget.server";
-    private Map<String, ModelInfo> modelIndex = new HashMap<>();
-    private Map<String, ModelInfo> viewIndex = new LinkedHashMap<>();
-    private List<RuleInfo> rules = new ArrayList<>();
-    private Set<String> metadataCategories = new LinkedHashSet<>();
-    private Map<String, List<Map<String, Object>>> metadataFieldDefinitions = new LinkedHashMap<>();
+    // Per EJ Item 17: fields are final — collections are populated but references never reassigned
+    private final Map<String, ModelInfo> modelIndex = new HashMap<>();
+    private final Map<String, ModelInfo> viewIndex = new LinkedHashMap<>();
+    private final List<RuleInfo> rules = new ArrayList<>();
+    private final Set<String> metadataCategories = new LinkedHashSet<>();
+    private final Map<String, List<Map<String, Object>>> metadataFieldDefinitions = new LinkedHashMap<>();
     private final ServerEmitter emitter;
 
     public AppServerGenerator() {
@@ -64,10 +66,10 @@ public class AppServerGenerator {
         try {
             new AppServerGenerator().generateServer(modelsPath, specsPath, outputDir);
             logger.info("Successfully generated application server to: {}", outputDir);
-            System.out.println("✓ Successfully generated application server to: " + outputDir);
+            System.out.println("\u2713 Successfully generated application server to: " + outputDir);
         } catch (Exception e) {
             logger.error("Failed to generate server", e);
-            System.err.println("✗ Failed to generate server: " + e.getMessage());
+            System.err.println("\u2717 Failed to generate server: " + e.getMessage());
             e.printStackTrace();
             System.exit(1);
         }
@@ -79,7 +81,7 @@ public class AppServerGenerator {
         // Clean output directory to remove stale generated files
         Path outPath = Paths.get(outputDir);
         if (Files.exists(outPath)) {
-            deleteDirectory(outPath);
+            CodeGenUtils.deleteDirectory(outPath);
             logger.debug("Cleaned output directory: {}", outputDir);
         }
 
@@ -135,7 +137,7 @@ public class AppServerGenerator {
     private void loadModels(String yamlPath) throws IOException {
         Yaml yaml = new Yaml();
         Map<String, Object> data;
-        try (InputStream in = new FileInputStream(new File(yamlPath))) {
+        try (InputStream in = Files.newInputStream(Path.of(yamlPath))) {
             data = yaml.load(in);
         }
 
@@ -157,11 +159,9 @@ public class AppServerGenerator {
                     String modelName = (String) model.get("name");
                     List<Map<String, Object>> fields = (List<Map<String, Object>>) model.get("fields");
 
-                    ModelInfo info = new ModelInfo();
-                    info.name = modelName;
-                    info.domain = domainName;
-                    info.namespace = namespace;
-                    info.fields = fields != null ? new ArrayList<>(fields) : new ArrayList<>();
+                    ModelInfo info = new ModelInfo(
+                            modelName, null, domainName, namespace, false,
+                            fields != null ? new ArrayList<>(fields) : new ArrayList<>());
 
                     modelIndex.put(modelName, info);
                     modelIndex.put(JavaUtils.snakeToPascal(modelName), info);
@@ -174,12 +174,9 @@ public class AppServerGenerator {
                     String viewName = (String) view.get("name");
                     List<Map<String, Object>> fields = (List<Map<String, Object>>) view.get("fields");
 
-                    ModelInfo info = new ModelInfo();
-                    info.name = viewName;
-                    info.isView = true;
-                    info.domain = domainName;
-                    info.namespace = namespace;
-                    info.fields = fields != null ? new ArrayList<>(fields) : new ArrayList<>();
+                    ModelInfo info = new ModelInfo(
+                            viewName, null, domainName, namespace, true,
+                            fields != null ? new ArrayList<>(fields) : new ArrayList<>());
 
                     viewIndex.put(viewName, info);
                     viewIndex.put(JavaUtils.snakeToPascal(viewName), info);
@@ -192,7 +189,7 @@ public class AppServerGenerator {
     private void loadRules(String yamlPath) throws IOException {
         Yaml yaml = new Yaml();
         Map<String, Object> data;
-        try (InputStream in = new FileInputStream(new File(yamlPath))) {
+        try (InputStream in = Files.newInputStream(Path.of(yamlPath))) {
             data = yaml.load(in);
         }
 
@@ -216,24 +213,20 @@ public class AppServerGenerator {
                 String ruleName = (String) raw.get("name");
                 Map<String, Object> target = (Map<String, Object>) raw.get("target");
 
-                RuleInfo info = new RuleInfo();
-                info.name = ruleName;
-
-                if (target != null) {
-                    info.targetType = (String) target.get("type"); // "model" or "view"
-                    info.targetName = (String) target.get("name");
-                    info.targetDomain = (String) target.get("domain");
-                }
+                String targetType = target != null ? (String) target.get("type") : null;
+                String targetName = target != null ? (String) target.get("name") : null;
+                String targetDomain = target != null ? (String) target.get("domain") : null;
 
                 // Check if rule requires metadata
                 Map<String, Object> requires = (Map<String, Object>) raw.get("requires");
-                info.requiresMetadata = requires != null && !requires.isEmpty();
+                boolean requiresMetadata = requires != null && !requires.isEmpty();
 
                 // Parse blocking flag (defaults to false)
                 Object blockingVal = raw.get("blocking");
-                info.blocking = blockingVal != null && Boolean.TRUE.equals(blockingVal);
+                boolean blocking = blockingVal != null && Boolean.TRUE.equals(blockingVal);
 
-                rules.add(info);
+                rules.add(new RuleInfo(ruleName, targetType, targetName, targetDomain,
+                        requiresMetadata, blocking));
             }
         }
     }
@@ -293,14 +286,14 @@ public class AppServerGenerator {
         Map<String, String> ruleTargetMap = new LinkedHashMap<>();
 
         for (RuleInfo rule : rules) {
-            if ("view".equals(rule.targetType)) continue;
+            if ("view".equals(rule.targetType())) continue;
             modelRules.add(new RuleEmitContext.RuleEntry(
-                rule.name, rule.targetName, rule.targetDomain,
-                rule.requiresMetadata, rule.blocking));
-            blockingMap.put(rule.name, rule.blocking);
-            ModelInfo model = modelIndex.get(rule.targetName);
+                rule.name(), rule.targetName(), rule.targetDomain(),
+                rule.requiresMetadata(), rule.blocking()));
+            blockingMap.put(rule.name(), rule.blocking());
+            ModelInfo model = modelIndex.get(rule.targetName());
             if (model != null) {
-                ruleTargetMap.put(rule.name, pascalName(model));
+                ruleTargetMap.put(rule.name(), pascalName(model));
             }
         }
         return new RuleEmitContext(modelRules, blockingMap, ruleTargetMap);
@@ -327,23 +320,23 @@ public class AppServerGenerator {
 
     private EntityContext buildEntityContext(ModelInfo model) {
         return new EntityContext(
-            model.name,
+            model.name(),
             pascalName(model),
-            model.domain,
-            model.namespace,
-            model.fields,
-            model.isView,
+            model.domain(),
+            model.namespace(),
+            model.fields(),
+            model.isView(),
             isCompositeKey(model),
-            model.fields.stream().anyMatch(f -> "id".equals(f.get("name"))),
+            model.fields().stream().anyMatch(f -> "id".equals(f.get("name"))),
             getPrimaryKeyFields(model),
-            model.isView ? toViewResourceName(model.name) : toResourceName(model.name),
+            model.isView() ? toViewResourceName(model.name()) : toResourceName(model.name()),
             buildIdParams(model),
             buildIdArgs(model),
             buildCompositeKeyExpr(model),
             buildEntityCompositeKeyExpr(model),
             buildLogPattern(model),
             buildLogArgs(model),
-            buildNotFoundMsg(model, model.name),
+            buildNotFoundMsg(model, model.name()),
             buildPathVariableSegment(model),
             buildPathVariableParams(model)
         );
@@ -373,16 +366,12 @@ public class AppServerGenerator {
         writefile(outputDir, BASE_PACKAGE + ".controller", className, emitter.emitController(BASE_PACKAGE, ctx));
     }
 
-    private static final String VIEW_REPO_SPLIT = "\n// ---FILE_SPLIT---\n";
-
     private void generateViewRepository(ModelInfo view, String outputDir) throws IOException {
         EntityContext ctx = buildEntityContext(view);
         String interfaceName = ctx.pascalName + "Repository";
         String className = "InMemory" + ctx.pascalName + "Repository";
-        String combined = emitter.emitViewRepository(BASE_PACKAGE, ctx);
-        String[] parts = combined.split(VIEW_REPO_SPLIT, 2);
-        writefile(outputDir, BASE_PACKAGE + ".repository", interfaceName, parts[0]);
-        writefile(outputDir, BASE_PACKAGE + ".repository", className, parts[1]);
+        writefile(outputDir, BASE_PACKAGE + ".repository", interfaceName, emitter.emitViewRepositoryInterface(BASE_PACKAGE, ctx));
+        writefile(outputDir, BASE_PACKAGE + ".repository", className, emitter.emitInMemoryViewRepository(BASE_PACKAGE, ctx));
     }
 
     private void generateViewService(ModelInfo view, String outputDir) throws IOException {
@@ -398,7 +387,7 @@ public class AppServerGenerator {
     }
 
     private String pascalName(ModelInfo model) {
-        return JavaUtils.snakeToPascal(model.name);
+        return JavaUtils.snakeToPascal(model.name());
     }
 
     private String toResourceName(String snakeName) {
@@ -406,18 +395,11 @@ public class AppServerGenerator {
     }
 
     private String toViewResourceName(String snakeName) {
-        // post_detail_view → strip _view → post_detail → replace _ with - → post-detail
+        // post_detail_view -> strip _view -> post_detail -> replace _ with - -> post-detail
         String base = snakeName.endsWith("_view") ? snakeName.substring(0, snakeName.length() - 5) : snakeName;
         return base.replace('_', '-');
     }
 
-
-    private void deleteDirectory(Path path) throws IOException {
-        Files.walk(path)
-            .sorted(java.util.Comparator.reverseOrder())
-            .map(Path::toFile)
-            .forEach(java.io.File::delete);
-    }
 
     private void writefile(String outputDir, String packageName, String className, String javaCode) throws IOException {
         Path packagePath = Paths.get(outputDir, packageName.split("\\."));
@@ -436,7 +418,7 @@ public class AppServerGenerator {
     @SuppressWarnings("unchecked")
     private List<Map<String, Object>> getPrimaryKeyFields(ModelInfo model) {
         List<Map<String, Object>> pkFields = new ArrayList<>();
-        for (Map<String, Object> field : model.fields) {
+        for (Map<String, Object> field : model.fields()) {
             Object pk = field.get("primary_key");
             if (pk != null && Boolean.TRUE.equals(pk)) {
                 pkFields.add(field);
@@ -444,7 +426,7 @@ public class AppServerGenerator {
         }
         if (pkFields.isEmpty()) {
             // Fallback: use the "id" field if present
-            for (Map<String, Object> field : model.fields) {
+            for (Map<String, Object> field : model.fields()) {
                 if ("id".equals(field.get("name"))) {
                     pkFields.add(field);
                     break;
@@ -630,21 +612,4 @@ public class AppServerGenerator {
         return "\"" + label + " not found: \" + " + buildCompositeKeyExpr(model);
     }
 
-    // Helper classes
-    static class ModelInfo {
-        String name;
-        String domain;
-        String namespace;
-        List<Map<String, Object>> fields;
-        boolean isView;
-    }
-
-    static class RuleInfo {
-        String name;
-        String targetType;
-        String targetName;
-        String targetDomain;
-        boolean requiresMetadata;
-        boolean blocking;
-    }
 }

@@ -1,14 +1,14 @@
 package dev.appget.codegen;
 
 import org.yaml.snakeyaml.Yaml;
-import java.io.*;
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import com.github.jknack.handlebars.Handlebars;
 
 /**
  * Generates DescriptorRegistry class from models.yaml.
@@ -41,10 +41,10 @@ public class DescriptorRegistryGenerator {
             DescriptorRegistryGenerator gen = new DescriptorRegistryGenerator();
             gen.generateRegistry(modelsPath, outputDir);
             logger.info("Successfully generated DescriptorRegistry to: {}", outputDir);
-            System.out.println("✓ Successfully generated DescriptorRegistry to: " + outputDir);
+            System.out.println("\u2713 Successfully generated DescriptorRegistry to: " + outputDir);
         } catch (Exception e) {
             logger.error("Failed to generate DescriptorRegistry", e);
-            System.err.println("✗ Failed to generate DescriptorRegistry: " + e.getMessage());
+            System.err.println("\u2717 Failed to generate DescriptorRegistry: " + e.getMessage());
             e.printStackTrace();
             System.exit(1);
         }
@@ -55,7 +55,7 @@ public class DescriptorRegistryGenerator {
     public void generateRegistry(String modelsPath, String outputDir) throws IOException {
         Yaml yaml = new Yaml();
         Map<String, Object> data;
-        try (InputStream in = new FileInputStream(new File(modelsPath))) {
+        try (InputStream in = Files.newInputStream(Path.of(modelsPath))) {
             data = yaml.load(in);
         }
 
@@ -120,11 +120,11 @@ public class DescriptorRegistryGenerator {
         Set<String> imports = new LinkedHashSet<>();
         List<Map<String, String>> entryMaps = new ArrayList<>();
         for (RegistryEntry entry : entries) {
-            imports.add(entry.importPath);
+            imports.add(entry.importPath());
             Map<String, String> entryMap = new HashMap<>();
-            entryMap.put("name", entry.name);
-            entryMap.put("pascalName", entry.pascalName);
-            entryMap.put("importPath", entry.importPath);
+            entryMap.put("name", entry.name());
+            entryMap.put("pascalName", entry.pascalName());
+            entryMap.put("importPath", entry.importPath());
             entryMaps.add(entryMap);
         }
 
@@ -139,15 +139,7 @@ public class DescriptorRegistryGenerator {
         return templateEngine.render("descriptor/DescriptorRegistry.java", context);
     }
 
-    private static class RegistryEntry {
-        final String name;
-        final String pascalName;
-        final String importPath;
-
-        RegistryEntry(String name, String pascalName, String importPath) {
-            this.name = name;
-            this.pascalName = pascalName;
-            this.importPath = importPath;
-        }
+    // Per EJ Item 17: immutable data carrier for descriptor registry entries
+    private record RegistryEntry(String name, String pascalName, String importPath) {
     }
 }

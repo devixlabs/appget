@@ -54,6 +54,7 @@ Implemented in Java today. All future language targets must conform. Minor gaps 
 | [GRPC_CONTRACT.md](todos/GRPC_CONTRACT.md) | 0c | Pending | gRPC server implementation (proto stubs exist, server pending) |
 | ~~SPEC-html-crud-codegen.md~~ (deleted) | 0d | **Done** (2026-04-02) | Static HTML CRUD pages — HtmlCrudGenerator, 67 pages, 23 tests |
 | [SPEC-multi-industry-verification.md](todos/SPEC-multi-industry-verification.md) | 0e | Pending | Multi-industry verification harness — prove Java works across verticals (depends on 0f) |
+| ~~JAVA_CODEGEN_REFACTOR.md~~ (deleted) | 0g | **Done** (2026-04-05) | Codegen package refactoring — all 28 findings resolved (portability violations, duplication, reflection, mutable fields) |
 | [SPEC-content-negotiation.md](todos/SPEC-content-negotiation.md) | 0f | **Ready** | Accept-header content negotiation — PageRenderer + templates architecture (research complete, spec finalized 2026-04-03) |
 
 ### Phase 1+ — Cross-Language Rollout

@@ -1,18 +1,17 @@
 package dev.appget.specification.generated;
 
 import {{targetImport}};
-import dev.appget.specification.Specification;
 import dev.appget.specification.CompoundSpecification;
-import java.util.List;
-{{#if hasMetadata}}
+import dev.appget.specification.EvaluableRule;
 import dev.appget.specification.MetadataContext;
-{{/if}}
+import dev.appget.specification.Specification;
+import java.util.List;
 
 /**
  * Generated specification class for rule: {{className}}
  * DO NOT EDIT MANUALLY - Generated from specs.yaml
  */
-public class {{className}} {
+public class {{className}} implements EvaluableRule {
     private final CompoundSpecification spec;
 {{#each metadataReqs}}
     private final Specification {{fieldName}};
@@ -69,6 +68,24 @@ public class {{className}} {
         }
     }
 {{/if}}
+
+    @Override
+    public boolean evaluate(Object target, MetadataContext metadata) {
+{{#if hasMetadata}}
+        return evaluate(({{targetTypeName}}) target, metadata);
+{{else}}
+        return evaluate(({{targetTypeName}}) target);
+{{/if}}
+    }
+
+    @Override
+    public String getResult(Object target, MetadataContext metadata) {
+{{#if hasMetadata}}
+        return getResult(({{targetTypeName}}) target, metadata);
+{{else}}
+        return getResult(({{targetTypeName}}) target);
+{{/if}}
+    }
 
     public CompoundSpecification getSpec() {
         return spec;

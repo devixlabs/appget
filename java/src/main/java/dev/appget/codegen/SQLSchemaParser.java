@@ -122,8 +122,8 @@ public class SQLSchemaParser {
         logger.debug("Exiting parseAndGenerate");
     }
 
-    // Backwards-compatible method for tests
-    public void parseAndGenerate(String schemaFile, String outputFile) throws IOException {
+    // No method overloading — use distinct method names (per java/CLAUDE.md)
+    public void parseAndGenerateWithoutViews(String schemaFile, String outputFile) throws IOException {
         parseAndGenerate(schemaFile, null, outputFile);
     }
 
@@ -421,6 +421,35 @@ public class SQLSchemaParser {
         return fields;
     }
 
+    /**
+     * Resolves a column reference (alias.column) to the matching ColumnInfo
+     * by looking up the alias in the provided map, then scanning the table's
+     * columns. Returns null if no match is found.
+     */
+    private ColumnInfo resolveColumn(String expression, Map<String, String> aliases) {
+        if (!expression.contains(".")) {
+            return null;
+        }
+        String[] parts = expression.split("\\.");
+        String alias = parts[0].trim().toLowerCase();
+        String colName = parts[1].trim().toLowerCase();
+
+        String tableName = aliases.get(alias);
+        if (tableName == null) {
+            return null;
+        }
+        List<ColumnInfo> cols = tableColumns.get(tableName);
+        if (cols == null) {
+            return null;
+        }
+        for (ColumnInfo ci : cols) {
+            if (ci.name().equalsIgnoreCase(colName)) {
+                return ci;
+            }
+        }
+        return null;
+    }
+
     private String resolveExpressionType(String expression, Map<String, String> aliases) {
         // Check for aggregate functions
         String upper = expression.toUpperCase().trim();
@@ -433,26 +462,8 @@ public class SQLSchemaParser {
             return resolveExpressionType(inner, aliases);
         }
 
-        // Check for alias.column pattern
-        if (expression.contains(".")) {
-            String[] parts = expression.split("\\.");
-            String alias = parts[0].trim().toLowerCase();
-            String colName = parts[1].trim().toLowerCase();
-
-            String tableName = aliases.get(alias);
-            if (tableName != null) {
-                List<ColumnInfo> cols = tableColumns.get(tableName);
-                if (cols != null) {
-                    for (ColumnInfo ci : cols) {
-                        if (ci.name.equalsIgnoreCase(colName)) {
-                            return ci.neutralType;
-                        }
-                    }
-                }
-            }
-        }
-
-        return "string"; // fallback
+        ColumnInfo col = resolveColumn(expression, aliases);
+        return col != null ? col.neutralType() : "string"; // fallback
     }
 
     private String resolveExpressionOriginalSqlType(String expression, Map<String, String> aliases) {
@@ -463,26 +474,8 @@ public class SQLSchemaParser {
             return null;
         }
 
-        // Check for alias.column pattern
-        if (expression.contains(".")) {
-            String[] parts = expression.split("\\.");
-            String alias = parts[0].trim().toLowerCase();
-            String colName = parts[1].trim().toLowerCase();
-
-            String tableName = aliases.get(alias);
-            if (tableName != null) {
-                List<ColumnInfo> cols = tableColumns.get(tableName);
-                if (cols != null) {
-                    for (ColumnInfo ci : cols) {
-                        if (ci.name.equalsIgnoreCase(colName)) {
-                            return ci.originalSqlType;
-                        }
-                    }
-                }
-            }
-        }
-
-        return null;
+        ColumnInfo col = resolveColumn(expression, aliases);
+        return col != null ? col.originalSqlType() : null;
     }
 
     private boolean resolveExpressionNullable(String expression, Map<String, String> aliases) {
@@ -492,65 +485,18 @@ public class SQLSchemaParser {
             return true; // aggregates can be null
         }
 
-        if (expression.contains(".")) {
-            String[] parts = expression.split("\\.");
-            String alias = parts[0].trim().toLowerCase();
-            String colName = parts[1].trim().toLowerCase();
-
-            String tableName = aliases.get(alias);
-            if (tableName != null) {
-                List<ColumnInfo> cols = tableColumns.get(tableName);
-                if (cols != null) {
-                    for (ColumnInfo ci : cols) {
-                        if (ci.name.equalsIgnoreCase(colName)) {
-                            return ci.nullable;
-                        }
-                    }
-                }
-            }
-        }
-
-        return true; // default nullable
+        ColumnInfo col = resolveColumn(expression, aliases);
+        return col != null ? col.nullable() : true; // default nullable
     }
 
     private Integer resolveExpressionPrecision(String expression, Map<String, String> aliases) {
-        if (expression.contains(".")) {
-            String[] parts = expression.split("\\.");
-            String alias = parts[0].trim().toLowerCase();
-            String colName = parts[1].trim().toLowerCase();
-            String tableName = aliases.get(alias);
-            if (tableName != null) {
-                List<ColumnInfo> cols = tableColumns.get(tableName);
-                if (cols != null) {
-                    for (ColumnInfo ci : cols) {
-                        if (ci.name.equalsIgnoreCase(colName)) {
-                            return ci.precision;
-                        }
-                    }
-                }
-            }
-        }
-        return null;
+        ColumnInfo col = resolveColumn(expression, aliases);
+        return col != null ? col.precision() : null;
     }
 
     private Integer resolveExpressionScale(String expression, Map<String, String> aliases) {
-        if (expression.contains(".")) {
-            String[] parts = expression.split("\\.");
-            String alias = parts[0].trim().toLowerCase();
-            String colName = parts[1].trim().toLowerCase();
-            String tableName = aliases.get(alias);
-            if (tableName != null) {
-                List<ColumnInfo> cols = tableColumns.get(tableName);
-                if (cols != null) {
-                    for (ColumnInfo ci : cols) {
-                        if (ci.name.equalsIgnoreCase(colName)) {
-                            return ci.scale;
-                        }
-                    }
-                }
-            }
-        }
-        return null;
+        ColumnInfo col = resolveColumn(expression, aliases);
+        return col != null ? col.scale() : null;
     }
 
     private List<Map<String, Object>> parseColumns(String columnDefs, String domain, String modelName,
@@ -601,79 +547,24 @@ public class SQLSchemaParser {
         return fields;
     }
 
-    private List<ColumnInfo> parseColumnsForLookup(String columnDefs) {
-        List<ColumnInfo> columns = new ArrayList<>();
+    /**
+     * Shared intermediate state from tokenizing a single SQL column definition line.
+     * Used by both parseColumn (table fields) and parseColumnsForLookup (view resolution).
+     */
+    private record ParsedColumnTokens(
+            String columnName,
+            String neutralType,
+            String originalSqlType,
+            boolean nullable,
+            Integer precision,
+            Integer scale
+    ) {}
 
-        List<String> columnLines = CodeGenUtils.smartSplit(columnDefs, ',');
-
-        for (String columnLine : columnLines) {
-            columnLine = columnLine.trim();
-            if (columnLine.isEmpty() || isConstraintLine(columnLine)) {
-                continue;
-            }
-
-            String[] tokens = columnLine.split("\\s+");
-            if (tokens.length < 2) continue;
-
-            String columnName = tokens[0];
-            StringBuilder typeBuilder = new StringBuilder();
-            int typeTokenEnd = 1;
-
-            for (int i = 1; i < tokens.length; i++) {
-                String token = tokens[i].toUpperCase();
-                if (token.equals("NOT") || token.equals("NULL") || token.equals("DEFAULT")
-                    || token.equals("PRIMARY") || token.equals("UNIQUE") || token.equals("CHECK")) {
-                    typeTokenEnd = i;
-                    break;
-                }
-                if (i > 1) typeBuilder.append(" ");
-                typeBuilder.append(tokens[i]);
-                typeTokenEnd = i + 1;
-            }
-
-            String originalSqlType = typeBuilder.toString().toUpperCase();
-            String typePart = originalSqlType;
-            if (typePart.isEmpty()) continue;
-
-            String baseType = extractBaseType(typePart);
-            String neutralType = mapSqlTypeToNeutral(baseType);
-
-            boolean isNullable = true;
-            for (int i = typeTokenEnd; i < tokens.length - 1; i++) {
-                if (tokens[i].toUpperCase().equals("NOT") && tokens[i + 1].toUpperCase().equals("NULL")) {
-                    isNullable = false;
-                    break;
-                }
-            }
-
-            // Extract precision and scale for decimal types
-            Integer precision = null;
-            Integer scale = null;
-            if ("decimal".equals(neutralType)) {
-                // Reconstruct original type string for regex matching
-                String originalTypePart = typeBuilder.toString();
-                Matcher m = DECIMAL_PRECISION_PATTERN.matcher(originalTypePart);
-                if (m.find()) {
-                    precision = Integer.parseInt(m.group(1));
-                    scale = Integer.parseInt(m.group(2));
-                }
-            }
-
-            columns.add(new ColumnInfo(columnName.toLowerCase(), neutralType, originalSqlType, isNullable, precision, scale));
-        }
-
-        return columns;
-    }
-
-    private boolean isConstraintLine(String line) {
-        String upper = line.toUpperCase();
-        return upper.startsWith("PRIMARY KEY") || upper.startsWith("FOREIGN KEY")
-            || upper.startsWith("CONSTRAINT") || upper.startsWith("UNIQUE")
-            || upper.startsWith("CHECK");
-    }
-
-    private Map<String, Object> parseColumn(String columnLine, String domain, String modelName,
-                                             Set<String> allPrimaryKeys, List<String> pkList) {
+    /**
+     * Tokenizes a single column definition line and extracts its type information,
+     * nullability, and decimal precision/scale. Returns null if the line cannot be parsed.
+     */
+    private ParsedColumnTokens parseColumnTokens(String columnLine) {
         String[] tokens = columnLine.split("\\s+");
         if (tokens.length < 2) {
             return null;
@@ -696,12 +587,11 @@ public class SQLSchemaParser {
         }
 
         String originalSqlType = typeBuilder.toString().toUpperCase();
-        String typePart = originalSqlType;
-        if (typePart.isEmpty()) {
+        if (originalSqlType.isEmpty()) {
             return null;
         }
 
-        String baseType = extractBaseType(typePart);
+        String baseType = extractBaseType(originalSqlType);
         String neutralType = mapSqlTypeToNeutral(baseType);
 
         boolean isNullable = true;
@@ -723,7 +613,49 @@ public class SQLSchemaParser {
             }
         }
 
-        String fieldNameLower = columnName.toLowerCase();
+        return new ParsedColumnTokens(columnName, neutralType, originalSqlType, isNullable, precision, scale);
+    }
+
+    private List<ColumnInfo> parseColumnsForLookup(String columnDefs) {
+        List<ColumnInfo> columns = new ArrayList<>();
+        List<String> columnLines = CodeGenUtils.smartSplit(columnDefs, ',');
+
+        for (String columnLine : columnLines) {
+            columnLine = columnLine.trim();
+            if (columnLine.isEmpty() || isConstraintLine(columnLine)) {
+                continue;
+            }
+
+            ParsedColumnTokens parsed = parseColumnTokens(columnLine);
+            if (parsed == null) continue;
+
+            columns.add(new ColumnInfo(
+                    parsed.columnName().toLowerCase(),
+                    parsed.neutralType(),
+                    parsed.originalSqlType(),
+                    parsed.nullable(),
+                    parsed.precision(),
+                    parsed.scale()));
+        }
+
+        return columns;
+    }
+
+    private boolean isConstraintLine(String line) {
+        String upper = line.toUpperCase();
+        return upper.startsWith("PRIMARY KEY") || upper.startsWith("FOREIGN KEY")
+            || upper.startsWith("CONSTRAINT") || upper.startsWith("UNIQUE")
+            || upper.startsWith("CHECK");
+    }
+
+    private Map<String, Object> parseColumn(String columnLine, String domain, String modelName,
+                                             Set<String> allPrimaryKeys, List<String> pkList) {
+        ParsedColumnTokens parsed = parseColumnTokens(columnLine);
+        if (parsed == null) {
+            return null;
+        }
+
+        String fieldNameLower = parsed.columnName().toLowerCase();
         int fieldNumber = getFieldNumber(domain, modelName, fieldNameLower);
 
         boolean isPrimaryKey = allPrimaryKeys.contains(fieldNameLower);
@@ -734,17 +666,17 @@ public class SQLSchemaParser {
 
         Map<String, Object> field = new LinkedHashMap<>();
         field.put("name", fieldNameLower);
-        field.put("type", neutralType);
-        field.put("original_sql_type", originalSqlType);
-        field.put("nullable", isNullable);
+        field.put("type", parsed.neutralType());
+        field.put("original_sql_type", parsed.originalSqlType());
+        field.put("nullable", parsed.nullable());
         field.put("field_number", fieldNumber);
         if (isPrimaryKey) {
             field.put("primary_key", true);
             field.put("primary_key_position", primaryKeyPosition);
         }
-        if ("decimal".equals(neutralType) && precision != null) {
-            field.put("precision", precision);
-            field.put("scale", scale != null ? scale : 0);
+        if ("decimal".equals(parsed.neutralType()) && parsed.precision() != null) {
+            field.put("precision", parsed.precision());
+            field.put("scale", parsed.scale() != null ? parsed.scale() : 0);
         }
 
         return field;
@@ -762,13 +694,13 @@ public class SQLSchemaParser {
     /**
      * Determine the domain for a table or view by scanning backwards for a
      * "-- <word> domain" comment in the SQL preceding the given position.
-     * Falls back to "appget" if no such comment is found.
+     * Falls back to {@link #ORGANIZATION} if no such comment is found.
      */
     private String parseDomainFromComments(String sql, int pos) {
         String preceding = sql.substring(0, pos);
         Pattern p = Pattern.compile("--\\s+(\\w+)\\s+domain", Pattern.CASE_INSENSITIVE);
         Matcher m = p.matcher(preceding);
-        String lastDomain = "appget";
+        String lastDomain = ORGANIZATION;
         while (m.find()) {
             lastDomain = m.group(1).toLowerCase();
         }
@@ -788,7 +720,7 @@ public class SQLSchemaParser {
 
             yaml.append("  ").append(domain).append(":\n");
             yaml.append("    namespace: dev.appget");
-            if (!domain.equals("appget")) {
+            if (!domain.equals(ORGANIZATION)) {
                 yaml.append(".").append(domain);
             }
             yaml.append("\n");
@@ -857,22 +789,13 @@ public class SQLSchemaParser {
         return yaml.toString();
     }
 
-    // Internal helper to store column metadata for view resolution
-    private static class ColumnInfo {
-        final String name;
-        final String neutralType;
-        final String originalSqlType;
-        final boolean nullable;
-        final Integer precision;
-        final Integer scale;
-
-        ColumnInfo(String name, String neutralType, String originalSqlType, boolean nullable, Integer precision, Integer scale) {
-            this.name = name;
-            this.neutralType = neutralType;
-            this.originalSqlType = originalSqlType;
-            this.nullable = nullable;
-            this.precision = precision;
-            this.scale = scale;
-        }
+    // Per EJ Item 17: immutable data carrier for column metadata used in view resolution
+    private record ColumnInfo(
+            String name,
+            String neutralType,
+            String originalSqlType,
+            boolean nullable,
+            Integer precision,
+            Integer scale) {
     }
 }

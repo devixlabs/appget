@@ -13,7 +13,7 @@ import java.util.Map;
  * the same reason.
  *
  * Each rule is represented as a plain {@link RuleEntry} inner class that mirrors
- * the fields of {@code AppServerGenerator.RuleInfo} needed by the emitters.
+ * the fields of {@link RuleInfo} needed by the emitters.
  */
 public class RuleEmitContext {
 
@@ -24,19 +24,19 @@ public class RuleEmitContext {
      */
     static class RuleEntry {
         /** Unique rule name (PascalCase, e.g., "UserEmailValidation"). */
-        String name;
+        final String name;
 
         /** snake_case name of the target model (e.g., "users"). */
-        String targetName;
+        final String targetName;
 
         /** Domain of the target model (e.g., "auth"). */
-        String targetDomain;
+        final String targetDomain;
 
         /** True when the rule's spec class requires a MetadataContext argument. */
-        boolean requiresMetadata;
+        final boolean requiresMetadata;
 
         /** True when an unsatisfied rule causes a 422 rejection. */
-        boolean blocking;
+        final boolean blocking;
 
         /**
          * Constructs a RuleEntry.
@@ -65,21 +65,21 @@ public class RuleEmitContext {
      * Non-view-targeting rules only, in the order they appear in specs.yaml.
      * View-targeting rules have been filtered out before this context is built.
      */
-    List<RuleEntry> modelRules;
+    final List<RuleEntry> modelRules;
 
     /**
      * Maps rule name → true/false indicating whether the rule is blocking.
      * Pre-built from {@code modelRules} so emitters can use a direct map lookup
      * rather than scanning the list.
      */
-    Map<String, Boolean> blockingMap;
+    final Map<String, Boolean> blockingMap;
 
     /**
      * Maps rule name → PascalCase target model name.
      * Resolved against the model index so the emitter does not need access to
      * the full model list. Example: "UserEmailValidation" → "Users".
      */
-    Map<String, String> ruleTargetMap;
+    final Map<String, String> ruleTargetMap;
 
     /**
      * Constructs a RuleEmitContext with all fields supplied by the generator.
@@ -92,8 +92,8 @@ public class RuleEmitContext {
             List<RuleEntry> modelRules,
             Map<String, Boolean> blockingMap,
             Map<String, String> ruleTargetMap) {
-        this.modelRules = modelRules;
-        this.blockingMap = blockingMap;
-        this.ruleTargetMap = ruleTargetMap;
+        this.modelRules = List.copyOf(modelRules);
+        this.blockingMap = Map.copyOf(blockingMap);
+        this.ruleTargetMap = Map.copyOf(ruleTargetMap);
     }
 }

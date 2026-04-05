@@ -237,13 +237,24 @@ public interface ServerEmitter {
     /**
      * Emits the read-only repository interface for a view entity
      * (e.g., {@code PostDetailViewRepository.java}).
-     * Declares only findAll and findById operations.
+     * Declares only save (for seeding), findById, and findAll operations.
      *
      * @param basePackage root package of the generated server
      * @param ctx         view metadata ({@code ctx.isView} will be {@code true})
      * @return complete Java source for the view repository interface
      */
-    String emitViewRepository(String basePackage, EntityContext ctx);
+    String emitViewRepositoryInterface(String basePackage, EntityContext ctx);
+
+    /**
+     * Emits the in-memory {@code ConcurrentHashMap}-backed repository implementation
+     * for a view entity (e.g., {@code InMemoryPostDetailViewRepository.java}).
+     * Read-only view storage with save (for seeding), findById, and findAll.
+     *
+     * @param basePackage root package of the generated server
+     * @param ctx         view metadata ({@code ctx.isView} will be {@code true})
+     * @return complete Java source for the in-memory view repository
+     */
+    String emitInMemoryViewRepository(String basePackage, EntityContext ctx);
 
     /**
      * Emits the service class for a view entity

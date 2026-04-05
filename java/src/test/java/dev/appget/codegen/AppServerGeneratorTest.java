@@ -117,12 +117,18 @@ class AppServerGeneratorTest {
     }
 
     @Test
-    @DisplayName("RuleService uses metadata-aware evaluate for AdminAuthorizationRequired")
-    void testRuleServiceMetadataAwareEvaluate(@TempDir Path tempDir) throws Exception {
+    @DisplayName("RuleService uses EvaluableRule interface for spec evaluation (no reflection)")
+    void testRuleServiceUsesEvaluableRule(@TempDir Path tempDir) throws Exception {
         String content = readRuleService(tempDir);
-        // RuleService should use getMethods() iteration to handle typed spec params
-        assertTrue(content.contains("spec.getClass().getMethods()"),
-            "Should use getMethods() iteration to invoke evaluate method");
+        // RuleService should call through EvaluableRule interface, not reflection
+        assertTrue(content.contains("spec.evaluate(target, metadata)"),
+            "Should call evaluate through EvaluableRule interface");
+        assertTrue(content.contains("spec.getResult(target, metadata)"),
+            "Should call getResult through EvaluableRule interface");
+        assertFalse(content.contains("getClass().getMethods()"),
+            "Should not use reflection to invoke spec methods");
+        assertFalse(content.contains("java.lang.reflect"),
+            "Should not import java.lang.reflect");
         assertTrue(content.contains("BLOCKING_RULES"),
             "Should have BLOCKING_RULES static map");
     }
@@ -219,8 +225,8 @@ class AppServerGeneratorTest {
     void testSpecificationRegistryGetByTarget(@TempDir Path tempDir) throws Exception {
         String content = generateAndReadFile(tempDir,
             "dev", "appget", "server", "service", "SpecificationRegistry.java");
-        assertTrue(content.contains("public List<Object> getByTarget(String modelName)"),
-            "Should have getByTarget method");
+        assertTrue(content.contains("public List<EvaluableRule> getByTarget(String modelName)"),
+            "Should have getByTarget method returning EvaluableRule list");
         assertTrue(content.contains("SPEC_TARGETS"),
             "Should use static SPEC_TARGETS map for filtering");
     }
@@ -230,8 +236,8 @@ class AppServerGeneratorTest {
     void testSpecificationRegistryGetMethod(@TempDir Path tempDir) throws Exception {
         String content = generateAndReadFile(tempDir,
             "dev", "appget", "server", "service", "SpecificationRegistry.java");
-        assertTrue(content.contains("public Object get(String name)"),
-            "Should have get method for single spec lookup");
+        assertTrue(content.contains("public EvaluableRule get(String name)"),
+            "Should have get method returning EvaluableRule");
     }
 
     @Test
@@ -245,14 +251,14 @@ class AppServerGeneratorTest {
     }
 
     @Test
-    @DisplayName("RuleService does not import model classes (uses reflection)")
+    @DisplayName("RuleService does not import model classes (uses EvaluableRule interface)")
     void testRuleServiceNoModelImports(@TempDir Path tempDir) throws Exception {
         String content = readRuleService(tempDir);
         assertFalse(content.contains("import dev.appget.model."),
             "RuleService should not import flat dev.appget.model.* (no such package in multi-domain)");
-        // Should not import ANY domain-specific model classes either (they're unused)
+        // Should not import ANY domain-specific model classes — EvaluableRule abstracts the target type
         assertFalse(content.matches("(?s).*import dev\\.appget\\.\\w+\\.model\\..*"),
-            "RuleService should not import domain-specific model classes (uses reflection, not static types)");
+            "RuleService should not import domain-specific model classes (uses EvaluableRule interface)");
     }
 
     @Test

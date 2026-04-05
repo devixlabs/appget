@@ -1,7 +1,6 @@
 package dev.appget.codegen;
 
-import java.io.File;
-import java.io.FileInputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -19,7 +18,7 @@ import org.yaml.snakeyaml.Yaml;
  * Pipeline: models.yaml → .proto files → protoc → model classes (in any target language)
  *
  * models.yaml stores language-neutral types (string, int32, int64, float64, bool, date, datetime, decimal).
- * This converter uses JavaTypeRegistry.INSTANCE.neutralToProto() for all type lookups.
+ * This converter uses JavaTypeRegistry.neutralToProto() for all type lookups.
  *
  * Generated .proto files are intermediate artifacts (git-ignored).
  * models.yaml is the single source of truth for model definitions.
@@ -27,6 +26,7 @@ import org.yaml.snakeyaml.Yaml;
 public class ModelsToProtoConverter {
 
     private static final Logger logger = LogManager.getLogger(ModelsToProtoConverter.class);
+    private static final String DEFAULT_DOMAIN = "appget";
 
     private record ProtoField(String name, String protoType, boolean optional, int fieldNumber) {}
     private record ProtoMessage(String name, List<ProtoField> fields) {}
@@ -105,7 +105,7 @@ public class ModelsToProtoConverter {
                                   Map<String, List<ProtoMessage>> domainViews) throws Exception {
         Yaml yaml = new Yaml();
         Map<String, Object> data;
-        try (InputStream in = new FileInputStream(new File(modelsFile))) {
+        try (InputStream in = Files.newInputStream(Path.of(modelsFile))) {
             data = yaml.load(in);
         }
         logger.info("Read models file: {}", modelsFile);
@@ -157,11 +157,11 @@ public class ModelsToProtoConverter {
             // Handle both neutral types (new) and legacy Java types (backward compat)
             String protoType;
             if (isNeutralType(neutralType)) {
-                protoType = JavaTypeRegistry.INSTANCE.neutralToProto(neutralType);
+                protoType = JavaTypeRegistry.neutralToProto(neutralType);
             } else {
                 // Legacy Java type from old models.yaml - convert via javaToNeutral
                 String neutral = JavaTypeRegistry.javaToNeutral(neutralType);
-                protoType = JavaTypeRegistry.INSTANCE.neutralToProto(neutral);
+                protoType = JavaTypeRegistry.neutralToProto(neutral);
             }
 
             Object nullableObj = field.get("nullable");
@@ -184,19 +184,10 @@ public class ModelsToProtoConverter {
 
     /**
      * Check if a type string is a neutral type (models.yaml new format).
-     * Neutral types: string, int32, int64, float64, bool, date, datetime, decimal
+     * Delegates to JavaTypeRegistry — the single source of truth for known neutral types.
      */
     private boolean isNeutralType(String type) {
-        if (type == null) return false;
-        if ("string".equals(type)) return true;
-        if ("int32".equals(type)) return true;
-        if ("int64".equals(type)) return true;
-        if ("float64".equals(type)) return true;
-        if ("bool".equals(type)) return true;
-        if ("date".equals(type)) return true;
-        if ("datetime".equals(type)) return true;
-        if ("decimal".equals(type)) return true;
-        return false;
+        return JavaTypeRegistry.isKnownNeutralType(type);
     }
 
     private boolean hasDecimalFields(Map<String, List<ProtoMessage>> domainModels,
@@ -312,7 +303,7 @@ public class ModelsToProtoConverter {
         sb.append("import \"").append(domain).append("_models.proto\";\n");
         sb.append("\n");
 
-        String servicePkg = domain.equals("appget") ? "dev.appget.service" : "dev.appget." + domain + ".service";
+        String servicePkg = domain.equals(DEFAULT_DOMAIN) ? "dev.appget.service" : "dev.appget." + domain + ".service";
         sb.append("option java_package = \"").append(servicePkg).append("\";\n");
         sb.append("option java_multiple_files = true;\n\n");
         sb.append("package ").append(domain).append("_services;\n");
@@ -363,7 +354,7 @@ public class ModelsToProtoConverter {
     }
 
     private String javaPackage(String domain, String subpackage) {
-        if (domain.equals("appget")) {
+        if (domain.equals(DEFAULT_DOMAIN)) {
             return "dev.appget." + subpackage;
         }
         return "dev.appget." + domain + "." + subpackage;

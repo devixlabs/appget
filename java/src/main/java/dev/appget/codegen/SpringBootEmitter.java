@@ -419,6 +419,7 @@ public class SpringBootEmitter implements ServerEmitter {
         StringBuilder code = new StringBuilder();
         code.append("package ").append(basePackage).append(".service;\n\n");
 
+        code.append("import dev.appget.specification.EvaluableRule;\n");
         code.append("import dev.appget.specification.MetadataContext;\n");
         code.append("import ").append(basePackage).append(".dto.RuleOutcome;\n");
         code.append("import ").append(basePackage).append(".dto.RuleEvaluationResult;\n");
@@ -430,7 +431,8 @@ public class SpringBootEmitter implements ServerEmitter {
 
         code.append("/**\n");
         code.append(" * Evaluates business rules using pre-compiled specification classes.\n");
-        code.append(" * Stable service that injects SpecificationRegistry for dynamic rule lookup.\n");
+        code.append(" * Calls specs through the {@link EvaluableRule} interface — no reflection.\n");
+        code.append(" * Per EJ Item 64: refer to objects by their interfaces.\n");
         code.append(" * DO NOT EDIT MANUALLY - Generated from specs.yaml\n");
         code.append(" */\n");
         code.append("@Service\n");
@@ -455,11 +457,17 @@ public class SpringBootEmitter implements ServerEmitter {
         code.append("        boolean hasFailures = false;\n\n");
 
         code.append("        String modelName = target.getClass().getSimpleName();\n");
-        code.append("        List<Object> applicableSpecs = registry.getByTarget(modelName);\n\n");
+        code.append("        List<EvaluableRule> applicableSpecs = registry.getByTarget(modelName);\n\n");
 
-        code.append("        for (Object spec : applicableSpecs) {\n");
-        code.append("            String ruleName = getRuleName(spec);\n");
-        code.append("            RuleOutcome outcome = evaluate(spec, target, metadata, ruleName);\n");
+        code.append("        for (EvaluableRule spec : applicableSpecs) {\n");
+        code.append("            String ruleName = spec.getClass().getSimpleName();\n");
+        code.append("            boolean satisfied = spec.evaluate(target, metadata);\n");
+        code.append("            String status = spec.getResult(target, metadata);\n");
+        code.append("            RuleOutcome outcome = RuleOutcome.builder()\n");
+        code.append("                .ruleName(ruleName)\n");
+        code.append("                .status(status)\n");
+        code.append("                .satisfied(satisfied)\n");
+        code.append("                .build();\n");
         code.append("            outcomes.add(outcome);\n\n");
 
         code.append("            boolean isBlocking = BLOCKING_RULES.getOrDefault(ruleName, false);\n");
@@ -469,60 +477,6 @@ public class SpringBootEmitter implements ServerEmitter {
         code.append("        }\n\n");
 
         code.append("        return new RuleEvaluationResult(outcomes, hasFailures);\n");
-        code.append("    }\n\n");
-
-        code.append("    private String getRuleName(Object spec) {\n");
-        code.append("        return spec.getClass().getSimpleName();\n");
-        code.append("    }\n\n");
-
-        code.append("    private RuleOutcome evaluate(Object spec, Object target, MetadataContext metadata, String ruleName) {\n");
-        code.append("        boolean satisfied = evaluateSpec(spec, target, metadata);\n");
-        code.append("        String status = getSpecStatus(spec, target, metadata);\n");
-        code.append("        return RuleOutcome.builder()\n");
-        code.append("            .ruleName(ruleName)\n");
-        code.append("            .status(status)\n");
-        code.append("            .satisfied(satisfied)\n");
-        code.append("            .build();\n");
-        code.append("    }\n\n");
-
-        code.append("    private boolean evaluateSpec(Object spec, Object target, MetadataContext metadata) {\n");
-        code.append("        try {\n");
-        code.append("            // Find evaluate(T, MetadataContext) by parameter count — spec classes use typed params\n");
-        code.append("            for (java.lang.reflect.Method m : spec.getClass().getMethods()) {\n");
-        code.append("                if (\"evaluate\".equals(m.getName()) && m.getParameterCount() == 2) {\n");
-        code.append("                    return (boolean) m.invoke(spec, target, metadata);\n");
-        code.append("                }\n");
-        code.append("            }\n");
-        code.append("            // Fall back to evaluate(T)\n");
-        code.append("            for (java.lang.reflect.Method m : spec.getClass().getMethods()) {\n");
-        code.append("                if (\"evaluate\".equals(m.getName()) && m.getParameterCount() == 1) {\n");
-        code.append("                    return (boolean) m.invoke(spec, target);\n");
-        code.append("                }\n");
-        code.append("            }\n");
-        code.append("            return false;\n");
-        code.append("        } catch (Exception e) {\n");
-        code.append("            return false;\n");
-        code.append("        }\n");
-        code.append("    }\n\n");
-
-        code.append("    private String getSpecStatus(Object spec, Object target, MetadataContext metadata) {\n");
-        code.append("        try {\n");
-        code.append("            // Find getResult(T, MetadataContext) by parameter count\n");
-        code.append("            for (java.lang.reflect.Method m : spec.getClass().getMethods()) {\n");
-        code.append("                if (\"getResult\".equals(m.getName()) && m.getParameterCount() == 2) {\n");
-        code.append("                    return (String) m.invoke(spec, target, metadata);\n");
-        code.append("                }\n");
-        code.append("            }\n");
-        code.append("            // Fall back to getResult(T)\n");
-        code.append("            for (java.lang.reflect.Method m : spec.getClass().getMethods()) {\n");
-        code.append("                if (\"getResult\".equals(m.getName()) && m.getParameterCount() == 1) {\n");
-        code.append("                    return (String) m.invoke(spec, target);\n");
-        code.append("                }\n");
-        code.append("            }\n");
-        code.append("            return \"UNKNOWN\";\n");
-        code.append("        } catch (Exception e) {\n");
-        code.append("            return \"UNKNOWN\";\n");
-        code.append("        }\n");
         code.append("    }\n");
         code.append("}\n");
 
@@ -539,6 +493,7 @@ public class SpringBootEmitter implements ServerEmitter {
             code.append("import dev.appget.specification.generated.").append(rule.name).append(";\n");
         }
 
+        code.append("import dev.appget.specification.EvaluableRule;\n");
         code.append("import org.springframework.stereotype.Component;\n");
         code.append("import java.util.Collection;\n");
         code.append("import java.util.LinkedHashMap;\n");
@@ -548,11 +503,12 @@ public class SpringBootEmitter implements ServerEmitter {
 
         code.append("/**\n");
         code.append(" * Registry of all compiled specification classes.\n");
+        code.append(" * Per EJ Item 64: refer to objects by their interfaces.\n");
         code.append(" * DO NOT EDIT MANUALLY - Regenerated from specs.yaml when rules change.\n");
         code.append(" */\n");
         code.append("@Component\n");
         code.append("public class SpecificationRegistry {\n");
-        code.append("    private final Map<String, Object> specs = new LinkedHashMap<>();\n\n");
+        code.append("    private final Map<String, EvaluableRule> specs = new LinkedHashMap<>();\n\n");
 
         code.append("    public SpecificationRegistry() {\n");
         for (RuleEmitContext.RuleEntry rule : ctx.modelRules) {
@@ -560,17 +516,17 @@ public class SpringBootEmitter implements ServerEmitter {
         }
         code.append("    }\n\n");
 
-        code.append("    private void register(String name, Object spec) {\n");
+        code.append("    private void register(String name, EvaluableRule spec) {\n");
         code.append("        specs.put(name, spec);\n");
         code.append("    }\n\n");
 
         code.append("    /** Retrieve a single spec by rule name. Returns null if not found. */\n");
-        code.append("    public Object get(String name) {\n");
+        code.append("    public EvaluableRule get(String name) {\n");
         code.append("        return specs.get(name);\n");
         code.append("    }\n\n");
 
         code.append("    /** All registered specs. */\n");
-        code.append("    public Collection<Object> getAll() {\n");
+        code.append("    public Collection<EvaluableRule> getAll() {\n");
         code.append("        return specs.values();\n");
         code.append("    }\n\n");
 
@@ -586,7 +542,7 @@ public class SpringBootEmitter implements ServerEmitter {
         code.append("    /**\n");
         code.append("     * All specs whose target model matches the given class simple name.\n");
         code.append("     */\n");
-        code.append("    public List<Object> getByTarget(String modelName) {\n");
+        code.append("    public List<EvaluableRule> getByTarget(String modelName) {\n");
         code.append("        return specs.values().stream()\n");
         code.append("            .filter(s -> modelName.equals(SPEC_TARGETS.get(s.getClass().getSimpleName())))\n");
         code.append("            .collect(Collectors.toList());\n");
@@ -1237,18 +1193,15 @@ public class SpringBootEmitter implements ServerEmitter {
     // -------------------------------------------------------------------------
 
     /**
-     * Returns the interface code and in-memory implementation code for a view repository,
-     * concatenated with a {@code \n// ---FILE_SPLIT---\n} delimiter.
-     * AppServerGenerator splits this string and writes two separate files.
+     * Emits the read-only repository interface for a view entity.
+     * Declares save (for seeding), findById, and findAll operations.
      */
     @Override
-    public String emitViewRepository(String basePackage, EntityContext ctx) {
+    public String emitViewRepositoryInterface(String basePackage, EntityContext ctx) {
         String interfaceName = ctx.pascalName + "Repository";
-        String className = "InMemory" + ctx.pascalName + "Repository";
         String packageName = basePackage + ".repository";
         String viewImport = ctx.namespace + ".view." + ctx.pascalName;
 
-        // Interface (read-only: save for seeding, findById, findAll)
         StringBuilder iface = new StringBuilder();
         iface.append("package ").append(packageName).append(";\n\n");
         iface.append("import ").append(viewImport).append(";\n");
@@ -1265,7 +1218,21 @@ public class SpringBootEmitter implements ServerEmitter {
         iface.append("    List<").append(ctx.pascalName).append("> findAll();\n");
         iface.append("}\n");
 
-        // In-memory implementation
+        return iface.toString();
+    }
+
+    /**
+     * Emits the in-memory ConcurrentHashMap-backed repository implementation
+     * for a view entity. Read-only view storage with save (for seeding),
+     * findById, and findAll.
+     */
+    @Override
+    public String emitInMemoryViewRepository(String basePackage, EntityContext ctx) {
+        String interfaceName = ctx.pascalName + "Repository";
+        String className = "InMemory" + ctx.pascalName + "Repository";
+        String packageName = basePackage + ".repository";
+        String viewImport = ctx.namespace + ".view." + ctx.pascalName;
+
         StringBuilder impl = new StringBuilder();
         impl.append("package ").append(packageName).append(";\n\n");
         impl.append("import ").append(viewImport).append(";\n");
@@ -1304,7 +1271,7 @@ public class SpringBootEmitter implements ServerEmitter {
         impl.append("    }\n");
         impl.append("}\n");
 
-        return iface.toString() + "\n// ---FILE_SPLIT---\n" + impl.toString();
+        return impl.toString();
     }
 
     @Override

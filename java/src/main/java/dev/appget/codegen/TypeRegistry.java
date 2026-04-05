@@ -33,8 +33,10 @@ public interface TypeRegistry {
      * Map a neutral type to its Java type, considering nullability.
      * Primitive types use boxed forms when nullable.
      * Example: "int32" + nullable=true -> "Integer"
+     *
+     * No method overloading — use distinct method names (per java/CLAUDE.md).
      */
-    String neutralToJava(String neutralType, boolean nullable);
+    String neutralToJavaNullable(String neutralType, boolean nullable);
 
     /**
      * Return true if this neutral type maps to google.protobuf.Timestamp.

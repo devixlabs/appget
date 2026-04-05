@@ -494,7 +494,7 @@ class ProtoOpenAPIGeneratorTest {
                 """);
 
         Path outputFile = tempDir.resolve("openapi.yaml");
-        generator.generate(protoDir.toString(), outputFile.toString(), modelsYaml.toString());
+        generator.generateWithModelsYaml(protoDir.toString(), outputFile.toString(), modelsYaml.toString());
 
         Yaml yaml = new Yaml();
         Map<String, Object> spec = yaml.load(Files.readString(outputFile));
@@ -557,7 +557,7 @@ class ProtoOpenAPIGeneratorTest {
                 """);
 
         Path outputFile = tempDir.resolve("openapi.yaml");
-        generator.generate(protoDir.toString(), outputFile.toString(), modelsYaml.toString());
+        generator.generateWithModelsYaml(protoDir.toString(), outputFile.toString(), modelsYaml.toString());
 
         Yaml yaml = new Yaml();
         Map<String, Object> spec = yaml.load(Files.readString(outputFile));
@@ -643,7 +643,7 @@ class ProtoOpenAPIGeneratorTest {
                 """);
 
         Path outputFile = tempDir.resolve("openapi.yaml");
-        generator.generate(protoDir.toString(), outputFile.toString(), modelsYaml.toString());
+        generator.generateWithModelsYaml(protoDir.toString(), outputFile.toString(), modelsYaml.toString());
 
         Yaml yaml = new Yaml();
         Map<String, Object> spec = yaml.load(Files.readString(outputFile));

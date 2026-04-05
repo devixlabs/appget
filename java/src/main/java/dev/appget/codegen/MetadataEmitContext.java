@@ -1,5 +1,7 @@
 package dev.appget.codegen;
 
+import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -19,14 +21,14 @@ public class MetadataEmitContext {
      * Iteration order matches the order they appear in specs.yaml so generated
      * code is deterministic.
      */
-    Set<String> categories;
+    final Set<String> categories;
 
     /**
      * Per-category field definitions from specs.yaml.
      * Key: category name (matches an entry in {@code categories}).
      * Value: ordered list of field maps, each containing at minimum "name" and "type".
      */
-    Map<String, List<Map<String, Object>>> fieldDefinitions;
+    final Map<String, List<Map<String, Object>>> fieldDefinitions;
 
     /**
      * Constructs a MetadataEmitContext with all fields supplied by the generator.
@@ -37,7 +39,8 @@ public class MetadataEmitContext {
     MetadataEmitContext(
             Set<String> categories,
             Map<String, List<Map<String, Object>>> fieldDefinitions) {
-        this.categories = categories;
-        this.fieldDefinitions = fieldDefinitions;
+        // LinkedHashSet preserves insertion order required for deterministic codegen
+        this.categories = Collections.unmodifiableSet(new LinkedHashSet<>(categories));
+        this.fieldDefinitions = Map.copyOf(fieldDefinitions);
     }
 }

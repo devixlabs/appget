@@ -8,70 +8,60 @@ import static org.junit.jupiter.api.Assertions.*;
 @DisplayName("JavaTypeRegistry Tests")
 class JavaTypeRegistryTest {
 
-    private final JavaTypeRegistry registry = JavaTypeRegistry.INSTANCE;
-
-    // ---- INSTANCE ----
-
-    @Test
-    @DisplayName("INSTANCE singleton is not null")
-    void testInstanceNotNull() {
-        assertNotNull(registry, "JavaTypeRegistry.INSTANCE should not be null");
-    }
-
     // ---- neutralToProto ----
 
     @Test
     @DisplayName("string maps to string proto type")
     void testNeutralToProtoString() {
-        assertEquals("string", registry.neutralToProto("string"));
+        assertEquals("string", JavaTypeRegistry.neutralToProto("string"));
     }
 
     @Test
     @DisplayName("int32 maps to int32 proto type")
     void testNeutralToProtoInt32() {
-        assertEquals("int32", registry.neutralToProto("int32"));
+        assertEquals("int32", JavaTypeRegistry.neutralToProto("int32"));
     }
 
     @Test
     @DisplayName("int64 maps to int64 proto type")
     void testNeutralToProtoInt64() {
-        assertEquals("int64", registry.neutralToProto("int64"));
+        assertEquals("int64", JavaTypeRegistry.neutralToProto("int64"));
     }
 
     @Test
     @DisplayName("float64 maps to double proto type")
     void testNeutralToProtoFloat64() {
-        assertEquals("double", registry.neutralToProto("float64"));
+        assertEquals("double", JavaTypeRegistry.neutralToProto("float64"));
     }
 
     @Test
     @DisplayName("bool maps to bool proto type")
     void testNeutralToProtoBool() {
-        assertEquals("bool", registry.neutralToProto("bool"));
+        assertEquals("bool", JavaTypeRegistry.neutralToProto("bool"));
     }
 
     @Test
     @DisplayName("date maps to google.protobuf.Timestamp proto type")
     void testNeutralToProtoDate() {
-        assertEquals("google.protobuf.Timestamp", registry.neutralToProto("date"));
+        assertEquals("google.protobuf.Timestamp", JavaTypeRegistry.neutralToProto("date"));
     }
 
     @Test
     @DisplayName("datetime maps to google.protobuf.Timestamp proto type")
     void testNeutralToProtoDatetime() {
-        assertEquals("google.protobuf.Timestamp", registry.neutralToProto("datetime"));
+        assertEquals("google.protobuf.Timestamp", JavaTypeRegistry.neutralToProto("datetime"));
     }
 
     @Test
     @DisplayName("decimal maps to appget.common.Decimal proto type")
     void testNeutralToProtoDecimal() {
-        assertEquals("appget.common.Decimal", registry.neutralToProto("decimal"));
+        assertEquals("appget.common.Decimal", JavaTypeRegistry.neutralToProto("decimal"));
     }
 
     @Test
     @DisplayName("Unknown neutral type falls back to string in proto")
     void testNeutralToProtoUnknown() {
-        assertEquals("string", registry.neutralToProto("unknown_type"));
+        assertEquals("string", JavaTypeRegistry.neutralToProto("unknown_type"));
     }
 
     // ---- neutralToOpenApi ----
@@ -79,7 +69,7 @@ class JavaTypeRegistryTest {
     @Test
     @DisplayName("string maps to OpenAPI [string, null]")
     void testNeutralToOpenApiString() {
-        String[] result = registry.neutralToOpenApi("string");
+        String[] result = JavaTypeRegistry.neutralToOpenApi("string");
         assertEquals("string", result[0]);
         assertNull(result[1]);
     }
@@ -87,7 +77,7 @@ class JavaTypeRegistryTest {
     @Test
     @DisplayName("int32 maps to OpenAPI [integer, int32]")
     void testNeutralToOpenApiInt32() {
-        String[] result = registry.neutralToOpenApi("int32");
+        String[] result = JavaTypeRegistry.neutralToOpenApi("int32");
         assertEquals("integer", result[0]);
         assertEquals("int32", result[1]);
     }
@@ -95,7 +85,7 @@ class JavaTypeRegistryTest {
     @Test
     @DisplayName("int64 maps to OpenAPI [integer, int64]")
     void testNeutralToOpenApiInt64() {
-        String[] result = registry.neutralToOpenApi("int64");
+        String[] result = JavaTypeRegistry.neutralToOpenApi("int64");
         assertEquals("integer", result[0]);
         assertEquals("int64", result[1]);
     }
@@ -103,7 +93,7 @@ class JavaTypeRegistryTest {
     @Test
     @DisplayName("float64 maps to OpenAPI [number, double]")
     void testNeutralToOpenApiFloat64() {
-        String[] result = registry.neutralToOpenApi("float64");
+        String[] result = JavaTypeRegistry.neutralToOpenApi("float64");
         assertEquals("number", result[0]);
         assertEquals("double", result[1]);
     }
@@ -111,7 +101,7 @@ class JavaTypeRegistryTest {
     @Test
     @DisplayName("bool maps to OpenAPI [boolean, null]")
     void testNeutralToOpenApiBool() {
-        String[] result = registry.neutralToOpenApi("bool");
+        String[] result = JavaTypeRegistry.neutralToOpenApi("bool");
         assertEquals("boolean", result[0]);
         assertNull(result[1]);
     }
@@ -119,7 +109,7 @@ class JavaTypeRegistryTest {
     @Test
     @DisplayName("date maps to OpenAPI [string, date]")
     void testNeutralToOpenApiDate() {
-        String[] result = registry.neutralToOpenApi("date");
+        String[] result = JavaTypeRegistry.neutralToOpenApi("date");
         assertEquals("string", result[0]);
         assertEquals("date", result[1]);
     }
@@ -127,7 +117,7 @@ class JavaTypeRegistryTest {
     @Test
     @DisplayName("datetime maps to OpenAPI [string, date-time]")
     void testNeutralToOpenApiDatetime() {
-        String[] result = registry.neutralToOpenApi("datetime");
+        String[] result = JavaTypeRegistry.neutralToOpenApi("datetime");
         assertEquals("string", result[0]);
         assertEquals("date-time", result[1]);
     }
@@ -135,7 +125,7 @@ class JavaTypeRegistryTest {
     @Test
     @DisplayName("decimal maps to OpenAPI [string, decimal]")
     void testNeutralToOpenApiDecimal() {
-        String[] result = registry.neutralToOpenApi("decimal");
+        String[] result = JavaTypeRegistry.neutralToOpenApi("decimal");
         assertEquals("string", result[0]);
         assertEquals("decimal", result[1]);
     }
@@ -145,73 +135,73 @@ class JavaTypeRegistryTest {
     @Test
     @DisplayName("string maps to Java String")
     void testNeutralToJavaString() {
-        assertEquals("String", registry.neutralToJava("string"));
+        assertEquals("String", JavaTypeRegistry.neutralToJava("string"));
     }
 
     @Test
     @DisplayName("int32 maps to Java int (non-nullable)")
     void testNeutralToJavaInt32() {
-        assertEquals("int", registry.neutralToJava("int32"));
+        assertEquals("int", JavaTypeRegistry.neutralToJava("int32"));
     }
 
     @Test
     @DisplayName("int32 nullable maps to Java Integer")
     void testNeutralToJavaInt32Nullable() {
-        assertEquals("Integer", registry.neutralToJava("int32", true));
+        assertEquals("Integer", JavaTypeRegistry.neutralToJavaNullable("int32", true));
     }
 
     @Test
     @DisplayName("int64 maps to Java long (non-nullable)")
     void testNeutralToJavaInt64() {
-        assertEquals("long", registry.neutralToJava("int64"));
+        assertEquals("long", JavaTypeRegistry.neutralToJava("int64"));
     }
 
     @Test
     @DisplayName("int64 nullable maps to Java Long")
     void testNeutralToJavaInt64Nullable() {
-        assertEquals("Long", registry.neutralToJava("int64", true));
+        assertEquals("Long", JavaTypeRegistry.neutralToJavaNullable("int64", true));
     }
 
     @Test
     @DisplayName("float64 maps to Java double (non-nullable)")
     void testNeutralToJavaFloat64() {
-        assertEquals("double", registry.neutralToJava("float64"));
+        assertEquals("double", JavaTypeRegistry.neutralToJava("float64"));
     }
 
     @Test
     @DisplayName("float64 nullable maps to Java Double")
     void testNeutralToJavaFloat64Nullable() {
-        assertEquals("Double", registry.neutralToJava("float64", true));
+        assertEquals("Double", JavaTypeRegistry.neutralToJavaNullable("float64", true));
     }
 
     @Test
     @DisplayName("bool maps to Java boolean (non-nullable)")
     void testNeutralToJavaBool() {
-        assertEquals("boolean", registry.neutralToJava("bool"));
+        assertEquals("boolean", JavaTypeRegistry.neutralToJava("bool"));
     }
 
     @Test
     @DisplayName("bool nullable maps to Java Boolean")
     void testNeutralToJavaBoolNullable() {
-        assertEquals("Boolean", registry.neutralToJava("bool", true));
+        assertEquals("Boolean", JavaTypeRegistry.neutralToJavaNullable("bool", true));
     }
 
     @Test
     @DisplayName("date maps to Java LocalDate")
     void testNeutralToJavaDate() {
-        assertEquals("LocalDate", registry.neutralToJava("date"));
+        assertEquals("LocalDate", JavaTypeRegistry.neutralToJava("date"));
     }
 
     @Test
     @DisplayName("datetime maps to Java LocalDateTime")
     void testNeutralToJavaDatetime() {
-        assertEquals("LocalDateTime", registry.neutralToJava("datetime"));
+        assertEquals("LocalDateTime", JavaTypeRegistry.neutralToJava("datetime"));
     }
 
     @Test
     @DisplayName("decimal maps to Java BigDecimal")
     void testNeutralToJavaDecimal() {
-        assertEquals("BigDecimal", registry.neutralToJava("decimal"));
+        assertEquals("BigDecimal", JavaTypeRegistry.neutralToJava("decimal"));
     }
 
     // ---- isTimestampType ----
@@ -219,25 +209,25 @@ class JavaTypeRegistryTest {
     @Test
     @DisplayName("date is a timestamp type")
     void testIsTimestampTypeDate() {
-        assertTrue(registry.isTimestampType("date"));
+        assertTrue(JavaTypeRegistry.isTimestampType("date"));
     }
 
     @Test
     @DisplayName("datetime is a timestamp type")
     void testIsTimestampTypeDatetime() {
-        assertTrue(registry.isTimestampType("datetime"));
+        assertTrue(JavaTypeRegistry.isTimestampType("datetime"));
     }
 
     @Test
     @DisplayName("string is not a timestamp type")
     void testIsTimestampTypeString() {
-        assertFalse(registry.isTimestampType("string"));
+        assertFalse(JavaTypeRegistry.isTimestampType("string"));
     }
 
     @Test
     @DisplayName("decimal is not a timestamp type")
     void testIsTimestampTypeDecimal() {
-        assertFalse(registry.isTimestampType("decimal"));
+        assertFalse(JavaTypeRegistry.isTimestampType("decimal"));
     }
 
     // ---- isDecimalType ----
@@ -245,13 +235,13 @@ class JavaTypeRegistryTest {
     @Test
     @DisplayName("decimal is a decimal type")
     void testIsDecimalTypeDecimal() {
-        assertTrue(registry.isDecimalType("decimal"));
+        assertTrue(JavaTypeRegistry.isDecimalType("decimal"));
     }
 
     @Test
     @DisplayName("string is not a decimal type")
     void testIsDecimalTypeString() {
-        assertFalse(registry.isDecimalType("string"));
+        assertFalse(JavaTypeRegistry.isDecimalType("string"));
     }
 
     // ---- javaToNeutral (static method) ----

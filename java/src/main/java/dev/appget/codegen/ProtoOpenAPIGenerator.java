@@ -24,25 +24,8 @@ public class ProtoOpenAPIGenerator {
 
     private static final Logger logger = LogManager.getLogger(ProtoOpenAPIGenerator.class);
 
-    private static final Map<String, String[]> PROTO_TO_OPENAPI_TYPE = createProtoToOpenApiTypeMap();
-
     // Lookup: PascalModelName -> fieldName(snake_case) -> [precision, scale]
     private Map<String, Map<String, int[]>> decimalPrecisionLookup = new LinkedHashMap<>();
-
-    private static Map<String, String[]> createProtoToOpenApiTypeMap() {
-        Map<String, String[]> map = new LinkedHashMap<>();
-        map.put("string", new String[]{"string", null});
-        map.put("int32", new String[]{"integer", "int32"});
-        map.put("int64", new String[]{"integer", "int64"});
-        map.put("double", new String[]{"number", "double"});
-        map.put("float", new String[]{"number", "float"});
-        map.put("bool", new String[]{"boolean", null});
-        map.put("bytes", new String[]{"string", "byte"});
-        // Qualified proto types from neutral type system
-        map.put("appget.common.Decimal", new String[]{"string", "decimal"});
-        map.put("google.protobuf.Timestamp", new String[]{"string", "date-time"});
-        return map;
-    }
 
     record ProtoField(String name, String type, int number) {}
     record ProtoMessage(String name, List<ProtoField> fields, String domain, boolean hasRules) {}
@@ -59,16 +42,17 @@ public class ProtoOpenAPIGenerator {
         }
 
         String modelsYaml = args.length >= 3 ? args[2] : null;
-        new ProtoOpenAPIGenerator().generate(args[0], args[1], modelsYaml);
+        new ProtoOpenAPIGenerator().generateWithModelsYaml(args[0], args[1], modelsYaml);
         logger.info("Successfully generated OpenAPI spec to: {}", args[1]);
         System.out.println("✓ Generated OpenAPI spec to: " + args[1]);
     }
 
     public void generate(String protoDir, String outputFile) throws Exception {
-        generate(protoDir, outputFile, null);
+        generateWithModelsYaml(protoDir, outputFile, null);
     }
 
-    public void generate(String protoDir, String outputFile, String modelsYamlPath) throws Exception {
+    // No method overloading — use distinct method names (per java/CLAUDE.md)
+    public void generateWithModelsYaml(String protoDir, String outputFile, String modelsYamlPath) throws Exception {
         logger.debug("Generating OpenAPI from proto dir: {} -> {}", protoDir, outputFile);
         Path dir = Paths.get(protoDir);
 
@@ -138,7 +122,7 @@ public class ProtoOpenAPIGenerator {
             String rawName = (String) model.get("name");
             // Convert snake_case model name to PascalCase message name
             // e.g. "employee_salary_view" -> "EmployeeSalaryView"
-            String pascalName = snakeToPascal(rawName);
+            String pascalName = JavaUtils.snakeToPascal(rawName);
             List<Map<String, Object>> fields = (List<Map<String, Object>>) model.get("fields");
             if (fields == null) continue;
 
@@ -162,21 +146,6 @@ public class ProtoOpenAPIGenerator {
         }
     }
 
-    private String snakeToPascal(String snakeCase) {
-        StringBuilder sb = new StringBuilder();
-        boolean capitalizeNext = true;
-        for (char c : snakeCase.toCharArray()) {
-            if (c == '_') {
-                capitalizeNext = true;
-            } else if (capitalizeNext) {
-                sb.append(Character.toUpperCase(c));
-                capitalizeNext = false;
-            } else {
-                sb.append(c);
-            }
-        }
-        return sb.toString();
-    }
 
     // ---- Proto File Parsing ----
 
@@ -459,7 +428,7 @@ public class ProtoOpenAPIGenerator {
 
         for (ProtoField field : msg.fields()) {
             Map<String, Object> fieldSchema = new LinkedHashMap<>();
-            String[] openAPIType = PROTO_TO_OPENAPI_TYPE.getOrDefault(field.type(), new String[]{"string", null});
+            String[] openAPIType = JavaTypeRegistry.protoToOpenApi(field.type());
             fieldSchema.put("type", openAPIType[0]);
             if (openAPIType[1] != null) {
                 fieldSchema.put("format", openAPIType[1]);

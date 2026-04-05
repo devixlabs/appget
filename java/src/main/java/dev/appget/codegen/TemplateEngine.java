@@ -18,24 +18,44 @@ public class TemplateEngine {
     private static final Logger log = LogManager.getLogger(TemplateEngine.class);
     private final Handlebars handlebars;
 
+    /**
+     * Creates a TemplateEngine that resolves templates from the default location:
+     * {@code $CWD/src/main/resources/templates}. Delegates to {@link #TemplateEngine(Path)}.
+     */
     public TemplateEngine() {
-        log.debug("Initializing TemplateEngine with Handlebars");
-        String templateDir = findTemplateDir();
-        log.debug("Using template directory: {}", templateDir);
-        TemplateLoader loader = new FileTemplateLoader(templateDir, ".hbs");
+        this(defaultTemplateDir());
+    }
+
+    /**
+     * Creates a TemplateEngine that resolves templates from the given directory.
+     * Prefer this constructor when the JVM working directory may differ from the
+     * project root (e.g., tests, multi-module builds).
+     *
+     * @param templateDir absolute or relative path to the directory containing {@code .hbs} files
+     * @throws IllegalArgumentException if {@code templateDir} is null
+     * @throws IllegalStateException    if {@code templateDir} does not exist on disk
+     */
+    // Per EJ Item 1: consider static factories, but here constructor injection is the
+    // right contract — callers own the path, TemplateEngine owns the Handlebars instance.
+    public TemplateEngine(final Path templateDir) {
+        if (templateDir == null) {
+            throw new IllegalArgumentException("templateDir must not be null");
+        }
+        if (!Files.exists(templateDir)) {
+            throw new IllegalStateException("Template directory not found at: " + templateDir);
+        }
+        log.debug("Initializing TemplateEngine with Handlebars, templateDir={}", templateDir);
+        TemplateLoader loader = new FileTemplateLoader(templateDir.toString(), ".hbs");
         this.handlebars = new Handlebars(loader);
         registerHelpers();
         log.debug("TemplateEngine initialized successfully");
     }
 
-    private String findTemplateDir() {
-        String cwd = System.getProperty("user.dir");
-        Path templatePath = Paths.get(cwd, "src", "main", "resources", "templates");
-        if (Files.exists(templatePath)) {
-            log.debug("Found template directory at: {}", templatePath);
-            return templatePath.toString();
-        }
-        throw new IllegalStateException("Template directory not found at: " + templatePath);
+    private static Path defaultTemplateDir() {
+        final String cwd = System.getProperty("user.dir");
+        final Path templatePath = Paths.get(cwd, "src", "main", "resources", "templates");
+        log.debug("Resolved default template directory: {}", templatePath);
+        return templatePath;
     }
 
     private void registerHelpers() {
