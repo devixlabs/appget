@@ -710,9 +710,9 @@ class AppServerGeneratorTest {
     void testSinglePkModelUsesIdPathVariable(@TempDir Path tempDir) throws Exception {
         String controller = generateAndReadFile(tempDir,
             "dev", "appget", "server", "controller", "UsersController.java");
-        assertTrue(controller.contains("@GetMapping(\"/{id}\")"),
+        assertTrue(controller.contains("value = \"/{id}\""),
             "Single-PK controller GET should use /{id}");
-        assertTrue(controller.contains("@PutMapping(\"/{id}\")"),
+        assertTrue(controller.contains("@PutMapping(value = \"/{id}\""),
             "Single-PK controller PUT should use /{id}");
         assertTrue(controller.contains("@DeleteMapping(\"/{id}\")"),
             "Single-PK controller DELETE should use /{id}");
@@ -785,9 +785,9 @@ class AppServerGeneratorTest {
         // Verify controller has composite path variables
         String controller = Files.readString(Paths.get(outputDir.toString(),
             "dev", "appget", "server", "controller", "TeamMembersController.java"));
-        assertTrue(controller.contains("@GetMapping(\"/{teamId}/{userId}\")"),
+        assertTrue(controller.contains("value = \"/{teamId}/{userId}\""),
             "Composite-PK controller GET should use /{teamId}/{userId}");
-        assertTrue(controller.contains("@PutMapping(\"/{teamId}/{userId}\")"),
+        assertTrue(controller.contains("@PutMapping(value = \"/{teamId}/{userId}\""),
             "Composite-PK controller PUT should use /{teamId}/{userId}");
         assertTrue(controller.contains("@DeleteMapping(\"/{teamId}/{userId}\")"),
             "Composite-PK controller DELETE should use /{teamId}/{userId}");

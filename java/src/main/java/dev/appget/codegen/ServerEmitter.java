@@ -303,4 +303,48 @@ public interface ServerEmitter {
      * @return complete Java source for the view controller
      */
     String emitViewController(String basePackage, EntityContext ctx);
+
+    // -------------------------------------------------------------------------
+    // Group C: Per-Entity Page Renderers (HTML content negotiation)
+    // -------------------------------------------------------------------------
+
+    /**
+     * Emits {@code {Pascal}PageRenderer.java} for a model entity as a Spring
+     * {@code @Component}. Loads all four HTML templates (list, detail, edit, create)
+     * from the classpath once in the constructor, then fills the {@code {{CONTENT}}}
+     * slot with live, HTML-escaped data at request time.
+     *
+     * <p>Exposes four distinct render methods (no overloading):</p>
+     * <ul>
+     *   <li>{@code renderList(List<Pascal>)} — builds {@code <tr>} rows per record</li>
+     *   <li>{@code renderDetail(Pascal)} — builds {@code <dt>/<dd>} pairs</li>
+     *   <li>{@code renderEditForm(Pascal)} — builds pre-filled input blocks</li>
+     *   <li>{@code renderCreateForm()} — returns the create template unchanged</li>
+     * </ul>
+     *
+     * <p>All emitted values are passed through
+     * {@code dev.appget.server.util.HtmlEscapeUtils.escape(String)}. Non-String
+     * fields (boolean, int32, int64, etc.) are wrapped with
+     * {@code String.valueOf(getter())} before escaping.</p>
+     *
+     * @param basePackage root package of the generated server
+     * @param ctx         model entity metadata ({@code ctx.isView} will be {@code false})
+     * @return complete Java source for the model {@code {Pascal}PageRenderer.java}
+     */
+    String emitPageRenderer(String basePackage, EntityContext ctx);
+
+    /**
+     * Emits {@code {Pascal}PageRenderer.java} for a view entity as a Spring
+     * {@code @Component}. View renderers are read-only: only {@code renderList} is
+     * emitted. Loads the single {@code list.html} template from the classpath in
+     * the constructor and fills {@code {{CONTENT}}} with escaped field values.
+     *
+     * <p>No Actions column, no View/Edit/Create links, no {@code getId()} call,
+     * and no renderDetail/renderEditForm/renderCreateForm methods.</p>
+     *
+     * @param basePackage root package of the generated server
+     * @param ctx         view entity metadata ({@code ctx.isView} will be {@code true})
+     * @return complete Java source for the view {@code {Pascal}PageRenderer.java}
+     */
+    String emitViewPageRenderer(String basePackage, EntityContext ctx);
 }

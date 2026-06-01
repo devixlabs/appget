@@ -111,4 +111,27 @@ public class CodeGenUtils {
                 .replace("\r", "\\r")
                 .replace("\t", "\\t");
     }
+
+    /**
+     * Returns the relative template directory path for a model or view resource.
+     *
+     * <p>For models ({@code isView = false}): {@code domain + "/" + resourcePath}.
+     * The domain prefix prevents cross-domain resource-name collisions in the template tree.
+     *
+     * <p>For views ({@code isView = true}): {@code "views/" + resourcePath}.
+     * Callers must pass the already-stripped kebab resource (i.e. the {@code -view}
+     * suffix must be removed by the caller before invoking this method).
+     *
+     * @param domain       the domain name (e.g. {@code "social"}); ignored for views
+     * @param resourcePath the kebab-case resource path (e.g. {@code "users"} or {@code "user-role"})
+     * @param isView       {@code true} for view resources, {@code false} for model resources
+     * @return relative template directory path (no leading or trailing slash)
+     */
+    public static String templateDir(String domain, String resourcePath, boolean isView) {
+        if (isView) {
+            return "views/" + resourcePath;
+        } else {
+            return domain + "/" + resourcePath;
+        }
+    }
 }

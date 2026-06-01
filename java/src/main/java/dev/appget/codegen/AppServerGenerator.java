@@ -7,6 +7,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
+import java.util.stream.Stream;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import dev.appget.codegen.JavaUtils;
@@ -114,6 +115,7 @@ public class AppServerGenerator {
             generateInMemoryRepository(model, outputDir);
             generateService(model, outputDir);
             generateController(model, outputDir);
+            generatePageRenderer(model, outputDir);
         }
 
         // Generate per-view components (read-only GET endpoints, no POST/PUT/DELETE)
@@ -122,7 +124,11 @@ public class AppServerGenerator {
             generateViewRepository(view, outputDir);
             generateViewService(view, outputDir);
             generateViewController(view, outputDir);
+            generatePageRenderer(view, outputDir);
         }
+
+        // Copy HTML templates into generated server classpath resources
+        copyTemplatesIntoServerResources(outputDir);
 
         System.out.println("  Generated: build.gradle");
         System.out.println("  Generated: Application.java");
@@ -132,6 +138,7 @@ public class AppServerGenerator {
         System.out.println("  Generated: RuleService (with SpecificationRegistry injection)");
         System.out.println("  Generated: " + uniqueModels.size() + " model endpoints (Controller/Service/Interface/InMemoryRepository)");
         System.out.println("  Generated: " + uniqueViews.size() + " view endpoints (Controller/Service/Repository, GET only)");
+        System.out.println("  Copied: templates/ → " + outputDir + "/src/main/resources/templates/");
     }
 
     @SuppressWarnings("unchecked")
@@ -391,6 +398,24 @@ public class AppServerGenerator {
         writefile(outputDir, BASE_PACKAGE + ".controller", className, emitter.emitViewController(BASE_PACKAGE, ctx));
     }
 
+    /**
+     * Generates a {@code {Pascal}PageRenderer.java} for either a model or a view.
+     * Branches on {@code model.isView()} — view models emit the read-only variant
+     * (renderList only) via {@link ServerEmitter#emitViewPageRenderer}; regular models
+     * emit the full four-method variant via {@link ServerEmitter#emitPageRenderer}.
+     */
+    private void generatePageRenderer(ModelInfo model, String outputDir) throws IOException {
+        EntityContext ctx = buildEntityContext(model);
+        String className = ctx.pascalName + "PageRenderer";
+        String source;
+        if (ctx.isView) {
+            source = emitter.emitViewPageRenderer(BASE_PACKAGE, ctx);
+        } else {
+            source = emitter.emitPageRenderer(BASE_PACKAGE, ctx);
+        }
+        writefile(outputDir, BASE_PACKAGE + ".controller", className, source);
+    }
+
     private String pascalName(ModelInfo model) {
         return JavaUtils.snakeToPascal(model.name());
     }
@@ -405,6 +430,70 @@ public class AppServerGenerator {
         return base.replace('_', '-');
     }
 
+
+    /**
+     * Copies the entire {@code templates/} tree from the java/ working directory into
+     * {@code <outputDir>/src/main/resources/templates/} so that the generated Spring Boot
+     * server can load templates from its classpath at startup via
+     * {@code getResourceAsStream("templates/...")}.
+     *
+     * The destination is cleaned first (using {@link CodeGenUtils#deleteDirectory}) to
+     * remove any stale content from a previous generation run.
+     */
+    private void copyTemplatesIntoServerResources(String outputDir) throws IOException {
+        Path srcTemplates = Paths.get("templates");
+        Path destTemplates = Paths.get(outputDir, "src", "main", "resources", "templates");
+
+        if (!Files.exists(srcTemplates)) {
+            throw new IllegalStateException(
+                "templates/ source directory not found at " + srcTemplates.toAbsolutePath()
+                + " — run 'make generate-html' before 'make generate-server'");
+        }
+
+        if (Files.exists(destTemplates)) {
+            CodeGenUtils.deleteDirectory(destTemplates);
+        }
+        Files.createDirectories(destTemplates);
+
+        try (Stream<Path> entries = Files.walk(srcTemplates)) {
+            for (Path entry : (Iterable<Path>) entries::iterator) {
+                Path relative = srcTemplates.relativize(entry);
+                Path dest = destTemplates.resolve(relative);
+                if (Files.isDirectory(entry)) {
+                    Files.createDirectories(dest);
+                } else {
+                    Files.copy(entry, dest);
+                }
+            }
+        }
+
+        assertTemplatesPresent(destTemplates);
+    }
+
+    /**
+     * Asserts that the copied templates destination is non-empty and contains the
+     * canonical sentinel file {@code auth/users/list.html}. Throws
+     * {@link IllegalStateException} at code-generation time if either check fails,
+     * so the build fails at GENERATE time rather than at server startup.
+     */
+    private void assertTemplatesPresent(Path destTemplates) throws IOException {
+        boolean isEmpty;
+        try (Stream<Path> entries = Files.walk(destTemplates)) {
+            isEmpty = entries.filter(p -> !Files.isDirectory(p)).findFirst().isEmpty();
+        }
+        if (isEmpty) {
+            throw new IllegalStateException(
+                "Template copy failed: " + destTemplates.toAbsolutePath()
+                + " is empty after copy. Ensure 'make generate-html' runs before 'make generate-server'.");
+        }
+
+        Path sentinel = destTemplates.resolve("auth").resolve("users").resolve("list.html");
+        if (!Files.exists(sentinel)) {
+            throw new IllegalStateException(
+                "Missing required template after copy: " + sentinel.toAbsolutePath()
+                + " — 'make generate-html' must emit auth/users/list.html into templates/");
+        }
+    }
 
     private void writefile(String outputDir, String packageName, String className, String javaCode) throws IOException {
         Path packagePath = Paths.get(outputDir, packageName.split("\\."));

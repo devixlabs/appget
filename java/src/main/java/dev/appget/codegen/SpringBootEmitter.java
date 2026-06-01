@@ -1,5 +1,6 @@
 package dev.appget.codegen;
 
+import dev.appget.naming.JavaNaming;
 import java.util.List;
 import java.util.Map;
 
@@ -69,7 +70,11 @@ public class SpringBootEmitter implements ServerEmitter {
         yaml.append("  port: 8080\n\n");
         yaml.append("spring:\n");
         yaml.append("  application:\n");
-        yaml.append("    name: appget-server\n\n");
+        yaml.append("    name: appget-server\n");
+        yaml.append("  mvc:\n");
+        yaml.append("    hiddenmethod:\n");
+        yaml.append("      filter:\n");
+        yaml.append("        enabled: true\n\n");
         yaml.append("logging:\n");
         yaml.append("  level:\n");
         yaml.append("    root: INFO\n");
@@ -214,7 +219,9 @@ public class SpringBootEmitter implements ServerEmitter {
         gradle.append("        }\n");
         gradle.append("        resources {\n");
         gradle.append("            srcDirs = ['.']\n");
+        gradle.append("            srcDirs += ['src/main/resources']\n");
         gradle.append("            include 'application.yaml'\n");
+        gradle.append("            include 'templates/**/*.html'\n");
         gradle.append("        }\n");
         gradle.append("    }\n");
         gradle.append("}\n\n");
@@ -1136,6 +1143,8 @@ public class SpringBootEmitter implements ServerEmitter {
     public String emitController(String basePackage, EntityContext ctx) {
         String className = ctx.pascalName + "Controller";
         String serviceClass = ctx.pascalName + "Service";
+        String rendererClass = ctx.pascalName + "PageRenderer";
+        String rendererField = Character.toLowerCase(ctx.pascalName.charAt(0)) + ctx.pascalName.substring(1) + "PageRenderer";
         String packageName = basePackage + ".controller";
         String resourcePath = "/" + ctx.resourcePath;
 
@@ -1146,14 +1155,33 @@ public class SpringBootEmitter implements ServerEmitter {
         code.append("import ").append(basePackage).append(".service.").append(serviceClass).append(";\n");
         code.append("import ").append(basePackage).append(".config.MetadataExtractor;\n");
         code.append("import ").append(basePackage).append(".dto.RuleAwareResponse;\n");
+        code.append("import ").append(basePackage).append(".exception.RuleViolationException;\n");
         code.append("import dev.appget.specification.MetadataContext;\n");
         code.append("import lombok.extern.log4j.Log4j2;\n");
         code.append("import org.springframework.http.HttpStatus;\n");
+        code.append("import org.springframework.http.MediaType;\n");
         code.append("import org.springframework.http.ResponseEntity;\n");
         code.append("import org.springframework.web.bind.annotation.*;\n");
         code.append("import jakarta.servlet.http.HttpServletRequest;\n");
         code.append("import jakarta.validation.Valid;\n");
-        code.append("import java.util.List;\n\n");
+        code.append("import java.math.BigDecimal;\n");
+        code.append("import java.net.URI;\n");
+        code.append("import java.util.ArrayList;\n");
+        code.append("import java.util.List;\n");
+        code.append("import java.util.Map;\n");
+        code.append("import com.google.protobuf.ByteString;\n\n");
+
+        // Conditionally import Decimal only when any decimal field exists
+        boolean hasDecimalField = false;
+        for (Map<String, Object> field : ctx.fields) {
+            if ("decimal".equals(field.get("type"))) {
+                hasDecimalField = true;
+                break;
+            }
+        }
+        if (hasDecimalField) {
+            code.append("import dev.appget.common.Decimal;\n\n");
+        }
 
         code.append("/**\n");
         code.append(" * REST API endpoints for ").append(ctx.name).append(" entities\n");
@@ -1165,15 +1193,17 @@ public class SpringBootEmitter implements ServerEmitter {
         code.append("public class ").append(className).append(" {\n\n");
 
         code.append("    private final ").append(serviceClass).append(" service;\n");
-        code.append("    private final MetadataExtractor metadataExtractor;\n\n");
+        code.append("    private final MetadataExtractor metadataExtractor;\n");
+        code.append("    private final ").append(rendererClass).append(" renderer;\n\n");
 
-        code.append("    public ").append(className).append("(").append(serviceClass).append(" service, MetadataExtractor metadataExtractor) {\n");
+        code.append("    public ").append(className).append("(").append(serviceClass).append(" service, MetadataExtractor metadataExtractor, ").append(rendererClass).append(" ").append(rendererField).append(") {\n");
         code.append("        this.service = service;\n");
         code.append("        this.metadataExtractor = metadataExtractor;\n");
+        code.append("        this.renderer = ").append(rendererField).append(";\n");
         code.append("    }\n\n");
 
-        // POST /entities
-        code.append("    @PostMapping\n");
+        // POST /entities (JSON)
+        code.append("    @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)\n");
         code.append("    public ResponseEntity<RuleAwareResponse<").append(ctx.pascalName).append(">> create(\n");
         code.append("            @Valid @RequestBody ").append(ctx.pascalName).append(" entity,\n");
         code.append("            HttpServletRequest request) {\n");
@@ -1185,8 +1215,42 @@ public class SpringBootEmitter implements ServerEmitter {
         code.append("        return ResponseEntity.status(HttpStatus.CREATED).body(response);\n");
         code.append("    }\n\n");
 
-        // GET /entities
-        code.append("    @GetMapping\n");
+        // POST /entities (HTML form — application/x-www-form-urlencoded) → PRG
+        code.append("    @PostMapping(consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE)\n");
+        code.append("    public ResponseEntity<String> createForm(\n");
+        code.append("            @RequestParam Map<String,String> form,\n");
+        code.append("            HttpServletRequest request) {\n");
+        code.append("        log.info(\"POST ").append(resourcePath).append(" (form) - Creating new ").append(ctx.name).append("\");\n");
+        code.append("        MetadataContext metadata = metadataExtractor.extractFromHeaders(request);\n");
+        code.append("        ").append(ctx.pascalName).append(" entity = coerce").append(ctx.pascalName).append("(form);\n");
+        code.append("        try {\n");
+        code.append("            service.create(entity, metadata);\n");
+        code.append("            log.info(\"Form create ").append(ctx.name).append(" succeeded, redirecting\");\n");
+        code.append("            return ResponseEntity.status(HttpStatus.SEE_OTHER)\n");
+        code.append("                .location(URI.create(\"").append(resourcePath).append("\"))\n");
+        code.append("                .build();\n");
+        code.append("        } catch (RuleViolationException e) {\n");
+        code.append("            log.warn(\"Form create ").append(ctx.name).append(" failed validation: {}\", e.getMessage());\n");
+        code.append("            List<String> errors = new ArrayList<>();\n");
+        code.append("            if (e.getResults() != null && e.getResults().getOutcomes() != null) {\n");
+        code.append("                for (var outcome : e.getResults().getOutcomes()) {\n");
+        code.append("                    if (!outcome.isSatisfied()) {\n");
+        code.append("                        errors.add(outcome.getRuleName() + \": \" + outcome.getStatus());\n");
+        code.append("                    }\n");
+        code.append("                }\n");
+        code.append("            }\n");
+        code.append("            if (errors.isEmpty()) {\n");
+        code.append("                errors.add(e.getMessage());\n");
+        code.append("            }\n");
+        code.append("            String html = renderer.renderCreateFormWithErrors(form, errors);\n");
+        code.append("            return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)\n");
+        code.append("                .contentType(MediaType.TEXT_HTML)\n");
+        code.append("                .body(html);\n");
+        code.append("        }\n");
+        code.append("    }\n\n");
+
+        // GET /entities (JSON)
+        code.append("    @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)\n");
         code.append("    public ResponseEntity<List<").append(ctx.pascalName).append(">> list() {\n");
         code.append("        log.info(\"GET ").append(resourcePath).append(" - Retrieving all ").append(ctx.name).append(" entities\");\n");
         code.append("        List<").append(ctx.pascalName).append("> results = service.findAll();\n");
@@ -1194,8 +1258,21 @@ public class SpringBootEmitter implements ServerEmitter {
         code.append("        return ResponseEntity.ok(results);\n");
         code.append("    }\n\n");
 
-        // GET /entities/{id} or /entities/{pk1}/{pk2}
-        code.append("    @GetMapping(\"").append(ctx.pathVarSegment).append("\")\n");
+        // GET /entities (HTML)
+        code.append("    @GetMapping(produces = MediaType.TEXT_HTML_VALUE)\n");
+        code.append("    public ResponseEntity<String> listHtml(@RequestParam(required = false) String action) {\n");
+        code.append("        log.info(\"GET ").append(resourcePath).append(" (html) - action={}\", action);\n");
+        code.append("        String html;\n");
+        code.append("        if (\"create\".equals(action)) {\n");
+        code.append("            html = renderer.renderCreateForm();\n");
+        code.append("        } else {\n");
+        code.append("            html = renderer.renderList(service.findAll());\n");
+        code.append("        }\n");
+        code.append("        return ResponseEntity.ok(html);\n");
+        code.append("    }\n\n");
+
+        // GET /entities/{id} (JSON)
+        code.append("    @GetMapping(value = \"").append(ctx.pathVarSegment).append("\", produces = MediaType.APPLICATION_JSON_VALUE)\n");
         code.append("    public ResponseEntity<").append(ctx.pascalName).append("> get(").append(ctx.pathVarParams).append(") {\n");
         code.append("        log.info(\"GET ").append(resourcePath).append(ctx.pathVarSegment).append(" - Retrieving ").append(ctx.name).append(" with ").append(ctx.logPattern).append("\", ").append(ctx.logArgs).append(");\n");
         code.append("        ").append(ctx.pascalName).append(" result = service.findById(").append(ctx.idArgs).append(");\n");
@@ -1203,8 +1280,21 @@ public class SpringBootEmitter implements ServerEmitter {
         code.append("        return ResponseEntity.ok(result);\n");
         code.append("    }\n\n");
 
-        // PUT /entities/{id} or /entities/{pk1}/{pk2}
-        code.append("    @PutMapping(\"").append(ctx.pathVarSegment).append("\")\n");
+        // GET /entities/{id} (HTML)
+        code.append("    @GetMapping(value = \"").append(ctx.pathVarSegment).append("\", produces = MediaType.TEXT_HTML_VALUE)\n");
+        code.append("    public ResponseEntity<String> getHtml(").append(ctx.pathVarParams).append(", @RequestParam(defaultValue = \"view\") String action) {\n");
+        code.append("        log.info(\"GET ").append(resourcePath).append(ctx.pathVarSegment).append(" (html) - action={}\", action);\n");
+        code.append("        String html;\n");
+        code.append("        if (\"edit\".equals(action)) {\n");
+        code.append("            html = renderer.renderEditForm(service.findById(").append(ctx.idArgs).append("));\n");
+        code.append("        } else {\n");
+        code.append("            html = renderer.renderDetail(service.findById(").append(ctx.idArgs).append("));\n");
+        code.append("        }\n");
+        code.append("        return ResponseEntity.ok(html);\n");
+        code.append("    }\n\n");
+
+        // PUT /entities/{id} (JSON)
+        code.append("    @PutMapping(value = \"").append(ctx.pathVarSegment).append("\", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)\n");
         code.append("    public ResponseEntity<RuleAwareResponse<").append(ctx.pascalName).append(">> update(\n");
         code.append("            ").append(ctx.pathVarParams).append(",\n");
         code.append("            @Valid @RequestBody ").append(ctx.pascalName).append(" entity,\n");
@@ -1217,13 +1307,120 @@ public class SpringBootEmitter implements ServerEmitter {
         code.append("        return ResponseEntity.ok(response);\n");
         code.append("    }\n\n");
 
-        // DELETE /entities/{id} or /entities/{pk1}/{pk2}
+        // PUT /entities/{id} (HTML form — via _method=PUT override) → PRG
+        code.append("    @PutMapping(value = \"").append(ctx.pathVarSegment).append("\", consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE)\n");
+        code.append("    public ResponseEntity<String> updateForm(\n");
+        code.append("            ").append(ctx.pathVarParams).append(",\n");
+        code.append("            @RequestParam Map<String,String> form,\n");
+        code.append("            HttpServletRequest request) {\n");
+        code.append("        log.info(\"PUT ").append(resourcePath).append(ctx.pathVarSegment).append(" (form) - Updating ").append(ctx.name).append(" with ").append(ctx.logPattern).append("\", ").append(ctx.logArgs).append(");\n");
+        code.append("        MetadataContext metadata = metadataExtractor.extractFromHeaders(request);\n");
+        code.append("        ").append(ctx.pascalName).append(" entity = coerce").append(ctx.pascalName).append("(form);\n");
+        code.append("        try {\n");
+        code.append("            service.update(").append(ctx.idArgs).append(", entity, metadata);\n");
+        code.append("            log.info(\"Form update ").append(ctx.name).append(" succeeded, redirecting\");\n");
+        // Build the detail redirect path. For single-key entities with id, use resourcePath/id.
+        // For composite keys build from idArgs (comma-separated).
+        if (!ctx.compositeKey) {
+            // idArgs is a single variable name like "id"
+            code.append("            return ResponseEntity.status(HttpStatus.SEE_OTHER)\n");
+            code.append("                .location(URI.create(\"").append(resourcePath).append("/\" + ").append(ctx.idArgs).append("))\n");
+            code.append("                .build();\n");
+        } else {
+            // Composite key: redirect to list since detail URL is ambiguous to construct simply
+            code.append("            return ResponseEntity.status(HttpStatus.SEE_OTHER)\n");
+            code.append("                .location(URI.create(\"").append(resourcePath).append("\"))\n");
+            code.append("                .build();\n");
+        }
+        code.append("        } catch (RuleViolationException e) {\n");
+        code.append("            log.warn(\"Form update ").append(ctx.name).append(" failed validation: {}\", e.getMessage());\n");
+        code.append("            List<String> errors = new ArrayList<>();\n");
+        code.append("            if (e.getResults() != null && e.getResults().getOutcomes() != null) {\n");
+        code.append("                for (var outcome : e.getResults().getOutcomes()) {\n");
+        code.append("                    if (!outcome.isSatisfied()) {\n");
+        code.append("                        errors.add(outcome.getRuleName() + \": \" + outcome.getStatus());\n");
+        code.append("                    }\n");
+        code.append("                }\n");
+        code.append("            }\n");
+        code.append("            if (errors.isEmpty()) {\n");
+        code.append("                errors.add(e.getMessage());\n");
+        code.append("            }\n");
+        code.append("            String html = renderer.renderEditFormWithErrors(form, errors);\n");
+        code.append("            return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)\n");
+        code.append("                .contentType(MediaType.TEXT_HTML)\n");
+        code.append("                .body(html);\n");
+        code.append("        }\n");
+        code.append("    }\n\n");
+
+        // DELETE /entities/{id} (JSON or form)
         code.append("    @DeleteMapping(\"").append(ctx.pathVarSegment).append("\")\n");
         code.append("    public ResponseEntity<Void> delete(").append(ctx.pathVarParams).append(") {\n");
         code.append("        log.info(\"DELETE ").append(resourcePath).append(ctx.pathVarSegment).append(" - Deleting ").append(ctx.name).append(" with ").append(ctx.logPattern).append("\", ").append(ctx.logArgs).append(");\n");
         code.append("        service.deleteById(").append(ctx.idArgs).append(");\n");
         code.append("        log.info(\"Successfully deleted ").append(ctx.name).append(" with ").append(ctx.logPattern).append("\", ").append(ctx.logArgs).append(");\n");
         code.append("        return ResponseEntity.noContent().build();\n");
+        code.append("    }\n\n");
+
+        // Private coerce method: form Map<String,String> → entity
+        code.append("    private ").append(ctx.pascalName).append(" coerce").append(ctx.pascalName).append("(Map<String,String> form) {\n");
+        code.append("        ").append(ctx.pascalName).append(".Builder builder = ").append(ctx.pascalName).append(".newBuilder();\n");
+        for (Map<String, Object> field : ctx.fields) {
+            String fieldName = (String) field.get("name");
+            String fieldType = (String) field.get("type");
+            String camelName = JavaNaming.toFieldAccessor(fieldName);
+            String setterName = "set" + Character.toUpperCase(camelName.charAt(0)) + camelName.substring(1);
+
+            if ("string".equals(fieldType)) {
+                code.append("        builder.").append(setterName).append("(form.getOrDefault(\"").append(fieldName).append("\", \"\"));\n");
+            } else if ("int32".equals(fieldType)) {
+                code.append("        {\n");
+                code.append("            String _v = form.get(\"").append(fieldName).append("\");\n");
+                code.append("            if (_v != null && !_v.isBlank()) {\n");
+                code.append("                builder.").append(setterName).append("(Integer.parseInt(_v));\n");
+                code.append("            }\n");
+                code.append("        }\n");
+            } else if ("int64".equals(fieldType)) {
+                code.append("        {\n");
+                code.append("            String _v = form.get(\"").append(fieldName).append("\");\n");
+                code.append("            if (_v != null && !_v.isBlank()) {\n");
+                code.append("                builder.").append(setterName).append("(Long.parseLong(_v));\n");
+                code.append("            }\n");
+                code.append("        }\n");
+            } else if ("float64".equals(fieldType)) {
+                code.append("        {\n");
+                code.append("            String _v = form.get(\"").append(fieldName).append("\");\n");
+                code.append("            if (_v != null && !_v.isBlank()) {\n");
+                code.append("                builder.").append(setterName).append("(Double.parseDouble(_v));\n");
+                code.append("            }\n");
+                code.append("        }\n");
+            } else if ("bool".equals(fieldType)) {
+                // Checkbox: present in form map = true, absent = false
+                code.append("        builder.").append(setterName).append("(form.containsKey(\"").append(fieldName).append("\"));\n");
+            } else if ("decimal".equals(fieldType)) {
+                code.append("        {\n");
+                code.append("            String _v = form.get(\"").append(fieldName).append("\");\n");
+                code.append("            if (_v != null && !_v.isBlank()) {\n");
+                code.append("                BigDecimal _bd = new BigDecimal(_v);\n");
+                code.append("                builder.").append(setterName).append("(Decimal.newBuilder()\n");
+                code.append("                    .setUnscaled(ByteString.copyFrom(_bd.unscaledValue().toByteArray()))\n");
+                code.append("                    .setScale(_bd.scale())\n");
+                code.append("                    .build());\n");
+                code.append("            }\n");
+                code.append("        }\n");
+            } else if ("date".equals(fieldType) || "datetime".equals(fieldType)) {
+                // Proto stores date/datetime as string
+                code.append("        {\n");
+                code.append("            String _v = form.get(\"").append(fieldName).append("\");\n");
+                code.append("            if (_v != null && !_v.isBlank()) {\n");
+                code.append("                builder.").append(setterName).append("(_v);\n");
+                code.append("            }\n");
+                code.append("        }\n");
+            } else {
+                // Fallback: treat as string
+                code.append("        builder.").append(setterName).append("(form.getOrDefault(\"").append(fieldName).append("\", \"\"));\n");
+            }
+        }
+        code.append("        return builder.build();\n");
         code.append("    }\n");
         code.append("}\n");
 
@@ -1364,6 +1561,8 @@ public class SpringBootEmitter implements ServerEmitter {
     public String emitViewController(String basePackage, EntityContext ctx) {
         String className = ctx.pascalName + "Controller";
         String serviceClass = ctx.pascalName + "Service";
+        String rendererClass = ctx.pascalName + "PageRenderer";
+        String rendererField = Character.toLowerCase(ctx.pascalName.charAt(0)) + ctx.pascalName.substring(1) + "PageRenderer";
         String packageName = basePackage + ".controller";
         String viewImport = ctx.namespace + ".view." + ctx.pascalName;
         String resourcePath = "/views/" + ctx.resourcePath;
@@ -1373,6 +1572,7 @@ public class SpringBootEmitter implements ServerEmitter {
         code.append("import ").append(viewImport).append(";\n");
         code.append("import ").append(basePackage).append(".service.").append(serviceClass).append(";\n");
         code.append("import lombok.extern.log4j.Log4j2;\n");
+        code.append("import org.springframework.http.MediaType;\n");
         code.append("import org.springframework.http.ResponseEntity;\n");
         code.append("import org.springframework.web.bind.annotation.*;\n");
         code.append("import java.util.List;\n\n");
@@ -1385,16 +1585,27 @@ public class SpringBootEmitter implements ServerEmitter {
         code.append("@RestController\n");
         code.append("@RequestMapping(\"").append(resourcePath).append("\")\n");
         code.append("public class ").append(className).append(" {\n\n");
-        code.append("    private final ").append(serviceClass).append(" service;\n\n");
-        code.append("    public ").append(className).append("(").append(serviceClass).append(" service) {\n");
+        code.append("    private final ").append(serviceClass).append(" service;\n");
+        code.append("    private final ").append(rendererClass).append(" renderer;\n\n");
+        code.append("    public ").append(className).append("(").append(serviceClass).append(" service, ").append(rendererClass).append(" ").append(rendererField).append(") {\n");
         code.append("        this.service = service;\n");
+        code.append("        this.renderer = ").append(rendererField).append(";\n");
         code.append("    }\n\n");
-        code.append("    @GetMapping\n");
+        // GET (JSON)
+        code.append("    @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)\n");
         code.append("    public ResponseEntity<List<").append(ctx.pascalName).append(">> list() {\n");
         code.append("        log.info(\"GET ").append(resourcePath).append(" - Retrieving all ").append(ctx.name).append(" entries\");\n");
         code.append("        return ResponseEntity.ok(service.findAll());\n");
         code.append("    }\n\n");
-        code.append("    @GetMapping(\"/{id}\")\n");
+        // GET (HTML)
+        code.append("    @GetMapping(produces = MediaType.TEXT_HTML_VALUE)\n");
+        code.append("    public ResponseEntity<String> listHtml() {\n");
+        code.append("        log.info(\"GET ").append(resourcePath).append(" (html) - Retrieving all ").append(ctx.name).append(" entries\");\n");
+        code.append("        String html = renderer.renderList(service.findAll());\n");
+        code.append("        return ResponseEntity.ok(html);\n");
+        code.append("    }\n\n");
+        // GET /{id} (JSON)
+        code.append("    @GetMapping(value = \"/{id}\", produces = MediaType.APPLICATION_JSON_VALUE)\n");
         code.append("    public ResponseEntity<").append(ctx.pascalName).append("> get(@PathVariable String id) {\n");
         code.append("        log.info(\"GET ").append(resourcePath).append("/{id} - Retrieving ").append(ctx.name).append(" with id: {}\", id);\n");
         code.append("        return ResponseEntity.ok(service.findById(id));\n");
@@ -1402,5 +1613,379 @@ public class SpringBootEmitter implements ServerEmitter {
         code.append("}\n");
 
         return code.toString();
+    }
+
+    // -------------------------------------------------------------------------
+    // Group C: Per-Entity Page Renderers (HTML content negotiation)
+    // -------------------------------------------------------------------------
+
+    @Override
+    public String emitPageRenderer(String basePackage, EntityContext ctx) {
+        String className = ctx.pascalName + "PageRenderer";
+        String packageName = basePackage + ".controller";
+        String modelImport = ctx.namespace + ".model." + ctx.pascalName;
+        // Template directory: domain/resourcePath (model)
+        String templateDir = "templates/" + CodeGenUtils.templateDir(ctx.domain, ctx.resourcePath, false);
+
+        StringBuilder code = new StringBuilder();
+        code.append("package ").append(packageName).append(";\n\n");
+
+        code.append("import ").append(modelImport).append(";\n");
+        code.append("import ").append(basePackage).append(".util.HtmlEscapeUtils;\n");
+        code.append("import org.springframework.stereotype.Component;\n");
+        code.append("import java.io.IOException;\n");
+        code.append("import java.io.InputStream;\n");
+        code.append("import java.nio.charset.StandardCharsets;\n");
+        code.append("import java.util.List;\n\n");
+
+        code.append("/**\n");
+        code.append(" * HTML page renderer for ").append(ctx.name).append(" entities.\n");
+        code.append(" * Loads HTML templates from the classpath and fills {{CONTENT}} with escaped data.\n");
+        code.append(" * DO NOT EDIT MANUALLY - Generated from AppServerGenerator\n");
+        code.append(" */\n");
+        code.append("@Component\n");
+        code.append("public class ").append(className).append(" {\n\n");
+
+        // Final template fields
+        code.append("    private final String listTemplate;\n");
+        code.append("    private final String detailTemplate;\n");
+        code.append("    private final String editTemplate;\n");
+        code.append("    private final String createTemplate;\n\n");
+
+        // Constructor loads all four templates
+        code.append("    public ").append(className).append("() {\n");
+        code.append("        this.listTemplate = loadTemplate(\"").append(templateDir).append("/list.html\");\n");
+        code.append("        this.detailTemplate = loadTemplate(\"").append(templateDir).append("/detail.html\");\n");
+        code.append("        this.editTemplate = loadTemplate(\"").append(templateDir).append("/edit.html\");\n");
+        code.append("        this.createTemplate = loadTemplate(\"").append(templateDir).append("/create.html\");\n");
+        code.append("    }\n\n");
+
+        // loadTemplate static helper — uses ClassName.class.getClassLoader() (never getClass() in static)
+        code.append("    private static String loadTemplate(String path) {\n");
+        code.append("        try (InputStream in = ").append(className).append(".class.getClassLoader().getResourceAsStream(path)) {\n");
+        code.append("            if (in == null) {\n");
+        code.append("                throw new IllegalStateException(\"Template not found on classpath: \" + path);\n");
+        code.append("            }\n");
+        code.append("            byte[] bytes = in.readAllBytes();\n");
+        code.append("            return new String(bytes, StandardCharsets.UTF_8);\n");
+        code.append("        } catch (IOException e) {\n");
+        code.append("            throw new IllegalStateException(\"Failed to load template: \" + path, e);\n");
+        code.append("        }\n");
+        code.append("    }\n\n");
+
+        // renderList — builds <tr> rows
+        code.append("    public String renderList(List<").append(ctx.pascalName).append("> items) {\n");
+        code.append("        StringBuilder rows = new StringBuilder();\n");
+        code.append("        for (").append(ctx.pascalName).append(" item : items) {\n");
+        code.append("            rows.append(\"<tr>\");\n");
+        // Per-field <td> cells in template order (same order as ctx.fields)
+        for (Map<String, Object> field : ctx.fields) {
+            String fieldName = (String) field.get("name");
+            String fieldType = (String) field.get("type");
+            String camelName = JavaNaming.toFieldAccessor(fieldName);
+            String getterName = "get" + Character.toUpperCase(camelName.charAt(0)) + camelName.substring(1);
+            String escapedExpr;
+            if ("string".equals(fieldType)) {
+                escapedExpr = "HtmlEscapeUtils.escape(item." + getterName + "())";
+            } else {
+                escapedExpr = "HtmlEscapeUtils.escape(String.valueOf(item." + getterName + "()))";
+            }
+            code.append("            rows.append(\"<td>\").append(").append(escapedExpr).append(").append(\"</td>\");\n");
+        }
+        // Actions column: View link by record id
+        // id field getter
+        String idCamel = JavaNaming.toFieldAccessor("id");
+        String idGetter = "get" + Character.toUpperCase(idCamel.charAt(0)) + idCamel.substring(1);
+        String idEscaped = "HtmlEscapeUtils.escape(item." + idGetter + "())";
+        code.append("            rows.append(\"<td><a href=\\\"\").append(").append(idEscaped).append(").append(\"\\\">View</a></td>\");\n");
+        code.append("            rows.append(\"</tr>\");\n");
+        code.append("        }\n");
+        code.append("        return listTemplate.replace(\"{{CONTENT}}\", rows.toString());\n");
+        code.append("    }\n\n");
+
+        // renderDetail — builds <dt>/<dd> pairs
+        code.append("    public String renderDetail(").append(ctx.pascalName).append(" item) {\n");
+        code.append("        StringBuilder dl = new StringBuilder();\n");
+        for (Map<String, Object> field : ctx.fields) {
+            String fieldName = (String) field.get("name");
+            String fieldType = (String) field.get("type");
+            String camelName = JavaNaming.toFieldAccessor(fieldName);
+            String getterName = "get" + Character.toUpperCase(camelName.charAt(0)) + camelName.substring(1);
+            String escapedExpr;
+            if ("string".equals(fieldType)) {
+                escapedExpr = "HtmlEscapeUtils.escape(item." + getterName + "())";
+            } else {
+                escapedExpr = "HtmlEscapeUtils.escape(String.valueOf(item." + getterName + "()))";
+            }
+            code.append("        dl.append(\"  <dt>\").append(\"").append(fieldName).append("\").append(\"</dt>\\n\");\n");
+            code.append("        dl.append(\"  <dd>\").append(").append(escapedExpr).append(").append(\"</dd>\\n\");\n");
+        }
+        code.append("        return detailTemplate.replace(\"{{CONTENT}}\", dl.toString());\n");
+        code.append("    }\n\n");
+
+        // renderEditForm — builds per-field input blocks (mirrors generateEditHtml, skips PK)
+        code.append("    public String renderEditForm(").append(ctx.pascalName).append(" item) {\n");
+        code.append("        StringBuilder inputs = new StringBuilder();\n");
+        for (Map<String, Object> field : ctx.fields) {
+            String fieldName = (String) field.get("name");
+            String fieldType = (String) field.get("type");
+            String sqlType = field.get("original_sql_type") != null
+                    ? ((String) field.get("original_sql_type")).toUpperCase()
+                    : "";
+            boolean isPrimaryKey = Boolean.TRUE.equals(field.get("primary_key"));
+            boolean nullable = Boolean.TRUE.equals(field.get("nullable"));
+            if (isPrimaryKey) {
+                continue; // PK rendered as hidden input outside {{CONTENT}}
+            }
+            String camelName = JavaNaming.toFieldAccessor(fieldName);
+            String getterName = "get" + Character.toUpperCase(camelName.charAt(0)) + camelName.substring(1);
+
+            String humanLabel = buildHumanLabel(fieldName);
+            String req = nullable ? "" : " required";
+
+            code.append("        inputs.append(\"  <div>\\n\");\n");
+            code.append("        inputs.append(\"    <label for=\\\"").append(fieldName).append("\\\">").append(humanLabel).append("</label>\\n\");\n");
+            // Determine input type and build it with value injected
+            if (sqlType.equals("TEXT")) {
+                // textarea — value is inner text
+                String escapedExpr = "HtmlEscapeUtils.escape(item." + getterName + "())";
+                code.append("        inputs.append(\"    <textarea name=\\\"").append(fieldName).append("\\\" id=\\\"").append(fieldName).append("\\\"").append(req).append(">\");\n");
+                code.append("        inputs.append(").append(escapedExpr).append(");\n");
+                code.append("        inputs.append(\"</textarea>\\n\");\n");
+            } else if ("bool".equals(fieldType)) {
+                // checkbox — checked attribute; no required
+                String escapedExpr = "HtmlEscapeUtils.escape(String.valueOf(item." + getterName + "()))";
+                code.append("        boolean ").append(camelName).append("Val = item.").append(getterName).append("();\n");
+                code.append("        inputs.append(\"    <input type=\\\"checkbox\\\" name=\\\"").append(fieldName).append("\\\" id=\\\"").append(fieldName).append("\\\"\");\n");
+                code.append("        if (").append(camelName).append("Val) {\n");
+                code.append("            inputs.append(\" checked\");\n");
+                code.append("        }\n");
+                code.append("        inputs.append(\">\\n\");\n");
+            } else if ("int32".equals(fieldType) || "int64".equals(fieldType)) {
+                String escapedExpr = "HtmlEscapeUtils.escape(String.valueOf(item." + getterName + "()))";
+                code.append("        inputs.append(\"    <input type=\\\"number\\\" step=\\\"1\\\" name=\\\"").append(fieldName).append("\\\" id=\\\"").append(fieldName).append("\\\" value=\\\"\");\n");
+                code.append("        inputs.append(").append(escapedExpr).append(");\n");
+                code.append("        inputs.append(\"\\\"").append(req).append(">\\n\");\n");
+            } else if ("decimal".equals(fieldType)) {
+                String escapedExpr = "HtmlEscapeUtils.escape(String.valueOf(item." + getterName + "()))";
+                code.append("        inputs.append(\"    <input type=\\\"number\\\" step=\\\"0.01\\\" name=\\\"").append(fieldName).append("\\\" id=\\\"").append(fieldName).append("\\\" value=\\\"\");\n");
+                code.append("        inputs.append(").append(escapedExpr).append(");\n");
+                code.append("        inputs.append(\"\\\"").append(req).append(">\\n\");\n");
+            } else if ("float64".equals(fieldType)) {
+                String escapedExpr = "HtmlEscapeUtils.escape(String.valueOf(item." + getterName + "()))";
+                code.append("        inputs.append(\"    <input type=\\\"number\\\" step=\\\"any\\\" name=\\\"").append(fieldName).append("\\\" id=\\\"").append(fieldName).append("\\\" value=\\\"\");\n");
+                code.append("        inputs.append(").append(escapedExpr).append(");\n");
+                code.append("        inputs.append(\"\\\"").append(req).append(">\\n\");\n");
+            } else if ("date".equals(fieldType)) {
+                String escapedExpr = "HtmlEscapeUtils.escape(item." + getterName + "())";
+                code.append("        inputs.append(\"    <input type=\\\"date\\\" name=\\\"").append(fieldName).append("\\\" id=\\\"").append(fieldName).append("\\\" value=\\\"\");\n");
+                code.append("        inputs.append(").append(escapedExpr).append(");\n");
+                code.append("        inputs.append(\"\\\"").append(req).append(">\\n\");\n");
+            } else if ("datetime".equals(fieldType)) {
+                String escapedExpr = "HtmlEscapeUtils.escape(item." + getterName + "())";
+                code.append("        inputs.append(\"    <input type=\\\"datetime-local\\\" name=\\\"").append(fieldName).append("\\\" id=\\\"").append(fieldName).append("\\\" value=\\\"\");\n");
+                code.append("        inputs.append(").append(escapedExpr).append(");\n");
+                code.append("        inputs.append(\"\\\"").append(req).append(">\\n\");\n");
+            } else {
+                // Default: text input (string types)
+                String escapedExpr = "HtmlEscapeUtils.escape(item." + getterName + "())";
+                code.append("        inputs.append(\"    <input type=\\\"text\\\" name=\\\"").append(fieldName).append("\\\" id=\\\"").append(fieldName).append("\\\" value=\\\"\");\n");
+                code.append("        inputs.append(").append(escapedExpr).append(");\n");
+                code.append("        inputs.append(\"\\\"").append(req).append(">\\n\");\n");
+            }
+            code.append("        inputs.append(\"  </div>\\n\");\n");
+        }
+        // Inject id value into hidden input outside {{CONTENT}} slot
+        String idEscapedEdit = "HtmlEscapeUtils.escape(item." + "get" + Character.toUpperCase(idCamel.charAt(0)) + idCamel.substring(1) + "())";
+        code.append("        String filled = editTemplate.replace(\"{{CONTENT}}\", inputs.toString());\n");
+        code.append("        filled = filled.replace(\n");
+        code.append("            \"<input type=\\\"hidden\\\" name=\\\"id\\\" id=\\\"id\\\">\",\n");
+        code.append("            \"<input type=\\\"hidden\\\" name=\\\"id\\\" id=\\\"id\\\" value=\\\"\" + ").append(idEscapedEdit).append(" + \"\\\">\");\n");
+        code.append("        return filled;\n");
+        code.append("    }\n\n");
+
+        // renderCreateForm — no data, return create template unchanged
+        code.append("    public String renderCreateForm() {\n");
+        code.append("        return createTemplate;\n");
+        code.append("    }\n\n");
+
+        // renderCreateFormWithErrors — re-render create form with errors visible.
+        // The create template is fully static (no {{CONTENT}} slot), so the form parameter
+        // is accepted for API compatibility but input pre-filling is not applied here
+        // (see Deviation D-CREATE-PREFILL in report). Errors are injected before <form.
+        code.append("    public String renderCreateFormWithErrors(java.util.Map<String,String> form, java.util.List<String> errors) {\n");
+        code.append("        StringBuilder errHtml = new StringBuilder();\n");
+        code.append("        errHtml.append(\"<ul class=\\\"errors\\\">\\n\");\n");
+        code.append("        for (String err : errors) {\n");
+        code.append("            errHtml.append(\"<li>\").append(HtmlEscapeUtils.escape(err)).append(\"</li>\\n\");\n");
+        code.append("        }\n");
+        code.append("        errHtml.append(\"</ul>\\n\");\n");
+        code.append("        return createTemplate.replace(\"<form\", errHtml + \"<form\");\n");
+        code.append("    }\n\n");
+
+        // renderEditFormWithErrors — re-render edit form from submitted data + error list
+        code.append("    public String renderEditFormWithErrors(java.util.Map<String,String> form, java.util.List<String> errors) {\n");
+        code.append("        StringBuilder errHtml = new StringBuilder();\n");
+        code.append("        errHtml.append(\"<ul class=\\\"errors\\\">\\n\");\n");
+        code.append("        for (String err : errors) {\n");
+        code.append("            errHtml.append(\"<li>\").append(HtmlEscapeUtils.escape(err)).append(\"</li>\\n\");\n");
+        code.append("        }\n");
+        code.append("        errHtml.append(\"</ul>\\n\");\n");
+        code.append("        StringBuilder inputs = new StringBuilder();\n");
+        code.append("        inputs.append(errHtml);\n");
+        for (Map<String, Object> field : ctx.fields) {
+            String fieldName = (String) field.get("name");
+            String fieldType = (String) field.get("type");
+            String sqlType = field.get("original_sql_type") != null
+                    ? ((String) field.get("original_sql_type")).toUpperCase()
+                    : "";
+            boolean isPrimaryKey = Boolean.TRUE.equals(field.get("primary_key"));
+            boolean nullable = Boolean.TRUE.equals(field.get("nullable"));
+            if (isPrimaryKey) {
+                continue;
+            }
+            String humanLabel = buildHumanLabel(fieldName);
+            String req = nullable ? "" : " required";
+            code.append("        inputs.append(\"  <div>\\n\");\n");
+            code.append("        inputs.append(\"    <label for=\\\"").append(fieldName).append("\\\">").append(humanLabel).append("</label>\\n\");\n");
+            if (sqlType.equals("TEXT")) {
+                code.append("        inputs.append(\"    <textarea name=\\\"").append(fieldName).append("\\\" id=\\\"").append(fieldName).append("\\\"").append(req).append(">\");\n");
+                code.append("        inputs.append(HtmlEscapeUtils.escape(form.getOrDefault(\"").append(fieldName).append("\", \"\")));\n");
+                code.append("        inputs.append(\"</textarea>\\n\");\n");
+            } else if ("bool".equals(fieldType)) {
+                code.append("        inputs.append(\"    <input type=\\\"checkbox\\\" name=\\\"").append(fieldName).append("\\\" id=\\\"").append(fieldName).append("\\\"\");\n");
+                code.append("        if (form.containsKey(\"").append(fieldName).append("\")) {\n");
+                code.append("            inputs.append(\" checked\");\n");
+                code.append("        }\n");
+                code.append("        inputs.append(\">\\n\");\n");
+            } else if ("int32".equals(fieldType) || "int64".equals(fieldType)) {
+                code.append("        inputs.append(\"    <input type=\\\"number\\\" step=\\\"1\\\" name=\\\"").append(fieldName).append("\\\" id=\\\"").append(fieldName).append("\\\" value=\\\"\");\n");
+                code.append("        inputs.append(HtmlEscapeUtils.escape(form.getOrDefault(\"").append(fieldName).append("\", \"\")));\n");
+                code.append("        inputs.append(\"\\\"").append(req).append(">\\n\");\n");
+            } else if ("decimal".equals(fieldType)) {
+                code.append("        inputs.append(\"    <input type=\\\"number\\\" step=\\\"0.01\\\" name=\\\"").append(fieldName).append("\\\" id=\\\"").append(fieldName).append("\\\" value=\\\"\");\n");
+                code.append("        inputs.append(HtmlEscapeUtils.escape(form.getOrDefault(\"").append(fieldName).append("\", \"\")));\n");
+                code.append("        inputs.append(\"\\\"").append(req).append(">\\n\");\n");
+            } else if ("float64".equals(fieldType)) {
+                code.append("        inputs.append(\"    <input type=\\\"number\\\" step=\\\"any\\\" name=\\\"").append(fieldName).append("\\\" id=\\\"").append(fieldName).append("\\\" value=\\\"\");\n");
+                code.append("        inputs.append(HtmlEscapeUtils.escape(form.getOrDefault(\"").append(fieldName).append("\", \"\")));\n");
+                code.append("        inputs.append(\"\\\"").append(req).append(">\\n\");\n");
+            } else if ("date".equals(fieldType)) {
+                code.append("        inputs.append(\"    <input type=\\\"date\\\" name=\\\"").append(fieldName).append("\\\" id=\\\"").append(fieldName).append("\\\" value=\\\"\");\n");
+                code.append("        inputs.append(HtmlEscapeUtils.escape(form.getOrDefault(\"").append(fieldName).append("\", \"\")));\n");
+                code.append("        inputs.append(\"\\\"").append(req).append(">\\n\");\n");
+            } else if ("datetime".equals(fieldType)) {
+                code.append("        inputs.append(\"    <input type=\\\"datetime-local\\\" name=\\\"").append(fieldName).append("\\\" id=\\\"").append(fieldName).append("\\\" value=\\\"\");\n");
+                code.append("        inputs.append(HtmlEscapeUtils.escape(form.getOrDefault(\"").append(fieldName).append("\", \"\")));\n");
+                code.append("        inputs.append(\"\\\"").append(req).append(">\\n\");\n");
+            } else {
+                code.append("        inputs.append(\"    <input type=\\\"text\\\" name=\\\"").append(fieldName).append("\\\" id=\\\"").append(fieldName).append("\\\" value=\\\"\");\n");
+                code.append("        inputs.append(HtmlEscapeUtils.escape(form.getOrDefault(\"").append(fieldName).append("\", \"\")));\n");
+                code.append("        inputs.append(\"\\\"").append(req).append(">\\n\");\n");
+            }
+            code.append("        inputs.append(\"  </div>\\n\");\n");
+        }
+        String idEscapedErr = "HtmlEscapeUtils.escape(form.getOrDefault(\"id\", \"\"))";
+        code.append("        String filled = editTemplate.replace(\"{{CONTENT}}\", inputs.toString());\n");
+        code.append("        filled = filled.replace(\n");
+        code.append("            \"<input type=\\\"hidden\\\" name=\\\"id\\\" id=\\\"id\\\">\",\n");
+        code.append("            \"<input type=\\\"hidden\\\" name=\\\"id\\\" id=\\\"id\\\" value=\\\"\" + ").append(idEscapedErr).append(" + \"\\\">\");\n");
+        code.append("        return filled;\n");
+        code.append("    }\n");
+
+        code.append("}\n");
+        return code.toString();
+    }
+
+    @Override
+    public String emitViewPageRenderer(String basePackage, EntityContext ctx) {
+        String className = ctx.pascalName + "PageRenderer";
+        String packageName = basePackage + ".controller";
+        String viewImport = ctx.namespace + ".view." + ctx.pascalName;
+        // Template directory: views/resourcePath (view, resourcePath already has _view stripped)
+        String templateDir = "templates/" + CodeGenUtils.templateDir(null, ctx.resourcePath, true);
+
+        StringBuilder code = new StringBuilder();
+        code.append("package ").append(packageName).append(";\n\n");
+
+        code.append("import ").append(viewImport).append(";\n");
+        code.append("import ").append(basePackage).append(".util.HtmlEscapeUtils;\n");
+        code.append("import org.springframework.stereotype.Component;\n");
+        code.append("import java.io.IOException;\n");
+        code.append("import java.io.InputStream;\n");
+        code.append("import java.nio.charset.StandardCharsets;\n");
+        code.append("import java.util.List;\n\n");
+
+        code.append("/**\n");
+        code.append(" * HTML page renderer for ").append(ctx.name).append(" view (read-only).\n");
+        code.append(" * Loads the list HTML template from the classpath and fills {{CONTENT}} with escaped data.\n");
+        code.append(" * DO NOT EDIT MANUALLY - Generated from AppServerGenerator\n");
+        code.append(" */\n");
+        code.append("@Component\n");
+        code.append("public class ").append(className).append(" {\n\n");
+
+        code.append("    private final String listTemplate;\n\n");
+
+        code.append("    public ").append(className).append("() {\n");
+        code.append("        this.listTemplate = loadTemplate(\"").append(templateDir).append("/list.html\");\n");
+        code.append("    }\n\n");
+
+        code.append("    private static String loadTemplate(String path) {\n");
+        code.append("        try (InputStream in = ").append(className).append(".class.getClassLoader().getResourceAsStream(path)) {\n");
+        code.append("            if (in == null) {\n");
+        code.append("                throw new IllegalStateException(\"Template not found on classpath: \" + path);\n");
+        code.append("            }\n");
+        code.append("            byte[] bytes = in.readAllBytes();\n");
+        code.append("            return new String(bytes, StandardCharsets.UTF_8);\n");
+        code.append("        } catch (IOException e) {\n");
+        code.append("            throw new IllegalStateException(\"Failed to load template: \" + path, e);\n");
+        code.append("        }\n");
+        code.append("    }\n\n");
+
+        // renderList — builds <tr> rows with escaped values, NO Actions column
+        code.append("    public String renderList(List<").append(ctx.pascalName).append("> items) {\n");
+        code.append("        StringBuilder rows = new StringBuilder();\n");
+        code.append("        for (").append(ctx.pascalName).append(" item : items) {\n");
+        code.append("            rows.append(\"<tr>\");\n");
+        for (Map<String, Object> field : ctx.fields) {
+            String fieldName = (String) field.get("name");
+            String fieldType = (String) field.get("type");
+            String camelName = JavaNaming.toFieldAccessor(fieldName);
+            String getterName = "get" + Character.toUpperCase(camelName.charAt(0)) + camelName.substring(1);
+            String escapedExpr;
+            if ("string".equals(fieldType)) {
+                escapedExpr = "HtmlEscapeUtils.escape(item." + getterName + "())";
+            } else {
+                escapedExpr = "HtmlEscapeUtils.escape(String.valueOf(item." + getterName + "()))";
+            }
+            code.append("            rows.append(\"<td>\").append(").append(escapedExpr).append(").append(\"</td>\");\n");
+        }
+        // NO Actions column for views
+        code.append("            rows.append(\"</tr>\");\n");
+        code.append("        }\n");
+        code.append("        return listTemplate.replace(\"{{CONTENT}}\", rows.toString());\n");
+        code.append("    }\n");
+
+        code.append("}\n");
+        return code.toString();
+    }
+
+    /**
+     * Converts a snake_case field name to a human-readable label (Title Case with spaces).
+     * Example: "display_name" -> "Display Name", "is_verified" -> "Is Verified".
+     * Mirrors HtmlCrudGenerator.humanize().
+     */
+    private static String buildHumanLabel(String snakeName) {
+        String[] parts = snakeName.split("_");
+        StringBuilder sb = new StringBuilder();
+        for (String part : parts) {
+            if (sb.length() > 0) {
+                sb.append(" ");
+            }
+            if (!part.isEmpty()) {
+                sb.append(Character.toUpperCase(part.charAt(0))).append(part.substring(1));
+            }
+        }
+        return sb.toString();
     }
 }

@@ -188,6 +188,8 @@ task generateServer(type: JavaExec) {
     dependsOn 'compileGenerators'
     dependsOn 'parseSchema'
     dependsOn 'generateSpecs'
+    // generateHtml emits templates/ which generateServer copies into the server's classpath resources
+    dependsOn 'generateHtml'
 }
 
 task generateHtml(type: JavaExec) {

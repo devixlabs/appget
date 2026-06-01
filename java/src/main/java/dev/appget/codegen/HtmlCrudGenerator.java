@@ -110,7 +110,7 @@ public class HtmlCrudGenerator {
         // Per-view: 1 page each
         for (ModelInfo view : viewIndex.values()) {
             String viewResource = toViewResource(view.resource());
-            String dir = "views/" + viewResource;
+            String dir = CodeGenUtils.templateDir(null, viewResource, true);
             writeFile(outputDir, dir + "/index.html", generateViewListHtml(view));
         }
 
@@ -160,7 +160,7 @@ public class HtmlCrudGenerator {
 
         // Per-model: list, detail, edit, create
         for (ModelInfo model : modelIndex.values()) {
-            String dir = model.domain() + "/" + model.resource();
+            String dir = CodeGenUtils.templateDir(model.domain(), model.resource(), false);
             writeFile(templatesDir, dir + "/list.html", generateListTemplate(model));
             writeFile(templatesDir, dir + "/detail.html", generateDetailTemplate(model));
             writeFile(templatesDir, dir + "/edit.html", generateEditTemplate(model));
@@ -170,7 +170,7 @@ public class HtmlCrudGenerator {
         // Per-view: list only (views are read-only)
         for (ModelInfo view : viewIndex.values()) {
             String viewResource = toViewResource(view.resource());
-            String dir = "views/" + viewResource;
+            String dir = CodeGenUtils.templateDir(null, viewResource, true);
             writeFile(templatesDir, dir + "/list.html", generateViewListTemplate(view));
         }
 
