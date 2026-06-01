@@ -24,6 +24,9 @@ help:
 	@echo "  make clean             - Remove build artifacts and generated code"
 
 check:
+	@shellcheck scripts/check.sh
+	@shellcheck scripts/run-server.sh
+	@shellcheck scripts/verify.sh
 	@scripts/check.sh
 
 # Clean build artifacts and generated code
@@ -36,7 +39,9 @@ all: check clean generate test build _generate-default-script
 
 # All server-dependent tests (requires server running on port 8080)
 # Runs: rule engine verification + API integration tests + HTTP endpoint tests
-verify: build _generate-default-script
+# Pure live-server testing — no rebuild, no regen. The running server and the
+# generated API-test script are prepared by 'make run-server' (or 'make all').
+verify:
 	@scripts/verify.sh
 
 # Run API test script (requires server to be running)
@@ -96,14 +101,16 @@ generate: features-to-specs generate-proto generate-specs generate-registry gene
 test: build
 	@./gradlew test
 
-# Build, test, and run the application server
-run-server: test generate-server
+# Build, test, and run the application server (also generates the API-test script
+# so 'make verify' from a second terminal has everything it needs)
+run-server: test generate-server _generate-default-script
 	@scripts/run-server.sh
 
 # --- PRIVATE TARGETS (called by other targets / LLM agents) -----------------
 # Internal implementation details. Do NOT call directly.
 
-_generate-default-script:
+# Writes into generated-server/, so depend on generate-server creating that dir
+_generate-default-script: generate-server
 	@echo "✓ Generating API default script from OpenAPI spec..."
 	@./gradlew generateDefaultScript
 	@shellcheck generated-server/verify.sh

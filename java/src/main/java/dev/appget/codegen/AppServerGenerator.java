@@ -102,6 +102,7 @@ public class AppServerGenerator {
         generateDTOs(outputDir);
         generateExceptionClasses(outputDir);
         generateGlobalExceptionHandler(outputDir);
+        generateHtmlEscapeUtils(outputDir);
 
         // Generate specification registry
         generateSpecificationRegistry(outputDir);
@@ -316,6 +317,10 @@ public class AppServerGenerator {
 
     private void generateGlobalExceptionHandler(String outputDir) throws IOException {
         writefile(outputDir, BASE_PACKAGE + ".exception", "GlobalExceptionHandler", emitter.emitGlobalExceptionHandler(BASE_PACKAGE));
+    }
+
+    private void generateHtmlEscapeUtils(String outputDir) throws IOException {
+        writefile(outputDir, BASE_PACKAGE + ".util", "HtmlEscapeUtils", emitter.emitHtmlEscapeUtils(BASE_PACKAGE));
     }
 
     private EntityContext buildEntityContext(ModelInfo model) {

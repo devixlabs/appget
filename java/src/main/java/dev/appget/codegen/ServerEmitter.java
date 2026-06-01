@@ -185,6 +185,31 @@ public interface ServerEmitter {
     String emitMetadataParsingException(String basePackage);
 
     // -------------------------------------------------------------------------
+    // Group B: Security
+    // -------------------------------------------------------------------------
+
+    /**
+     * Emits {@code HtmlEscapeUtils.java}, a static utility class that provides
+     * centralized HTML entity escaping for all PageRenderer output.
+     *
+     * <p>The emitted class is a {@code public final class} with a private constructor
+     * (static utility, no instances). It exposes exactly one public method:</p>
+     * <pre>{@code public static String escape(String value)}</pre>
+     *
+     * <p>The method performs the canonical 5-character entity mapping:
+     * {@code &} → {@code &amp;}, {@code <} → {@code &lt;}, {@code >} → {@code &gt;},
+     * {@code "} → {@code &quot;}, {@code '} → {@code &#x27;}.
+     * A {@code null} input returns an empty string.</p>
+     *
+     * <p>The emitted class has zero external dependencies — no Spring, no appget
+     * runtime imports — making it portable to all target language generators.</p>
+     *
+     * @param basePackage root package of the generated server
+     * @return complete Java source for {@code HtmlEscapeUtils.java}
+     */
+    String emitHtmlEscapeUtils(String basePackage);
+
+    // -------------------------------------------------------------------------
     // Group C: Per-Entity CRUD (models)
     // -------------------------------------------------------------------------
 

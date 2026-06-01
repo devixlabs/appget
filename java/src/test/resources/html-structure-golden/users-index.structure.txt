@@ -1,0 +1,41 @@
+!doctype
+html [lang]
+  head
+    meta [charset]
+    title
+      #TEXT
+  body
+    h1
+      #TEXT
+    nav
+      a [href=../index.html]
+        #TEXT
+      #TEXT
+      a [href=create.html]
+        #TEXT
+    table
+      thead
+        tr
+          th
+            #TEXT
+          th
+            #TEXT
+          th
+            #TEXT
+          th
+            #TEXT
+          th
+            #TEXT
+          th
+            #TEXT
+          th
+            #TEXT
+          th
+            #TEXT
+          th
+            #TEXT
+      tbody
+    p
+      #TEXT
+      code
+        #TEXT

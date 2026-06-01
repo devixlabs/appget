@@ -43,7 +43,12 @@ Goal: the Java subproject is clean, well-abstracted, and establishes every struc
 - **Research**: ✅ Complete (2026-04-03) — See [RESEARCH-content-negotiation-survey.md](RESEARCH-content-negotiation-survey.md).
 - **Architecture**: ✅ Revised (2026-04-03) — PageRenderer + templates replaces original ContentTransform approach. Templates are pipeline-level artifacts (like `.proto`, `openapi.yaml`). PageRenderers are generated per-model at build time with all field metadata baked in.
 - **Blocked by**: Nothing — ready for implementation
-- **Effort**: Medium-Large (PageRenderers + templates + controller changes + structural diff tests + error re-rendering)
+- **Prep landed (2026-06-01)** — three independent slices implemented + verified (470 tests green). Execution specs removed post-impl; code + tests are the record:
+  - **A** — `emitHtmlEscapeUtils` (centralized XSS boundary) + `HtmlEscapeUtilsEmitTest` (15 fuzz/drift tests). Done.
+  - **B** — `HtmlStructuralNormalizer` + golden snapshots of `generated-html/` under `java/src/test/resources/html-structure-golden/` (test-first contract for runtime HTML). Done.
+  - **C** — `HtmlCrudGenerator.generateTemplates()` emits `templates/**/*.html` with `{{CONTENT}}` (Artifact 1). Done.
+- **Remaining (0f core)**: per-model/per-view `*PageRenderer` classes (load templates, fill `{{CONTENT}}` with escaped data via HtmlEscapeUtils), controller `produces`/`text/html` handlers + PRG form handling, runtime-vs-golden structural diff wiring, error re-rendering.
+- **Effort**: Medium-Large (PageRenderers + controller changes + structural diff tests + error re-rendering). Prep slices A/B/C complete.
 - **MVP**: JSON + HTML only. XML and CSV follow same PageRenderer pattern post-MVP.
 
 ### 0g. Java Codegen Package Refactoring — **Done** (2026-04-05)

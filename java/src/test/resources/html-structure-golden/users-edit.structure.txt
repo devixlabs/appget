@@ -1,0 +1,60 @@
+!doctype
+html [lang]
+  head
+    meta [charset]
+    title
+      #TEXT
+  body
+    h1
+      #TEXT
+    nav
+      a [href=../index.html]
+        #TEXT
+      #TEXT
+      a [href=index.html]
+        #TEXT
+    form [action=/users method=POST]
+      input [name=_method type=hidden value=PUT]
+      input [id name=id type=hidden]
+      div
+        label [for]
+          #TEXT
+        input [id name=username required type=text]
+      div
+        label [for]
+          #TEXT
+        input [id name=email required type=text]
+      div
+        label [for]
+          #TEXT
+        input [id name=display_name type=text]
+      div
+        label [for]
+          #TEXT
+        textarea [id name=bio]
+      div
+        label [for]
+          #TEXT
+        input [id name=is_verified type=checkbox]
+      div
+        label [for]
+          #TEXT
+        input [id name=follower_count required step=1 type=number]
+      div
+        label [for]
+          #TEXT
+        input [id name=is_active type=checkbox]
+      button [type=submit]
+        #TEXT
+      a [href=index.html]
+        #TEXT
+    details
+      summary
+        #TEXT
+      ul
+        li
+          #TEXT
+        li
+          #TEXT
+        li
+          #TEXT

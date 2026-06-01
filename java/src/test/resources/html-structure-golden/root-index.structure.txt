@@ -1,0 +1,105 @@
+!doctype
+html [lang]
+  head
+    meta [charset]
+    title
+      #TEXT
+  body
+    h1
+      #TEXT
+    h2
+      #TEXT
+    h3
+      #TEXT
+    ul
+      li
+        a [href=roles/index.html]
+          #TEXT
+      li
+        a [href=user-roles/index.html]
+          #TEXT
+      li
+        a [href=moderation-actions/index.html]
+          #TEXT
+      li
+        a [href=company-settings/index.html]
+          #TEXT
+    h3
+      #TEXT
+    ul
+      li
+        a [href=views/user-role/index.html]
+          #TEXT
+      li
+        a [href=views/moderation-queue/index.html]
+          #TEXT
+      li
+        a [href=views/company-health/index.html]
+          #TEXT
+    h2
+      #TEXT
+    h3
+      #TEXT
+    ul
+      li
+        a [href=users/index.html]
+          #TEXT
+      li
+        a [href=oauth-providers/index.html]
+          #TEXT
+      li
+        a [href=oauth-tokens/index.html]
+          #TEXT
+      li
+        a [href=api-keys/index.html]
+          #TEXT
+      li
+        a [href=sessions/index.html]
+          #TEXT
+    h3
+      #TEXT
+    ul
+      li
+        a [href=views/user-oauth/index.html]
+          #TEXT
+      li
+        a [href=views/api-key-stats/index.html]
+          #TEXT
+    h2
+      #TEXT
+    h3
+      #TEXT
+    ul
+      li
+        a [href=posts/index.html]
+          #TEXT
+      li
+        a [href=comments/index.html]
+          #TEXT
+      li
+        a [href=likes/index.html]
+          #TEXT
+      li
+        a [href=follows/index.html]
+          #TEXT
+      li
+        a [href=feeds/index.html]
+          #TEXT
+    h3
+      #TEXT
+    ul
+      li
+        a [href=views/post-detail/index.html]
+          #TEXT
+      li
+        a [href=views/comment-detail/index.html]
+          #TEXT
+      li
+        a [href=views/user-feed/index.html]
+          #TEXT
+      li
+        a [href=views/user-stats/index.html]
+          #TEXT
+      li
+        a [href=views/trending-posts/index.html]
+          #TEXT

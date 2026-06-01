@@ -13,6 +13,7 @@ src/main/java-generated/
 src/main/proto/*.proto
 generated-server/
 generated-html/
+templates/
 /models.yaml
 /specs.yaml
 /openapi.yaml

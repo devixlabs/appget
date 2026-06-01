@@ -808,6 +808,48 @@ public class SpringBootEmitter implements ServerEmitter {
     }
 
     // -------------------------------------------------------------------------
+    // Group B: Security
+    // -------------------------------------------------------------------------
+
+    @Override
+    public String emitHtmlEscapeUtils(String basePackage) {
+        String pkg = basePackage + ".util";
+        StringBuilder code = new StringBuilder();
+        code.append("package ").append(pkg).append(";\n\n");
+        code.append("/**\n");
+        code.append(" * Centralized HTML entity escaping utility for PageRenderer output.\n");
+        code.append(" * DO NOT EDIT MANUALLY - Generated from AppServerGenerator\n");
+        code.append(" */\n");
+        code.append("public final class HtmlEscapeUtils {\n\n");
+        code.append("    private HtmlEscapeUtils() {}\n\n");
+        code.append("    public static String escape(String value) {\n");
+        code.append("        if (value == null) {\n");
+        code.append("            return \"\";\n");
+        code.append("        }\n");
+        code.append("        StringBuilder sb = new StringBuilder(value.length());\n");
+        code.append("        for (int i = 0; i < value.length(); i++) {\n");
+        code.append("            char c = value.charAt(i);\n");
+        code.append("            if (c == '&') {\n");
+        code.append("                sb.append(\"&amp;\");\n");
+        code.append("            } else if (c == '<') {\n");
+        code.append("                sb.append(\"&lt;\");\n");
+        code.append("            } else if (c == '>') {\n");
+        code.append("                sb.append(\"&gt;\");\n");
+        code.append("            } else if (c == '\"') {\n");
+        code.append("                sb.append(\"&quot;\");\n");
+        code.append("            } else if (c == '\\'') {\n");
+        code.append("                sb.append(\"&#x27;\");\n");
+        code.append("            } else {\n");
+        code.append("                sb.append(c);\n");
+        code.append("            }\n");
+        code.append("        }\n");
+        code.append("        return sb.toString();\n");
+        code.append("    }\n");
+        code.append("}\n");
+        return code.toString();
+    }
+
+    // -------------------------------------------------------------------------
     // Private helpers
     // -------------------------------------------------------------------------
 
