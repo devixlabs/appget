@@ -47,7 +47,7 @@ Goal: the Java subproject is clean, well-abstracted, and establishes every struc
 - **MVP**: JSON + HTML only. XML and CSV follow same PageRenderer pattern post-MVP.
 
 ### 0g. Java Codegen Package Refactoring — **Done** (2026-04-05)
-- **Follow-up**: Verify W8 logging in emitted RuleService catch blocks — W7 replaced reflection with typed `EvaluableRule` dispatch, so the `log.warn` calls added in W8 may now be in dead catch blocks. Check `SpringBootEmitter.emitRuleService()` and remove if unreachable.
+- Follow-up resolved (2026-06-01): `emitRuleService()` has no catch blocks — typed `EvaluableRule` dispatch, no dead `log.warn`.
 
 ### Suggested order: ~~0a~~ → ~~0b~~ → ~~0d~~ → ~~0g~~ → 0f → 0e → 0c
 
