@@ -380,7 +380,9 @@ class AppServerGeneratorTest {
             try (Stream<Path> walk = Files.list(controllerDir)) {
                 controllerCount = walk.filter(p -> {
                     String name = p.getFileName().toString();
-                    return name.endsWith("Controller.java") && !name.contains("View");
+                    return name.endsWith("Controller.java")
+                        && !name.contains("View")
+                        && !name.equals("RootController.java");
                 }).count();
             }
 

@@ -13,28 +13,28 @@ html [lang]
       #TEXT
     ul
       li
-        a [href=roles/index.html]
+        a [href=/roles]
           #TEXT
       li
-        a [href=user-roles/index.html]
+        a [href=/user-roles]
           #TEXT
       li
-        a [href=moderation-actions/index.html]
+        a [href=/moderation-actions]
           #TEXT
       li
-        a [href=company-settings/index.html]
+        a [href=/company-settings]
           #TEXT
     h3
       #TEXT
     ul
       li
-        a [href=views/user-role/index.html]
+        a [href=/views/user-role]
           #TEXT
       li
-        a [href=views/moderation-queue/index.html]
+        a [href=/views/moderation-queue]
           #TEXT
       li
-        a [href=views/company-health/index.html]
+        a [href=/views/company-health]
           #TEXT
     h2
       #TEXT
@@ -42,28 +42,28 @@ html [lang]
       #TEXT
     ul
       li
-        a [href=users/index.html]
+        a [href=/users]
           #TEXT
       li
-        a [href=oauth-providers/index.html]
+        a [href=/oauth-providers]
           #TEXT
       li
-        a [href=oauth-tokens/index.html]
+        a [href=/oauth-tokens]
           #TEXT
       li
-        a [href=api-keys/index.html]
+        a [href=/api-keys]
           #TEXT
       li
-        a [href=sessions/index.html]
+        a [href=/sessions]
           #TEXT
     h3
       #TEXT
     ul
       li
-        a [href=views/user-oauth/index.html]
+        a [href=/views/user-oauth]
           #TEXT
       li
-        a [href=views/api-key-stats/index.html]
+        a [href=/views/api-key-stats]
           #TEXT
     h2
       #TEXT
@@ -71,35 +71,35 @@ html [lang]
       #TEXT
     ul
       li
-        a [href=posts/index.html]
+        a [href=/posts]
           #TEXT
       li
-        a [href=comments/index.html]
+        a [href=/comments]
           #TEXT
       li
-        a [href=likes/index.html]
+        a [href=/likes]
           #TEXT
       li
-        a [href=follows/index.html]
+        a [href=/follows]
           #TEXT
       li
-        a [href=feeds/index.html]
+        a [href=/feeds]
           #TEXT
     h3
       #TEXT
     ul
       li
-        a [href=views/post-detail/index.html]
+        a [href=/views/post-detail]
           #TEXT
       li
-        a [href=views/comment-detail/index.html]
+        a [href=/views/comment-detail]
           #TEXT
       li
-        a [href=views/user-feed/index.html]
+        a [href=/views/user-feed]
           #TEXT
       li
-        a [href=views/user-stats/index.html]
+        a [href=/views/user-stats]
           #TEXT
       li
-        a [href=views/trending-posts/index.html]
+        a [href=/views/trending-posts]
           #TEXT

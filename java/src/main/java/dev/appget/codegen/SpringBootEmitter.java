@@ -883,6 +883,63 @@ public class SpringBootEmitter implements ServerEmitter {
     }
 
     // -------------------------------------------------------------------------
+    // Group B (continued): Root index controller
+    // -------------------------------------------------------------------------
+
+    @Override
+    public String emitRootController(String basePackage) {
+        String packageName = basePackage + ".controller";
+        StringBuilder code = new StringBuilder();
+        code.append("package ").append(packageName).append(";\n\n");
+
+        code.append("import org.springframework.http.MediaType;\n");
+        code.append("import org.springframework.http.ResponseEntity;\n");
+        code.append("import org.springframework.web.bind.annotation.GetMapping;\n");
+        code.append("import org.springframework.web.bind.annotation.RestController;\n");
+        code.append("import org.apache.logging.log4j.LogManager;\n");
+        code.append("import org.apache.logging.log4j.Logger;\n");
+        code.append("import java.io.IOException;\n");
+        code.append("import java.io.InputStream;\n");
+        code.append("import java.nio.charset.StandardCharsets;\n\n");
+
+        code.append("/**\n");
+        code.append(" * Generated controller that serves the root index page at {@code GET /}.\n");
+        code.append(" * Loads {@code templates/index.html} from the classpath and returns it as text/html.\n");
+        code.append(" * DO NOT EDIT MANUALLY - Generated from AppServerGenerator\n");
+        code.append(" */\n");
+        code.append("@RestController\n");
+        code.append("public class RootController {\n\n");
+
+        code.append("    private static final Logger log = LogManager.getLogger(RootController.class);\n\n");
+
+        code.append("    private final String indexHtml;\n\n");
+
+        code.append("    public RootController() {\n");
+        code.append("        this.indexHtml = loadTemplate(\"templates/index.html\");\n");
+        code.append("    }\n\n");
+
+        code.append("    @GetMapping(value = \"/\", produces = MediaType.TEXT_HTML_VALUE)\n");
+        code.append("    public ResponseEntity<String> index() {\n");
+        code.append("        log.info(\"GET / - Serving root index page\");\n");
+        code.append("        return ResponseEntity.ok(indexHtml);\n");
+        code.append("    }\n\n");
+
+        code.append("    private static String loadTemplate(String path) {\n");
+        code.append("        try (InputStream in = RootController.class.getClassLoader().getResourceAsStream(path)) {\n");
+        code.append("            if (in == null) {\n");
+        code.append("                throw new IllegalStateException(\"Template not found on classpath: \" + path);\n");
+        code.append("            }\n");
+        code.append("            byte[] bytes = in.readAllBytes();\n");
+        code.append("            return new String(bytes, StandardCharsets.UTF_8);\n");
+        code.append("        } catch (IOException e) {\n");
+        code.append("            throw new IllegalStateException(\"Failed to load template: \" + path, e);\n");
+        code.append("        }\n");
+        code.append("    }\n");
+        code.append("}\n");
+        return code.toString();
+    }
+
+    // -------------------------------------------------------------------------
     // Group C: Per-Entity CRUD (models)
     // -------------------------------------------------------------------------
 
@@ -1697,7 +1754,7 @@ public class SpringBootEmitter implements ServerEmitter {
         String idCamel = JavaNaming.toFieldAccessor("id");
         String idGetter = "get" + Character.toUpperCase(idCamel.charAt(0)) + idCamel.substring(1);
         String idEscaped = "HtmlEscapeUtils.escape(item." + idGetter + "())";
-        code.append("            rows.append(\"<td><a href=\\\"\").append(").append(idEscaped).append(").append(\"\\\">View</a></td>\");\n");
+        code.append("            rows.append(\"<td><a href=\\\"/").append(ctx.resourcePath).append("/\").append(").append(idEscaped).append(").append(\"\\\">View</a></td>\");\n");
         code.append("            rows.append(\"</tr>\");\n");
         code.append("        }\n");
         code.append("        return listTemplate.replace(\"{{CONTENT}}\", rows.toString());\n");

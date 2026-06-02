@@ -1,6 +1,6 @@
 # Note to LLMs, DO NOT MUDDY THIS FILE UP, instead create a bash script if you're hacking on something to please your user overlords.
 
-.PHONY: all help check features-to-specs parse-schema generate-proto generate-specs generate-registry generate-openapi generate-server generate-html _generate-default-script generate build test run-server test-api verify clean
+.PHONY: all help check features-to-specs parse-schema generate-proto generate-specs generate-registry generate-openapi generate-server generate-html _generate-default-script _compile-server generate build test run-server test-api verify clean
 
 help:
 	@echo "Available commands:"
@@ -35,7 +35,7 @@ clean:
 	@./gradlew clean
 
 # Default target - full build pipeline (no server needed)
-all: check clean generate test build _generate-default-script
+all: check clean generate _compile-server test build _generate-default-script
 
 # All server-dependent tests (requires server running on port 8080)
 # Runs: rule engine verification + API integration tests + HTTP endpoint tests
@@ -114,4 +114,11 @@ _generate-default-script: generate-server
 	@echo "✓ Generating API default script from OpenAPI spec..."
 	@./gradlew generateDefaultScript
 	@shellcheck generated-server/verify.sh
+
+# Compiles the generated server (javac only — server-free). 'make all' / the default
+# 'test' task do NOT compile generated-server (only bootRun does), so emitter-output
+# bugs that produce uncompilable Java slip through green builds. This gate catches them.
+_compile-server: generate-server
+	@echo "✓ Compiling generated server (catches emitter-output errors)..."
+	@cd generated-server && ../gradlew compileJava --console=plain
 

@@ -233,8 +233,27 @@ processResources {
 }
 
 // Configure JUnit 5 testing
+// Default test task: exclude @Tag("live") tests so 'make all' stays server-free.
 test {
-    useJUnitPlatform()
+    useJUnitPlatform {
+        excludeTags 'live'
+    }
+    testLogging {
+        events "passed", "skipped", "failed"
+        exceptionFormat = "full"
+    }
+}
+
+// Live structural diff task: runs only @Tag("live") tests against a running server.
+// Invoked by 'make verify' (server must be up on http://localhost:8080).
+tasks.register('testLive', Test) {
+    description = 'Run live HTML structural diff tests against the running server (http://localhost:8080)'
+    group = 'verification'
+    useJUnitPlatform {
+        includeTags 'live'
+    }
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
     testLogging {
         events "passed", "skipped", "failed"
         exceptionFormat = "full"

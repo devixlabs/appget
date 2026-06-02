@@ -46,6 +46,18 @@ See REFERENCE.md §Portability for code examples.
 
 ---
 
+## Content Negotiation & Codegen-Test Patterns (Phase 0f)
+
+- **`make all` does NOT compile `generated-server/`** — only `make run-server` (`bootRun`) does. After changing ANY `emit*` method, compile the generated server: `cd generated-server && ../gradlew compileJava`. Emitter string-escaping bugs (e.g. a stray `\"`) produce uncompilable Java that passes green `make all` + the substring-only `*EmitTest`s. (Tracked: GAP-0F4.)
+- **Test emitted SOURCE, not generated objects** — generated code (`*PageRenderer`, controllers) lives in `generated-server/`, OFF the generator test classpath. You cannot `new UsersPageRenderer()` in `src/test`. Assert on the emitter's output String (`*EmitTest` pattern, e.g. `HtmlEscapeUtilsEmitTest`, `PageRendererEmitListDetailTest`).
+- **Server-dependent tests use `@Tag("live")`** — excluded from the default `test` task / `make all` (server-free invariant), run via the `testLive` Gradle task wired into `make verify`. Never add a test needing :8080 to the default suite.
+- **`HtmlStructuralNormalizer.normalizeRuntime()`** diffs runtime HTML against the static goldens (`src/test/resources/html-structure-golden/`); it strips live data: input `value` (except `_method`), `checked`, `<tbody>` rows, `<dd>`/`<textarea>` text. Extend it when a renderer emits a new data-bearing spot.
+- **Template classpath path = `CodeGenUtils.templateDir(domain, resource, isView)`** — model `domain/resource`, view `views/resource`. `HtmlCrudGenerator` (emit), `AppServerGenerator` (copy into server resources), and PageRenderers (load) MUST agree or templates fail to load at runtime startup.
+- **Form string → custom `Decimal` (a proto message)**: `new BigDecimal(s)` → `Decimal.newBuilder().setUnscaled(ByteString.copyFrom(bd.unscaledValue().toByteArray())).setScale(bd.scale()).build()` (mirror `DecimalJacksonModule`).
+- **Agent worktrees branch from the session-START commit, not current HEAD** — stale after mid-session commits. For work depending on uncommitted/mid-session changes, prefer a single agent in the main tree; if using worktrees, hand-integrate only the intended deliverables and discard agent production re-ports.
+
+---
+
 ## Build Dependency Order (Compact)
 
 ```

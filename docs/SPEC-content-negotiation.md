@@ -1,6 +1,6 @@
 # SPEC: Content Negotiation — Multi-Format Response from Same Endpoints
 
-> **Status: Architecture Finalized (2026-04-03)** — Revised after design review. Original research validated. PageRenderer + template architecture replaces ContentTransform approach. Implementation NOT started.
+> **Status: Implemented + Verified (2026-06-01)** — PageRenderer + template architecture, delivered in 5 slices (foundations → PageRenderers → content-negotiated controllers → tests → live verification). Live-verified via `make verify`: 93 JSON curls + 43 HTTP cases + `testLive` structural diff (5 pages) + HTML nav checks. Deferred items tracked in [CONTRACT_GAPS.md](todos/CONTRACT_GAPS.md): GAP-0F1 (create-form prefill), GAP-0F2 (HTML delete PRG), and the detail-page Edit link. See [ROADMAP.md](todos/ROADMAP.md) §0f.
 
 ---
 
@@ -592,7 +592,7 @@ All resolved during design review (2026-04-03):
 
 ## Research Reference
 
-See [RESEARCH-content-negotiation-survey.md](RESEARCH-content-negotiation-survey.md) for the full content negotiation survey (completed 2026-04-02/03). Key findings that informed this design:
+See [RESEARCH-content-negotiation-survey.md](todos/RESEARCH-content-negotiation-survey.md) for the full content negotiation survey (completed 2026-04-02/03). Key findings that informed this design:
 
 1. No existing tool generates HTML transforms — appget's PageRenderer fills this gap
 2. Every target framework has built-in Accept header parsing — appget leverages this, does not reimplement

@@ -11,3 +11,9 @@ echo "✓ Running API integration tests..."
 
 echo "✓ Running HTTP endpoint tests..."
 python3 tests/run-http-tests.py tests/http-tests.yaml
+
+echo "✓ Running live HTML structural diff tests (PageRenderer vs golden)..."
+./gradlew testLive
+
+echo "✓ Running HTML navigation checks (links resolve to server routes)..."
+scripts/check-html-nav.sh

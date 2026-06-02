@@ -80,6 +80,32 @@ Verify against `HtmlCrudGenerator.fieldToInput()` logic:
 
 ---
 
+---
+
+## TODO_5 / Phase-0f Live Verification (5.6 decision)
+
+**Approach chosen: (b) — strong body-shape assertions in http-tests.yaml (not a Java live test).**
+
+Rationale: Option (a) — a tagged Java test using `java.net.http.HttpClient` — requires
+wiring a `@Tag("live")` exclusion in `build.gradle`'s `test` task, adding a separate
+`gradlew test -PincludeTags=live` call in `scripts/verify.sh`, and cannot be run or
+validated without a live server. That is invasive for marginal benefit given that:
+
+1. The emitter-output tests (PageRendererEmitListDetailTest, HtmlTemplateEmissionTest)
+   already assert the generated HTML structure against the goldens at unit-test time.
+2. The body-shape assertions in http-tests.yaml (tests 5.2b–5.2g) confirm that the
+   runtime routes respond with HTML containing the required structural markers (`<table>`,
+   `<dl>`, `<form>`, etc.) and absence of JSON content.
+3. `HtmlStructuralNormalizer.normalizeRuntime` is already covered by
+   HtmlStructuralNormalizerRuntimeTest (unit test).
+
+Full normalize-diff parity (runtime HTML ↔ golden .structure.txt) is deferred and
+tracked in docs/todos/. When implemented, the recommended approach is the tagged Java
+test (option a) with `@Tag("live")` and a build.gradle exclusion in the default `test`
+task, invoked by a dedicated Gradle task in `scripts/verify.sh`.
+
+---
+
 ## Notes for 0f-core
 
 - The `step` attribute is mandatory in golden snapshots: it is the discriminator between

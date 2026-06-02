@@ -206,3 +206,174 @@ tests:
     expect:
       status: 400
       contains: ["INVALID_METADATA"]
+
+  # ─── HTML Content Negotiation (Phase-0f / TODO_5) ───
+  # Seed a stable user for all HTML read tests (5.2, 5.4).
+  # This POST uses the default headers (Content-Type: application/json + metadata headers).
+  - name: "HTML seed: create user for content-neg tests"
+    url: "/users"
+    method: POST
+    body: '{"id":"u-html-1","username":"htmluser","email":"html@test.com","displayName":"HTML User","bio":"test bio","isVerified":true,"isActive":true,"followerCount":0}'
+    expect:
+      status: 201
+      contains: ['"username"']
+
+  # 5.2 — Accept negotiation cases
+
+  - name: "HTML 5.2a: GET /users no Accept → JSON"
+    url: "/users"
+    method: GET
+    headers:
+      Accept: "application/json"
+    expect:
+      status: 200
+      contains: ['"username"']
+      not_contains: ["<table>"]
+
+  - name: "HTML 5.2b: GET /users Accept text/html → list page"
+    url: "/users"
+    method: GET
+    headers:
+      Accept: "text/html"
+      Content-Type: "text/html"
+    expect:
+      status: 200
+      contains: ["<table>", "<tbody>"]
+      not_contains: ['"username"']
+
+  - name: "HTML 5.2c: GET /users/u-html-1 Accept text/html → detail page"
+    url: "/users/u-html-1"
+    method: GET
+    headers:
+      Accept: "text/html"
+      Content-Type: "text/html"
+    expect:
+      status: 200
+      contains: ["<dl>", "htmluser"]
+      not_contains: ['"username"']
+
+  - name: "HTML 5.2d: GET /users/u-html-1?action=edit Accept text/html → edit form with pre-filled value"
+    url: "/users/u-html-1?action=edit"
+    method: GET
+    headers:
+      Accept: "text/html"
+      Content-Type: "text/html"
+    expect:
+      status: 200
+      contains: ["<form", "_method", "htmluser", 'value="htmluser"']
+      not_contains: ['{']
+
+  - name: "HTML 5.2e: GET /users?action=create Accept text/html → create form"
+    url: "/users?action=create"
+    method: GET
+    headers:
+      Accept: "text/html"
+      Content-Type: "text/html"
+    expect:
+      status: 200
+      contains: ["<form", 'action="/users"']
+      not_contains: ["_method=PUT", '{']
+
+  - name: "HTML 5.2f: GET /users Accept text/plain → 406"
+    url: "/users"
+    method: GET
+    headers:
+      Accept: "text/plain"
+      Content-Type: "text/plain"
+    expect:
+      status: 406
+
+  - name: "HTML 5.2g: GET /views/user-role Accept text/html → view list, no edit/delete links"
+    url: "/views/user-role"
+    method: GET
+    headers:
+      Accept: "text/html"
+      Content-Type: "text/html"
+    expect:
+      status: 200
+      contains: ["<table>", "<tbody>"]
+      not_contains: ["?action=edit", "/delete", '"username"']
+
+  # 5.3 — Form POST / PRG / _method
+
+  - name: "HTML 5.3a: POST /users form-urlencoded → 303 PRG redirect"
+    url: "/users"
+    method: POST
+    headers:
+      Content-Type: "application/x-www-form-urlencoded"
+      Accept: "text/html"
+    body: "id=u-form-1&username=formuser&email=form%40x.com&display_name=FormUser&bio=bio&follower_count=0&is_active=on"
+    expect:
+      status: 303
+
+  - name: "HTML 5.3b: GET /users/u-form-1 Accept text/html → confirms u-form-1 exists"
+    url: "/users/u-form-1"
+    method: GET
+    headers:
+      Accept: "text/html"
+      Content-Type: "text/html"
+    expect:
+      status: 200
+      contains: ["<dl>", "formuser"]
+
+  - name: "HTML 5.3c: POST /users/u-form-1 form-urlencoded with _method=PUT → updates user"
+    url: "/users/u-form-1"
+    method: POST
+    headers:
+      Content-Type: "application/x-www-form-urlencoded"
+      Accept: "text/html"
+      X-HTTP-Method-Override: "PUT"
+    body: "_method=PUT&id=u-form-1&username=formuserUPD&email=form%40x.com&display_name=FormUserUpdated&bio=bio2&follower_count=1&is_active=on"
+    expect:
+      status: 303
+
+  - name: "HTML 5.3d: GET /users/u-form-1 after PUT → shows updated username"
+    url: "/users/u-form-1"
+    method: GET
+    headers:
+      Accept: "text/html"
+      Content-Type: "text/html"
+    expect:
+      status: 200
+      contains: ["formuserUPD"]
+
+  # 5.4 — XSS and blocking-rule re-render
+
+  # Seed a user with XSS payload in display_name (non-blocking, nullable field).
+  - name: "HTML 5.4a: POST /users with XSS payload in display_name → 201"
+    url: "/users"
+    method: POST
+    body: '{"id":"u-xss-1","username":"xssuser","email":"xss@test.com","displayName":"<script>alert(1)</script>","isVerified":true,"isActive":true,"followerCount":0}'
+    expect:
+      status: 201
+
+  - name: "HTML 5.4b: GET /users/u-xss-1 Accept text/html → XSS payload escaped"
+    url: "/users/u-xss-1"
+    method: GET
+    headers:
+      Accept: "text/html"
+      Content-Type: "text/html"
+    expect:
+      status: 200
+      contains: ["&lt;script&gt;"]
+      not_contains: ["<script>alert"]
+
+  # 5.4 blocking-rule re-render:
+  # UserActivationCheck is @blocking on users: `is_active equals true` must be satisfied.
+  # Sending a form POST with is_active absent (coerceUsers uses form.containsKey → false)
+  # while the user object fails the rule causes 422 + HTML error form re-render.
+  # NOTE: The AdminAuthenticationRequired rule also applies (@blocking) and requires
+  # roles.role_level >= 3 AND sso.authenticated == true. The default_headers satisfy
+  # both (X-Roles-Role-Level: 10, X-Sso-Authenticated: true).
+  # The UserActivationCheck rule ONLY checks the entity field is_active (no metadata).
+  # By omitting is_active from the form, coerceUsers sets isActive=false → rule fails.
+  - name: "HTML 5.4c: POST /users form-urlencoded with is_active absent → 422 + HTML error form"
+    url: "/users"
+    method: POST
+    headers:
+      Content-Type: "application/x-www-form-urlencoded"
+      Accept: "text/html"
+    body: "id=u-block-1&username=blockuser&email=block%40x.com&display_name=Blocked&bio=&follower_count=0"
+    expect:
+      status: 422
+      contains: ["<form", "ACCOUNT_INACTIVE"]

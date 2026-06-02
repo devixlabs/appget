@@ -314,7 +314,7 @@ public class HtmlCrudGenerator {
                 html.append("<h3>Models</h3>\n");
                 html.append("<ul>\n");
                 for (ModelInfo model : domain.models) {
-                    html.append("  <li><a href=\"").append(model.resource()).append("/index.html\">")
+                    html.append("  <li><a href=\"/").append(model.resource()).append("\">")
                         .append(model.name()).append("</a></li>\n");
                 }
                 html.append("</ul>\n");
@@ -325,7 +325,7 @@ public class HtmlCrudGenerator {
                 html.append("<ul>\n");
                 for (ModelInfo view : domain.views) {
                     String viewResource = toViewResource(view.resource());
-                    html.append("  <li><a href=\"views/").append(viewResource).append("/index.html\">")
+                    html.append("  <li><a href=\"/views/").append(viewResource).append("\">")
                         .append(view.name()).append("</a></li>\n");
                 }
                 html.append("</ul>\n");
@@ -343,8 +343,8 @@ public class HtmlCrudGenerator {
 
         html.append("<body>\n");
         html.append("<h1>").append(model.name()).append("</h1>\n");
-        html.append("<nav><a href=\"../index.html\">Home</a> | ");
-        html.append("<a href=\"create.html\">Create New</a></nav>\n");
+        html.append("<nav><a href=\"/\">Home</a> | ");
+        html.append("<a href=\"/").append(model.resource()).append("?action=create\">Create New</a></nav>\n");
 
         html.append("<table>\n");
         html.append("<thead><tr>\n");
@@ -371,8 +371,8 @@ public class HtmlCrudGenerator {
 
         html.append("<body>\n");
         html.append("<h1>Create ").append(model.name()).append("</h1>\n");
-        html.append("<nav><a href=\"../index.html\">Home</a> | ");
-        html.append("<a href=\"index.html\">Back to List</a></nav>\n");
+        html.append("<nav><a href=\"/\">Home</a> | ");
+        html.append("<a href=\"/").append(model.resource()).append("\">Back to List</a></nav>\n");
 
         html.append("<form method=\"POST\" action=\"/").append(model.resource()).append("\">\n");
         for (Map<String, Object> field : model.fields()) {
@@ -386,7 +386,7 @@ public class HtmlCrudGenerator {
             html.append("  </div>\n");
         }
         html.append("  <button type=\"submit\">Create</button>\n");
-        html.append("  <a href=\"index.html\">Cancel</a>\n");
+        html.append("  <a href=\"/").append(model.resource()).append("\">Cancel</a>\n");
         html.append("</form>\n");
 
         html.append(renderRulesBlock(targetRules));
@@ -404,8 +404,8 @@ public class HtmlCrudGenerator {
 
         html.append("<body>\n");
         html.append("<h1>Edit ").append(model.name()).append("</h1>\n");
-        html.append("<nav><a href=\"../index.html\">Home</a> | ");
-        html.append("<a href=\"index.html\">Back to List</a></nav>\n");
+        html.append("<nav><a href=\"/\">Home</a> | ");
+        html.append("<a href=\"/").append(model.resource()).append("\">Back to List</a></nav>\n");
 
         html.append("<form method=\"POST\" action=\"/").append(model.resource()).append("\">\n");
         html.append("  <input type=\"hidden\" name=\"_method\" value=\"PUT\">\n");
@@ -422,7 +422,7 @@ public class HtmlCrudGenerator {
             html.append("  </div>\n");
         }
         html.append("  <button type=\"submit\">Update</button>\n");
-        html.append("  <a href=\"index.html\">Cancel</a>\n");
+        html.append("  <a href=\"/").append(model.resource()).append("\">Cancel</a>\n");
         html.append("</form>\n");
 
         html.append(renderRulesBlock(targetRules));
@@ -438,8 +438,8 @@ public class HtmlCrudGenerator {
 
         html.append("<body>\n");
         html.append("<h1>").append(model.name()).append(" \u2014 Detail</h1>\n");
-        html.append("<nav><a href=\"../index.html\">Home</a> | ");
-        html.append("<a href=\"index.html\">Back to List</a></nav>\n");
+        html.append("<nav><a href=\"/\">Home</a> | ");
+        html.append("<a href=\"/").append(model.resource()).append("\">Back to List</a></nav>\n");
 
         html.append("<dl>\n");
         for (Map<String, Object> field : model.fields()) {
@@ -463,7 +463,7 @@ public class HtmlCrudGenerator {
 
         html.append("<body>\n");
         html.append("<h1>").append(view.name()).append("</h1>\n");
-        html.append("<nav><a href=\"../../index.html\">Home</a></nav>\n");
+        html.append("<nav><a href=\"/\">Home</a></nav>\n");
 
         html.append("<table>\n");
         html.append("<thead><tr>\n");
@@ -497,8 +497,8 @@ public class HtmlCrudGenerator {
 
         html.append("<body>\n");
         html.append("<h1>").append(model.name()).append("</h1>\n");
-        html.append("<nav><a href=\"../index.html\">Home</a> | ");
-        html.append("<a href=\"create.html\">Create New</a></nav>\n");
+        html.append("<nav><a href=\"/\">Home</a> | ");
+        html.append("<a href=\"/").append(model.resource()).append("?action=create\">Create New</a></nav>\n");
 
         html.append("<table>\n");
         html.append("<thead><tr>\n");
@@ -524,8 +524,8 @@ public class HtmlCrudGenerator {
 
         html.append("<body>\n");
         html.append("<h1>").append(model.name()).append(" — Detail</h1>\n");
-        html.append("<nav><a href=\"../index.html\">Home</a> | ");
-        html.append("<a href=\"index.html\">Back to List</a></nav>\n");
+        html.append("<nav><a href=\"/\">Home</a> | ");
+        html.append("<a href=\"/").append(model.resource()).append("\">Back to List</a></nav>\n");
 
         // {{CONTENT}} replaces the per-field <dt>/<dd> loop
         html.append("<dl>\n");
@@ -546,8 +546,8 @@ public class HtmlCrudGenerator {
 
         html.append("<body>\n");
         html.append("<h1>Edit ").append(model.name()).append("</h1>\n");
-        html.append("<nav><a href=\"../index.html\">Home</a> | ");
-        html.append("<a href=\"index.html\">Back to List</a></nav>\n");
+        html.append("<nav><a href=\"/\">Home</a> | ");
+        html.append("<a href=\"/").append(model.resource()).append("\">Back to List</a></nav>\n");
 
         html.append("<form method=\"POST\" action=\"/").append(model.resource()).append("\">\n");
         // Keep the two hidden inputs verbatim from generateEditHtml — id has NO value= attr
@@ -556,7 +556,7 @@ public class HtmlCrudGenerator {
         // {{CONTENT}} replaces the field <div>/input loop — PageRenderer emits pre-filled inputs
         html.append("{{CONTENT}}");
         html.append("  <button type=\"submit\">Update</button>\n");
-        html.append("  <a href=\"index.html\">Cancel</a>\n");
+        html.append("  <a href=\"/").append(model.resource()).append("\">Cancel</a>\n");
         html.append("</form>\n");
 
         html.append(renderRulesBlock(targetRules));
@@ -579,7 +579,7 @@ public class HtmlCrudGenerator {
 
         html.append("<body>\n");
         html.append("<h1>").append(view.name()).append("</h1>\n");
-        html.append("<nav><a href=\"../../index.html\">Home</a></nav>\n");
+        html.append("<nav><a href=\"/\">Home</a></nav>\n");
 
         html.append("<table>\n");
         html.append("<thead><tr>\n");

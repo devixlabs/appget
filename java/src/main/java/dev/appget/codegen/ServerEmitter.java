@@ -209,6 +209,16 @@ public interface ServerEmitter {
      */
     String emitHtmlEscapeUtils(String basePackage);
 
+    /**
+     * Emits a {@code RootController} that serves {@code GET /} as text/html by loading
+     * {@code templates/index.html} from the classpath. The root index is fully static —
+     * no domain data — so no {@link EntityContext} is needed.
+     *
+     * @param basePackage root package of the generated server
+     * @return complete Java source for {@code RootController.java}
+     */
+    String emitRootController(String basePackage);
+
     // -------------------------------------------------------------------------
     // Group C: Per-Entity CRUD (models)
     // -------------------------------------------------------------------------

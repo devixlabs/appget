@@ -1,4 +1,5 @@
 *.chat
+*.session
 java/2026*.txt
 java/TEST*.md
 rust/
@@ -7,3 +8,4 @@ tmp.txt
 temp.txt
 docs/superpowers/
 docs/todos/*.zip
+.playwright-mcp/

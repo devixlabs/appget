@@ -85,7 +85,50 @@ public final class HtmlStructuralNormalizer {
         if (html == null || html.isEmpty()) {
             throw new IllegalArgumentException("normalize: input HTML must not be null or empty");
         }
+        return normalizeInternal(html, false);
+    }
 
+    /**
+     * Normalizes runtime HTML (from PageRenderers) to the same canonical structure
+     * used by the static-page goldens, so the two can be diffed for structural
+     * contract violations.
+     *
+     * <p>Does everything {@link #normalize(String)} does, plus:
+     * <ul>
+     *   <li><b>Strips {@code value} from data inputs</b> — any {@code <input>} whose
+     *       {@code name} attribute is NOT {@code _method} has its {@code value}
+     *       attribute dropped, so live field data injected by the renderer does not
+     *       cause structural mismatches against the goldens.</li>
+     *   <li><b>Collapses {@code <tbody>} children</b> — any {@code <tr>} rows inside
+     *       a {@code <tbody>} are removed, reducing a runtime list page (which has
+     *       real data rows) to the golden's empty {@code <tbody>}.</li>
+     *   <li><b>Strips {@code checked}</b> from inputs — prefilled checkbox state is live
+     *       data; the static goldens carry no {@code checked} attribute.</li>
+     *   <li><b>Empties {@code <dd>} and {@code <textarea>} text</b> — detail-page field
+     *       values and textarea contents are live data; the static goldens have these
+     *       elements empty.</li>
+     * </ul>
+     *
+     * @param html raw runtime HTML string produced by a PageRenderer
+     * @return indented, one-element-per-line structural string matching the golden shape
+     * @throws IllegalArgumentException if the input appears structurally malformed
+     */
+    public static String normalizeRuntime(String html) {
+        if (html == null || html.isEmpty()) {
+            throw new IllegalArgumentException("normalizeRuntime: input HTML must not be null or empty");
+        }
+        return normalizeInternal(html, true);
+    }
+
+    /**
+     * Core normalization walk shared by {@link #normalize} and {@link #normalizeRuntime}.
+     *
+     * @param html        raw HTML string
+     * @param runtimeMode when true, applies runtime-specific reductions:
+     *                    strips {@code value} from non-{@code _method} inputs and
+     *                    collapses {@code <tbody>} children.
+     */
+    private static String normalizeInternal(String html, boolean runtimeMode) {
         // 1. Strip HTML comments (<!-- ... -->) — may span lines
         String stripped = stripComments(html);
 
@@ -95,6 +138,8 @@ public final class HtmlStructuralNormalizer {
         // 3. Walk tokens, maintain depth stack, emit canonical lines
         StringBuilder out = new StringBuilder();
         List<String> stack = new ArrayList<>();
+        // runtimeMode: track tbody depth to suppress <tr> content inside tbody
+        int tbodyDepth = -1; // -1 = not inside a tbody
 
         for (String token : tokens) {
             if (token.startsWith("<")) {
@@ -110,28 +155,242 @@ public final class HtmlStructuralNormalizer {
                             stack.remove(stack.size() - 1);
                         }
                     }
+                    // In runtime mode: when closing tbody, clear the suppression depth
+                    if (runtimeMode && "tbody".equals(tagName)) {
+                        tbodyDepth = -1;
+                    }
                     // Closing tags are NOT emitted — nesting is represented by indentation alone
                 } else {
                     // Opening (or self-closing) tag
                     String tagName = extractOpenTagName(token);
                     boolean isSelfClosing = token.endsWith("/>") || VOID_ELEMENTS.contains(tagName);
                     int depth = stack.size();
-                    String attrStr = buildAttrString(token, tagName);
-                    appendLine(out, depth, tagName + attrStr);
-                    if (!isSelfClosing) {
-                        stack.add(tagName);
+
+                    // runtimeMode: suppress everything nested inside a tbody
+                    if (runtimeMode && tbodyDepth >= 0 && depth > tbodyDepth) {
+                        // Inside tbody — skip this tag (do not emit, do not push stack)
+                        if (!isSelfClosing) {
+                            stack.add(tagName);
+                        }
+                    } else {
+                        String effectiveToken = token;
+                        // runtimeMode: strip value from non-_method inputs
+                        if (runtimeMode && "input".equals(tagName)) {
+                            effectiveToken = stripValueIfNotMethod(token);
+                            // Checkbox/radio state (`checked`) is live data — the static
+                            // goldens have no `checked`; strip it so prefilled edit forms match.
+                            effectiveToken = removeAttr(effectiveToken, "checked");
+                        }
+                        String attrStr = buildAttrString(effectiveToken, tagName);
+                        appendLine(out, depth, tagName + attrStr);
+                        if (!isSelfClosing) {
+                            stack.add(tagName);
+                            // runtimeMode: mark tbody entry depth for child suppression
+                            if (runtimeMode && "tbody".equals(tagName)) {
+                                tbodyDepth = depth;
+                            }
+                        }
                     }
                 }
             } else {
-                // Text token — replace non-empty (after trim) with #TEXT
-                String trimmed = token.trim();
-                if (!trimmed.isEmpty()) {
-                    appendLine(out, stack.size(), "#TEXT");
+                // Text token — replace non-empty (after trim) with #TEXT.
+                // runtimeMode: suppress live data text inside tbody rows and inside
+                // <dd>/<textarea> — these hold field data in runtime HTML but are empty
+                // in the static-page goldens (detail values, textarea contents).
+                boolean insideTbody = runtimeMode && tbodyDepth >= 0 && stack.size() > tbodyDepth;
+                String parent = stack.isEmpty() ? "" : stack.get(stack.size() - 1);
+                boolean insideDataText = runtimeMode
+                        && ("dd".equals(parent) || "textarea".equals(parent));
+                if (insideTbody || insideDataText) {
+                    // inside a data-bearing container — skip live text
+                } else {
+                    String trimmed = token.trim();
+                    if (!trimmed.isEmpty()) {
+                        appendLine(out, stack.size(), "#TEXT");
+                    }
                 }
             }
         }
 
         return out.toString();
+    }
+
+    /**
+     * Returns a copy of an {@code <input ...>} tag token with the {@code value}
+     * attribute removed, unless the input's {@code name} attribute equals
+     * {@code _method} (in which case the token is returned unchanged).
+     *
+     * <p>Used only in runtime normalization to strip live field data from edit forms.
+     */
+    private static String stripValueIfNotMethod(String token) {
+        String nameVal = extractAttrValue(token, "name");
+        if ("_method".equals(nameVal)) {
+            return token;
+        }
+        return removeAttr(token, "value");
+    }
+
+    /**
+     * Extracts the value of the named attribute from a tag token, or {@code null}
+     * if the attribute is absent or has no value.
+     */
+    private static String extractAttrValue(String token, String targetAttr) {
+        String tagName = extractOpenTagName(token);
+        int nameEnd = 1 + tagName.length();
+        int len = token.length();
+        int pos = nameEnd;
+        while (pos < len && Character.isWhitespace(token.charAt(pos))) {
+            pos++;
+        }
+        int contentEnd = len - 1;
+        if (token.endsWith("/>")) {
+            contentEnd = len - 2;
+        }
+        String attrText = token.substring(pos, contentEnd).trim();
+        int i = 0;
+        int attrLen = attrText.length();
+        while (i < attrLen) {
+            while (i < attrLen && Character.isWhitespace(attrText.charAt(i))) {
+                i++;
+            }
+            if (i >= attrLen) {
+                break;
+            }
+            int nameStart = i;
+            while (i < attrLen && attrText.charAt(i) != '=' && !Character.isWhitespace(attrText.charAt(i))) {
+                i++;
+            }
+            String attrName = attrText.substring(nameStart, i).toLowerCase();
+            while (i < attrLen && Character.isWhitespace(attrText.charAt(i))) {
+                i++;
+            }
+            if (i < attrLen && attrText.charAt(i) == '=') {
+                i++;
+                while (i < attrLen && Character.isWhitespace(attrText.charAt(i))) {
+                    i++;
+                }
+                String attrValue = null;
+                if (i < attrLen && (attrText.charAt(i) == '"' || attrText.charAt(i) == '\'')) {
+                    char q = attrText.charAt(i);
+                    i++;
+                    int valStart = i;
+                    while (i < attrLen && attrText.charAt(i) != q) {
+                        i++;
+                    }
+                    attrValue = attrText.substring(valStart, i);
+                    if (i < attrLen) {
+                        i++;
+                    }
+                } else {
+                    int valStart = i;
+                    while (i < attrLen && !Character.isWhitespace(attrText.charAt(i))) {
+                        i++;
+                    }
+                    attrValue = attrText.substring(valStart, i);
+                }
+                if (targetAttr.equals(attrName)) {
+                    return attrValue;
+                }
+            } else {
+                if (targetAttr.equals(attrName)) {
+                    return null;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Returns a copy of a tag token with the named attribute (and its value) removed.
+     * If the attribute is not present, the original token is returned unchanged.
+     */
+    private static String removeAttr(String token, String targetAttr) {
+        String tagName = extractOpenTagName(token);
+        int nameEnd = 1 + tagName.length();
+        int len = token.length();
+        int pos = nameEnd;
+        while (pos < len && Character.isWhitespace(token.charAt(pos))) {
+            pos++;
+        }
+        int contentEnd = len - 1;
+        boolean selfClosing = token.endsWith("/>");
+        if (selfClosing) {
+            contentEnd = len - 2;
+        }
+        String attrText = token.substring(pos, contentEnd).trim();
+
+        // Rebuild attrText without the target attribute
+        StringBuilder rebuilt = new StringBuilder();
+        int i = 0;
+        int attrLen = attrText.length();
+        boolean removed = false;
+        while (i < attrLen) {
+            // Skip leading whitespace — but preserve separator between attributes
+            int wsStart = i;
+            while (i < attrLen && Character.isWhitespace(attrText.charAt(i))) {
+                i++;
+            }
+            if (i >= attrLen) {
+                break;
+            }
+            int nameStart = i;
+            while (i < attrLen && attrText.charAt(i) != '=' && !Character.isWhitespace(attrText.charAt(i))) {
+                i++;
+            }
+            String attrName = attrText.substring(nameStart, i).toLowerCase();
+            // Skip whitespace before '='
+            int afterNameWs = i;
+            while (i < attrLen && Character.isWhitespace(attrText.charAt(i))) {
+                i++;
+            }
+            int attrEnd;
+            if (i < attrLen && attrText.charAt(i) == '=') {
+                i++;
+                while (i < attrLen && Character.isWhitespace(attrText.charAt(i))) {
+                    i++;
+                }
+                if (i < attrLen && (attrText.charAt(i) == '"' || attrText.charAt(i) == '\'')) {
+                    char q = attrText.charAt(i);
+                    i++;
+                    while (i < attrLen && attrText.charAt(i) != q) {
+                        i++;
+                    }
+                    if (i < attrLen) {
+                        i++;
+                    }
+                } else {
+                    while (i < attrLen && !Character.isWhitespace(attrText.charAt(i))) {
+                        i++;
+                    }
+                }
+                attrEnd = i;
+            } else {
+                attrEnd = afterNameWs;
+                i = afterNameWs;
+            }
+
+            if (targetAttr.equals(attrName)) {
+                // Skip this attribute (do not append to rebuilt)
+                removed = true;
+            } else {
+                if (rebuilt.length() > 0) {
+                    rebuilt.append(" ");
+                }
+                rebuilt.append(attrText, nameStart, attrEnd);
+            }
+        }
+
+        if (!removed) {
+            return token;
+        }
+
+        // Reconstruct the tag
+        String suffix = selfClosing ? "/>" : ">";
+        String prefix = "<" + token.substring(1, 1 + tagName.length());
+        if (rebuilt.length() > 0) {
+            return prefix + " " + rebuilt.toString() + suffix;
+        }
+        return prefix + suffix;
     }
 
     // ---- Private helpers ----

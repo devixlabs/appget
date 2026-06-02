@@ -36,27 +36,30 @@ Goal: the Java subproject is clean, well-abstracted, and establishes every struc
 - **Blocked by**: Content Negotiation (0f) — HTML pages need live data via Accept-header routing
 - **Effort**: Large (5 industry scenarios, iterative debugging)
 
-### 0f. Content Negotiation — Accept-Header-Driven Response Formats
-- **Doc**: [SPEC-content-negotiation.md](SPEC-content-negotiation.md)
+### 0f. Content Negotiation — Accept-Header-Driven Response Formats — **Done** (2026-06-01)
+- **Doc**: [SPEC-content-negotiation.md](../SPEC-content-negotiation.md) (promoted to `docs/` — implemented)
 - **What**: Framework handles content negotiation (Accept header parsing, format routing). appget generates per-model `*PageRenderer` classes and static HTML template files with `{{CONTENT}}` placeholders. No framework templating engines (Thymeleaf, Jinja2, ERB). Controllers gain `produces` annotations and separate handler methods per format. Centralized `HtmlEscapeUtils` for XSS prevention.
 - **Why**: Browsers get server-rendered HTML (old-fashioned GET/POST, no JS). API clients get JSON. Same endpoints. No framework templating dependency — build-time generated, auditable, fuzz-testable, portable across all target languages.
 - **Research**: ✅ Complete (2026-04-03) — See [RESEARCH-content-negotiation-survey.md](RESEARCH-content-negotiation-survey.md).
 - **Architecture**: ✅ Revised (2026-04-03) — PageRenderer + templates replaces original ContentTransform approach. Templates are pipeline-level artifacts (like `.proto`, `openapi.yaml`). PageRenderers are generated per-model at build time with all field metadata baked in.
-- **Blocked by**: Nothing — ready for implementation
-- **Prep landed (2026-06-01)** — three independent slices implemented + verified (470 tests green). Execution specs removed post-impl; code + tests are the record:
-  - **A** — `emitHtmlEscapeUtils` (centralized XSS boundary) + `HtmlEscapeUtilsEmitTest` (15 fuzz/drift tests). Done.
-  - **B** — `HtmlStructuralNormalizer` + golden snapshots of `generated-html/` under `java/src/test/resources/html-structure-golden/` (test-first contract for runtime HTML). Done.
-  - **C** — `HtmlCrudGenerator.generateTemplates()` emits `templates/**/*.html` with `{{CONTENT}}` (Artifact 1). Done.
-- **Remaining (0f core)**: per-model/per-view `*PageRenderer` classes (load templates, fill `{{CONTENT}}` with escaped data via HtmlEscapeUtils), controller `produces`/`text/html` handlers + PRG form handling, runtime-vs-golden structural diff wiring, error re-rendering.
-- **Effort**: Medium-Large (PageRenderers + controller changes + structural diff tests + error re-rendering). Prep slices A/B/C complete.
-- **MVP**: JSON + HTML only. XML and CSV follow same PageRenderer pattern post-MVP.
+- **Delivered (2026-06-01)** — implemented in 5 dependency-ordered slices (Opus risk-reviewed, parallel-/single-agent dispatch). Code + tests are the record:
+  - **Prep A/B/C** — `emitHtmlEscapeUtils` + `HtmlEscapeUtilsEmitTest`; `HtmlStructuralNormalizer` + 6 golden snapshots under `java/src/test/resources/html-structure-golden/`; `HtmlCrudGenerator.generateTemplates()` emits `templates/**/*.html` with `{{CONTENT}}`.
+  - **#1 Foundations** — `CodeGenUtils.templateDir`, `AppServerGenerator` copies templates into the server classpath, generated `build.gradle` resource includes, `application.yaml` hidden-method filter.
+  - **#2 PageRenderers** — 24 generated `*PageRenderer` `@Component`s (14 models + 10 views): load templates, fill `{{CONTENT}}` with `HtmlEscapeUtils`-escaped data.
+  - **#3 Controllers** — JSON+HTML content negotiation (explicit `produces`/`consumes`), `?action=create/edit`, form PRG (303) via HiddenHttpMethodFilter, string→proto coercion (incl. custom Decimal), blocking-rule 422 form re-render.
+  - **#4 Tests** — `normalizeRuntime()` + emitter-output tests (509 unit tests).
+  - **#5 Live verify** — `http-tests.yaml` Accept/PRG/XSS/422 cases + `testLive` runtime-vs-golden structural diff (5 pages), behind `make verify`. Regression: 93 JSON curls + 43 HTTP cases all green.
+- **Verified**: `make all` green + server-free; live `make verify` green (JSON regression + HTML negotiation + structural diff).
+- **Deferred (MVP-acceptable, see [CONTRACT_GAPS.md](CONTRACT_GAPS.md))**: create-form error re-render doesn't prefill submitted values (GAP-0F1); HTML form DELETE returns 204 not 303-redirect (GAP-0F2). XML/CSV out of scope (same PageRenderer pattern post-MVP).
+- **GAP-0F3 resolved (2026-06-01)**: live HTML nav/action links now emit server routes (Home `/`, Create/View/Back, root index) + new `RootController` serves `GET /`; static pages + templates + 6 goldens regenerated. Verified via `make verify` (testLive 5/5) + Playwright walk. Detail-page Edit link remains a narrow follow-up.
+- **GAP-0F4 resolved (2026-06-01)**: added `_compile-server` gate to `make all` (compiles `generated-server/`, javac-only/server-free) so emitter-output bugs fail the build. Plus `make verify` now runs `scripts/check-html-nav.sh` (curl walk asserting nav links resolve to server routes).
 
 ### 0g. Java Codegen Package Refactoring — **Done** (2026-04-05)
 - Follow-up resolved (2026-06-01): `emitRuleService()` has no catch blocks — typed `EvaluableRule` dispatch, no dead `log.warn`.
 
-### Suggested order: ~~0a~~ → ~~0b~~ → ~~0d~~ → ~~0g~~ → 0f → 0e → 0c
+### Suggested order: ~~0a~~ → ~~0b~~ → ~~0d~~ → ~~0g~~ → ~~0f~~ → 0e → 0c
 
-0a, 0b, 0d, and 0g are done. 0f (content negotiation) is next — research complete, ready for implementation. 0e (multi-industry) validates everything. 0c (gRPC/GraphQL) deferred until REST pipeline is proven.
+0a, 0b, 0d, 0g, and 0f are done. **0e (multi-industry verification) is next** — now unblocked (it depended on 0f's HTML-via-Accept routing). 0c (gRPC/GraphQL) deferred until the REST pipeline is proven across industries.
 
 ---
 

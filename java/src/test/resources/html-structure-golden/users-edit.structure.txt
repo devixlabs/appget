@@ -8,10 +8,10 @@ html [lang]
     h1
       #TEXT
     nav
-      a [href=../index.html]
+      a [href=/]
         #TEXT
       #TEXT
-      a [href=index.html]
+      a [href=/users]
         #TEXT
     form [action=/users method=POST]
       input [name=_method type=hidden value=PUT]
@@ -46,7 +46,7 @@ html [lang]
         input [id name=is_active type=checkbox]
       button [type=submit]
         #TEXT
-      a [href=index.html]
+      a [href=/users]
         #TEXT
     details
       summary

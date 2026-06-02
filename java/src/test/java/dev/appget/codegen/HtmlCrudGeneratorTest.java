@@ -61,18 +61,18 @@ class HtmlCrudGeneratorTest {
     @DisplayName("Root index has model links for known resources")
     void testRootIndexModelLinks(@TempDir Path tempDir) throws Exception {
         String content = generateAndReadFile(tempDir, "index.html");
-        assertTrue(content.contains("href=\"roles/index.html\""), "Root index should link to roles");
-        assertTrue(content.contains("href=\"users/index.html\""), "Root index should link to users");
-        assertTrue(content.contains("href=\"posts/index.html\""), "Root index should link to posts");
+        assertTrue(content.contains("href=\"/roles\""), "Root index should link to roles");
+        assertTrue(content.contains("href=\"/users\""), "Root index should link to users");
+        assertTrue(content.contains("href=\"/posts\""), "Root index should link to posts");
     }
 
     @Test
     @DisplayName("Root index has view links with views/ prefix")
     void testRootIndexViewLinks(@TempDir Path tempDir) throws Exception {
         String content = generateAndReadFile(tempDir, "index.html");
-        assertTrue(content.contains("href=\"views/user-role/index.html\""),
+        assertTrue(content.contains("href=\"/views/user-role\""),
                 "Root index should link to user-role view");
-        assertTrue(content.contains("href=\"views/post-detail/index.html\""),
+        assertTrue(content.contains("href=\"/views/post-detail\""),
                 "Root index should link to post-detail view");
     }
 
