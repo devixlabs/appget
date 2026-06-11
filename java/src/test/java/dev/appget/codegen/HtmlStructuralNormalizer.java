@@ -132,6 +132,14 @@ public final class HtmlStructuralNormalizer {
         // 1. Strip HTML comments (<!-- ... -->) — may span lines
         String stripped = stripComments(html);
 
+        // 1b. Runtime: normalize edit link hrefs — replace live id segment with {id}
+        //     Pattern: href="/{resource}/{liveId}?action=edit" → href="/{resource}/{id}?action=edit"
+        if (runtimeMode) {
+            stripped = stripped.replaceAll(
+                    "href=\"(/[^/?\"]+)/[^/?\"]+\\?action=edit\"",
+                    "href=\"$1/{id}?action=edit\"");
+        }
+
         // 2. Tokenize into tags and text runs
         List<String> tokens = tokenize(stripped);
 

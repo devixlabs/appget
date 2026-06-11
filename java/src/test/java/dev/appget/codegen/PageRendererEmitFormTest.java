@@ -157,18 +157,32 @@ class PageRendererEmitFormTest {
     // ---- renderCreateForm tests ----
 
     @Test
-    @DisplayName("renderCreateForm returns create template unchanged")
-    void testRenderCreateFormReturnsTemplateUnchanged() {
+    @DisplayName("renderCreateForm delegates to renderCreateFormWithErrors")
+    void testRenderCreateFormDelegatesToWithErrors() {
         String source = emitter.emitPageRenderer(BASE_PACKAGE, usersCtx);
         assertTrue(source.contains("renderCreateForm()"),
                 "renderCreateForm method must be present");
-        // renderCreateForm just returns createTemplate with no substitution
-        assertTrue(source.contains("return createTemplate;"),
-                "renderCreateForm must return createTemplate unchanged");
-        // Must NOT perform a {{CONTENT}} replace inside renderCreateForm
+        // renderCreateForm must delegate to renderCreateFormWithErrors
         String createFormBlock = extractMethod(source, "renderCreateForm()");
-        assertFalse(createFormBlock.contains("{{CONTENT}}"),
-                "renderCreateForm must not substitute {{CONTENT}} itself");
+        assertTrue(createFormBlock.contains("renderCreateFormWithErrors("),
+                "renderCreateForm must delegate to renderCreateFormWithErrors");
+    }
+
+    @Test
+    @DisplayName("renderCreateFormWithErrors fills {{CONTENT}} slot with errors and prefilled inputs")
+    void testRenderCreateFormWithErrorsFillsContent() {
+        String source = emitter.emitPageRenderer(BASE_PACKAGE, usersCtx);
+        // Find the method declaration (not the call site inside renderCreateForm)
+        String withErrorsBlock = extractMethod(source, "String renderCreateFormWithErrors(");
+        // Must replace the {{CONTENT}} slot in createTemplate
+        assertTrue(withErrorsBlock.contains("createTemplate") && withErrorsBlock.contains("{{CONTENT}}"),
+                "renderCreateFormWithErrors must replace {{CONTENT}} in createTemplate");
+        // Must prefill inputs from submitted form map
+        assertTrue(withErrorsBlock.contains("form.getOrDefault("),
+                "renderCreateFormWithErrors must use form.getOrDefault to prefill inputs");
+        // Must NOT reference editTemplate
+        assertFalse(withErrorsBlock.contains("editTemplate"),
+                "renderCreateFormWithErrors must not reference editTemplate");
     }
 
     // ---- error-variant method tests ----
@@ -182,10 +196,9 @@ class PageRendererEmitFormTest {
         // Distinct name — no overloading
         assertTrue(source.contains("renderCreateForm()"),
                 "renderCreateForm (no-arg) must exist separately");
-        // Both names appear; they are distinct (one has args, one doesn't)
-        assertFalse(source.indexOf("renderCreateFormWithErrors(") == source.lastIndexOf("renderCreateFormWithErrors(")
-                && source.indexOf("renderCreateForm()") < 0,
-                "renderCreateForm and renderCreateFormWithErrors must both be present");
+        // renderCreateForm (no-arg, no errors) must not emit an empty error list
+        assertFalse(source.contains("<ul class=\"errors\"></ul>"),
+                "renderCreateForm (no errors) must not emit empty error list");
     }
 
     @Test

@@ -337,6 +337,24 @@ tests:
       status: 200
       contains: ["formuserUPD"]
 
+  - name: "HTML 5.3e: POST /users/{id} with _method=DELETE form → 303 redirect to list"
+    url: "/users/u-form-1"
+    method: POST
+    headers:
+      Content-Type: "application/x-www-form-urlencoded"
+      Accept: "text/html"
+    body: "_method=DELETE"
+    expect:
+      status: 303
+      headers:
+        Location: "/users"
+
+  - name: "HTML 5.3f: GET /users/u-form-1 after form DELETE → 404 (deleted)"
+    url: "/users/u-form-1"
+    method: GET
+    expect:
+      status: 404
+
   # 5.4 — XSS and blocking-rule re-render
 
   # Seed a user with XSS payload in display_name (non-blocking, nullable field).
@@ -376,4 +394,4 @@ tests:
     body: "id=u-block-1&username=blockuser&email=block%40x.com&display_name=Blocked&bio=&follower_count=0"
     expect:
       status: 422
-      contains: ["<form", "ACCOUNT_INACTIVE"]
+      contains: ["<form", "ACCOUNT_INACTIVE", "value=\"blockuser\""]

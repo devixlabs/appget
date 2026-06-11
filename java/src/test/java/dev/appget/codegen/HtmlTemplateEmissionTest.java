@@ -185,23 +185,35 @@ class HtmlTemplateEmissionTest {
     // ---- create.html ----
 
     @Test
-    @DisplayName("create.html is fully static — no {{CONTENT}} placeholder")
-    void testCreateTemplateIsFullyStatic(@TempDir Path tempDir) throws Exception {
+    @DisplayName("create.html has {{CONTENT}} placeholder inside <form>")
+    void testCreateTemplateHasContentPlaceholder(@TempDir Path tempDir) throws Exception {
         String content = generateAndReadTemplate(tempDir, "auth/users/create.html");
-        assertFalse(content.contains("{{CONTENT}}"),
-                "create.html must be fully static — no {{CONTENT}} placeholder");
+        assertTrue(content.contains("{{CONTENT}}"),
+                "create.html must have a {{CONTENT}} placeholder");
+        // {{CONTENT}} must appear between <form and </form>
+        int formStart = content.indexOf("<form");
+        int formEnd = content.indexOf("</form>");
+        int placeholder = content.indexOf("{{CONTENT}}");
+        assertTrue(formStart >= 0 && formEnd > formStart && placeholder >= formStart && placeholder < formEnd,
+                "{{CONTENT}} must appear between <form> and </form> in create.html");
     }
 
     @Test
-    @DisplayName("create.html contains real input elements (reuses fieldToInput)")
-    void testCreateTemplateHasRealInputs(@TempDir Path tempDir) throws Exception {
+    @DisplayName("create.html has no hidden id input (unlike edit template)")
+    void testCreateTemplateHasNoHiddenIdInput(@TempDir Path tempDir) throws Exception {
         String content = generateAndReadTemplate(tempDir, "auth/users/create.html");
-        // users.username is VARCHAR NOT NULL → type=text required
-        assertTrue(content.contains("<input type=\"text\" name=\"username\""),
-                "create.html must contain a text input for 'username'");
-        // users.bio is TEXT nullable → textarea without required
-        assertTrue(content.contains("<textarea name=\"bio\""),
-                "create.html must contain a textarea for 'bio' (TEXT field)");
+        assertFalse(content.contains("type=\"hidden\""),
+                "create.html must not contain hidden inputs (no id, no _method=PUT)");
+    }
+
+    @Test
+    @DisplayName("Create template has CONTENT placeholder slot inside form")
+    void testCreateTemplateHasRealInputs(@TempDir Path tempDir) throws Exception {
+        // Static page (generateHtml) still has real inputs; template uses {{CONTENT}} instead
+        String content = generateAndReadTemplate(tempDir, "auth/users/create.html");
+        // The template should have {{CONTENT}} slot, not the expanded inputs
+        assertTrue(content.contains("{{CONTENT}}"),
+                "create.html template must have {{CONTENT}} slot (not pre-expanded inputs)");
     }
 
     // ---- View list template ----
@@ -282,6 +294,23 @@ class HtmlTemplateEmissionTest {
         }
         assertEquals(0, filesOutside,
                 "generateTemplates must not write any file outside the explicit templatesDir");
+    }
+
+    // ---- detail.html EDIT_LINK placeholder ----
+
+    @Test
+    @DisplayName("Detail template has EDIT_LINK placeholder after dl element")
+    void testDetailTemplateHasEditLinkPlaceholder(@TempDir Path tempDir) throws Exception {
+        String content = generateAndReadTemplate(tempDir, "auth/users/detail.html");
+
+        assertTrue(content.contains("{{EDIT_LINK}}"),
+                "detail.html must contain {{EDIT_LINK}} placeholder");
+
+        int dlClose = content.indexOf("</dl>");
+        int editLink = content.indexOf("{{EDIT_LINK}}");
+        assertTrue(dlClose >= 0, "detail.html must contain </dl>");
+        assertTrue(editLink > dlClose,
+                "{{EDIT_LINK}} must appear after </dl> in detail.html");
     }
 
     // ---- Utility ----

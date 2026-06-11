@@ -1409,7 +1409,18 @@ public class SpringBootEmitter implements ServerEmitter {
         code.append("        }\n");
         code.append("    }\n\n");
 
-        // DELETE /entities/{id} (JSON or form)
+        // DELETE /entities/{id} (HTML form — via _method=DELETE override) → PRG
+        code.append("    @DeleteMapping(value = \"").append(ctx.pathVarSegment).append("\", consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE)\n");
+        code.append("    public ResponseEntity<String> deleteForm(").append(ctx.pathVarParams).append(", @RequestParam(required = false) Map<String,String> form) {\n");
+        code.append("        log.info(\"DELETE ").append(resourcePath).append(ctx.pathVarSegment).append(" (form) - Deleting ").append(ctx.name).append(" with ").append(ctx.logPattern).append("\", ").append(ctx.logArgs).append(");\n");
+        code.append("        service.deleteById(").append(ctx.idArgs).append(");\n");
+        code.append("        log.info(\"Successfully deleted ").append(ctx.name).append(" with ").append(ctx.logPattern).append("\", ").append(ctx.logArgs).append(");\n");
+        code.append("        return ResponseEntity.status(HttpStatus.SEE_OTHER)\n");
+        code.append("            .location(URI.create(\"").append(resourcePath).append("\"))\n");
+        code.append("            .build();\n");
+        code.append("    }\n\n");
+
+        // DELETE /entities/{id} (JSON — returns 204)
         code.append("    @DeleteMapping(\"").append(ctx.pathVarSegment).append("\")\n");
         code.append("    public ResponseEntity<Void> delete(").append(ctx.pathVarParams).append(") {\n");
         code.append("        log.info(\"DELETE ").append(resourcePath).append(ctx.pathVarSegment).append(" - Deleting ").append(ctx.name).append(" with ").append(ctx.logPattern).append("\", ").append(ctx.logArgs).append(");\n");
@@ -1777,7 +1788,27 @@ public class SpringBootEmitter implements ServerEmitter {
             code.append("        dl.append(\"  <dt>\").append(\"").append(fieldName).append("\").append(\"</dt>\\n\");\n");
             code.append("        dl.append(\"  <dd>\").append(").append(escapedExpr).append(").append(\"</dd>\\n\");\n");
         }
-        code.append("        return detailTemplate.replace(\"{{CONTENT}}\", dl.toString());\n");
+        // Build the edit link using the primary key field getter
+        String pkFieldName = "id"; // default
+        String pkFieldType = "string"; // default
+        for (Map<String, Object> field : ctx.fields) {
+            if (Boolean.TRUE.equals(field.get("primary_key"))) {
+                pkFieldName = (String) field.get("name");
+                pkFieldType = (String) field.get("type");
+                break;
+            }
+        }
+        String pkCamel = JavaNaming.toFieldAccessor(pkFieldName);
+        String pkGetter = "item.get" + Character.toUpperCase(pkCamel.charAt(0)) + pkCamel.substring(1) + "()";
+        String pkEscaped;
+        if ("string".equals(pkFieldType)) {
+            pkEscaped = "HtmlEscapeUtils.escape(" + pkGetter + ")";
+        } else {
+            pkEscaped = "HtmlEscapeUtils.escape(String.valueOf(" + pkGetter + "))";
+        }
+        code.append("        String result = detailTemplate.replace(\"{{CONTENT}}\", dl.toString());\n");
+        code.append("        result = result.replace(\"{{EDIT_LINK}}\", \"<a href=\\\"/").append(ctx.resourcePath).append("/\" + ").append(pkEscaped).append(" + \"?action=edit\\\">Edit</a>\");\n");
+        code.append("        return result;\n");
         code.append("    }\n\n");
 
         // renderEditForm — builds per-field input blocks (mirrors generateEditHtml, skips PK)
@@ -1861,33 +1892,90 @@ public class SpringBootEmitter implements ServerEmitter {
         code.append("        return filled;\n");
         code.append("    }\n\n");
 
-        // renderCreateForm — no data, return create template unchanged
+        // renderCreateForm — delegates to renderCreateFormWithErrors with empty data
         code.append("    public String renderCreateForm() {\n");
-        code.append("        return createTemplate;\n");
+        code.append("        return renderCreateFormWithErrors(java.util.Map.of(), java.util.List.of());\n");
         code.append("    }\n\n");
 
-        // renderCreateFormWithErrors — re-render create form with errors visible.
-        // The create template is fully static (no {{CONTENT}} slot), so the form parameter
-        // is accepted for API compatibility but input pre-filling is not applied here
-        // (see Deviation D-CREATE-PREFILL in report). Errors are injected before <form.
+        // renderCreateFormWithErrors — re-render create form from submitted data + error list.
+        // Fills the {{CONTENT}} slot in createTemplate with error list + prefilled inputs.
+        // PK field is skipped (auto-generated or server-assigned on create).
         code.append("    public String renderCreateFormWithErrors(java.util.Map<String,String> form, java.util.List<String> errors) {\n");
         code.append("        StringBuilder errHtml = new StringBuilder();\n");
-        code.append("        errHtml.append(\"<ul class=\\\"errors\\\">\\n\");\n");
-        code.append("        for (String err : errors) {\n");
-        code.append("            errHtml.append(\"<li>\").append(HtmlEscapeUtils.escape(err)).append(\"</li>\\n\");\n");
+        code.append("        if (!errors.isEmpty()) {\n");
+        code.append("            errHtml.append(\"<ul class=\\\"errors\\\">\\n\");\n");
+        code.append("            for (String err : errors) {\n");
+        code.append("                errHtml.append(\"<li>\").append(HtmlEscapeUtils.escape(err)).append(\"</li>\\n\");\n");
+        code.append("            }\n");
+        code.append("            errHtml.append(\"</ul>\\n\");\n");
         code.append("        }\n");
-        code.append("        errHtml.append(\"</ul>\\n\");\n");
-        code.append("        return createTemplate.replace(\"<form\", errHtml + \"<form\");\n");
+        code.append("        StringBuilder inputs = new StringBuilder();\n");
+        code.append("        inputs.append(errHtml);\n");
+        for (Map<String, Object> field : ctx.fields) {
+            String fieldName = (String) field.get("name");
+            String fieldType = (String) field.get("type");
+            String sqlType = field.get("original_sql_type") != null
+                    ? ((String) field.get("original_sql_type")).toUpperCase()
+                    : "";
+            boolean isPrimaryKey = Boolean.TRUE.equals(field.get("primary_key"));
+            boolean nullable = Boolean.TRUE.equals(field.get("nullable"));
+            if (isPrimaryKey) {
+                continue;
+            }
+            String humanLabel = buildHumanLabel(fieldName);
+            String req = nullable ? "" : " required";
+            code.append("        inputs.append(\"  <div>\\n\");\n");
+            code.append("        inputs.append(\"    <label for=\\\"").append(fieldName).append("\\\">").append(humanLabel).append("</label>\\n\");\n");
+            if (sqlType.equals("TEXT")) {
+                code.append("        inputs.append(\"    <textarea name=\\\"").append(fieldName).append("\\\" id=\\\"").append(fieldName).append("\\\"").append(req).append(">\");\n");
+                code.append("        inputs.append(HtmlEscapeUtils.escape(form.getOrDefault(\"").append(fieldName).append("\", \"\")));\n");
+                code.append("        inputs.append(\"</textarea>\\n\");\n");
+            } else if ("bool".equals(fieldType)) {
+                code.append("        inputs.append(\"    <input type=\\\"checkbox\\\" name=\\\"").append(fieldName).append("\\\" id=\\\"").append(fieldName).append("\\\"\");\n");
+                code.append("        if (form.containsKey(\"").append(fieldName).append("\")) {\n");
+                code.append("            inputs.append(\" checked\");\n");
+                code.append("        }\n");
+                code.append("        inputs.append(\">\\n\");\n");
+            } else if ("int32".equals(fieldType) || "int64".equals(fieldType)) {
+                code.append("        inputs.append(\"    <input type=\\\"number\\\" step=\\\"1\\\" name=\\\"").append(fieldName).append("\\\" id=\\\"").append(fieldName).append("\\\" value=\\\"\");\n");
+                code.append("        inputs.append(HtmlEscapeUtils.escape(form.getOrDefault(\"").append(fieldName).append("\", \"\")));\n");
+                code.append("        inputs.append(\"\\\"").append(req).append(">\\n\");\n");
+            } else if ("decimal".equals(fieldType)) {
+                code.append("        inputs.append(\"    <input type=\\\"number\\\" step=\\\"0.01\\\" name=\\\"").append(fieldName).append("\\\" id=\\\"").append(fieldName).append("\\\" value=\\\"\");\n");
+                code.append("        inputs.append(HtmlEscapeUtils.escape(form.getOrDefault(\"").append(fieldName).append("\", \"\")));\n");
+                code.append("        inputs.append(\"\\\"").append(req).append(">\\n\");\n");
+            } else if ("float64".equals(fieldType)) {
+                code.append("        inputs.append(\"    <input type=\\\"number\\\" step=\\\"any\\\" name=\\\"").append(fieldName).append("\\\" id=\\\"").append(fieldName).append("\\\" value=\\\"\");\n");
+                code.append("        inputs.append(HtmlEscapeUtils.escape(form.getOrDefault(\"").append(fieldName).append("\", \"\")));\n");
+                code.append("        inputs.append(\"\\\"").append(req).append(">\\n\");\n");
+            } else if ("date".equals(fieldType)) {
+                code.append("        inputs.append(\"    <input type=\\\"date\\\" name=\\\"").append(fieldName).append("\\\" id=\\\"").append(fieldName).append("\\\" value=\\\"\");\n");
+                code.append("        inputs.append(HtmlEscapeUtils.escape(form.getOrDefault(\"").append(fieldName).append("\", \"\")));\n");
+                code.append("        inputs.append(\"\\\"").append(req).append(">\\n\");\n");
+            } else if ("datetime".equals(fieldType)) {
+                code.append("        inputs.append(\"    <input type=\\\"datetime-local\\\" name=\\\"").append(fieldName).append("\\\" id=\\\"").append(fieldName).append("\\\" value=\\\"\");\n");
+                code.append("        inputs.append(HtmlEscapeUtils.escape(form.getOrDefault(\"").append(fieldName).append("\", \"\")));\n");
+                code.append("        inputs.append(\"\\\"").append(req).append(">\\n\");\n");
+            } else {
+                code.append("        inputs.append(\"    <input type=\\\"text\\\" name=\\\"").append(fieldName).append("\\\" id=\\\"").append(fieldName).append("\\\" value=\\\"\");\n");
+                code.append("        inputs.append(HtmlEscapeUtils.escape(form.getOrDefault(\"").append(fieldName).append("\", \"\")));\n");
+                code.append("        inputs.append(\"\\\"").append(req).append(">\\n\");\n");
+            }
+            code.append("        inputs.append(\"  </div>\\n\");\n");
+        }
+        code.append("        return createTemplate.replace(\"{{CONTENT}}\", inputs.toString());\n");
         code.append("    }\n\n");
 
         // renderEditFormWithErrors — re-render edit form from submitted data + error list
         code.append("    public String renderEditFormWithErrors(java.util.Map<String,String> form, java.util.List<String> errors) {\n");
         code.append("        StringBuilder errHtml = new StringBuilder();\n");
-        code.append("        errHtml.append(\"<ul class=\\\"errors\\\">\\n\");\n");
-        code.append("        for (String err : errors) {\n");
-        code.append("            errHtml.append(\"<li>\").append(HtmlEscapeUtils.escape(err)).append(\"</li>\\n\");\n");
+        code.append("        if (!errors.isEmpty()) {\n");
+        code.append("            errHtml.append(\"<ul class=\\\"errors\\\">\\n\");\n");
+        code.append("            for (String err : errors) {\n");
+        code.append("                errHtml.append(\"<li>\").append(HtmlEscapeUtils.escape(err)).append(\"</li>\\n\");\n");
+        code.append("            }\n");
+        code.append("            errHtml.append(\"</ul>\\n\");\n");
         code.append("        }\n");
-        code.append("        errHtml.append(\"</ul>\\n\");\n");
         code.append("        StringBuilder inputs = new StringBuilder();\n");
         code.append("        inputs.append(errHtml);\n");
         for (Map<String, Object> field : ctx.fields) {

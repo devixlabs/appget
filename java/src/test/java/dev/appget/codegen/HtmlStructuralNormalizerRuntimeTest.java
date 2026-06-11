@@ -132,6 +132,24 @@ class HtmlStructuralNormalizerRuntimeTest {
         assertFalse(result.contains("td"), "td inside tbody must be suppressed.\nActual:\n" + result);
     }
 
+    // ---- edit link href normalization ----
+
+    @Test
+    @DisplayName("normalizeRuntime replaces live id in edit href with {id}")
+    void testNormalizeRuntimeStripsEditLinkId() {
+        String html = "<!DOCTYPE html>\n"
+                + "<html>\n<body>\n"
+                + "<a href=\"/users/u-live-123?action=edit\">Edit</a>\n"
+                + "</body>\n</html>\n";
+
+        String result = HtmlStructuralNormalizer.normalizeRuntime(html);
+
+        assertTrue(result.contains("a [href=/users/{id}?action=edit]"),
+                "edit link href must have live id replaced with {id}.\nActual:\n" + result);
+        assertFalse(result.contains("u-live-123"),
+                "Live id must not appear in normalized output.\nActual:\n" + result);
+    }
+
     // ---- normalize() is unchanged ----
 
     @Test

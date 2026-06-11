@@ -10,6 +10,35 @@ This roadmap reflects the current decisions and the latest pipeline constraints.
 
 ---
 
+## Ordered Work (by priority / dependency / effort)
+
+### Tier 1 — Quick wins (no blockers, small scope) — **DONE (2026-06-11)**
+| # | Item | Status |
+|---|------|--------|
+| 1 | **GAP-0F2**: HTML form DELETE → 303 redirect | ✅ Resolved 2026-06-11 |
+| 2 | **GAP-0F1**: Create-form error re-render prefill | ✅ Resolved 2026-06-11 |
+| 3 | **Detail-page edit link** (GAP-0F3 follow-up) | ✅ Resolved 2026-06-11 |
+
+### Tier 2 — Main Phase 0 remaining work
+| # | Item | Status |
+|---|------|--------|
+| 4 | **0e Multi-Industry Verification Harness** | Unblocked after Tier 1 |
+
+### Tier 3 — Needs spec/design decisions first
+| # | Item | Blocker |
+|---|------|---------|
+| 5 | **0c gRPC/GraphQL** | `GRPC_CONTRACT.md` "Not Ready" — 3 open design questions |
+
+### Tier 4 — Future phases (blocked on earlier tiers)
+| # | Item | Blocked by |
+|---|------|-----------|
+| 6 | Phase 1: Parser Parity | Phase 0 complete |
+| 7 | Phase 5: Go / Python / Ruby | Phase 0 + Phase 1 |
+| 8 | Phase 6: Rust / Node | Phase 5 done |
+| 9 | GAP-P1: Non-Java package options | Phase 5 |
+
+---
+
 ## Phase 0 - Java Reference Hardening
 > **Status: In Progress** — Refactoring and completing the Java reference implementation before cross-language work begins.
 

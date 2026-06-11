@@ -596,6 +596,22 @@ class AppServerGeneratorTest {
     }
 
     @Test
+    @DisplayName("Form-DELETE handler emits consumes=FORM_URLENCODED and SEE_OTHER redirect to list")
+    void testFormDeleteHandlerEmitsRedirect(@TempDir Path tempDir) throws Exception {
+        String controller = generateAndReadFile(tempDir,
+            "dev", "appget", "server", "controller", "UsersController.java");
+        assertTrue(controller.contains(
+            "consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE"),
+            "Form-DELETE handler must declare consumes = APPLICATION_FORM_URLENCODED_VALUE");
+        assertTrue(controller.contains("HttpStatus.SEE_OTHER"),
+            "Form-DELETE handler must return SEE_OTHER (303)");
+        assertTrue(controller.contains("ResponseEntity.noContent().build()"),
+            "JSON DELETE handler must still return 204 noContent");
+        assertTrue(controller.contains("@DeleteMapping"),
+            "Form-DELETE handler must use @DeleteMapping annotation");
+    }
+
+    @Test
     @DisplayName("Repository interface exists alongside InMemory implementation")
     void testRepositoryInterfaceAndImpl(@TempDir Path tempDir) throws Exception {
         String iface = generateAndReadFile(tempDir,

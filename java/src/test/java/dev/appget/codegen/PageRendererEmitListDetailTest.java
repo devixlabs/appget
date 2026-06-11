@@ -190,6 +190,21 @@ class PageRendererEmitListDetailTest {
     }
 
     @Test
+    @DisplayName("renderDetail fills {{EDIT_LINK}} with ?action=edit href")
+    void testRenderDetailFillsEditLink() {
+        String source = emitter.emitPageRenderer(BASE_PACKAGE, usersCtx);
+        // Verify the replace() call targets the {{EDIT_LINK}} slot (not just that the literal appears)
+        assertTrue(source.contains("result.replace(\"{{EDIT_LINK}}\","),
+                "renderDetail must call result.replace(\"{{EDIT_LINK}}\", ...) to fill the slot");
+        // Verify the PK value is HTML-escaped (id is a string PK in usersCtx)
+        assertTrue(source.contains("HtmlEscapeUtils.escape(item.getId())"),
+                "renderDetail must escape the PK via HtmlEscapeUtils.escape(item.getId())");
+        // Verify the edit href contains the query param
+        assertTrue(source.contains("?action=edit"),
+                "renderDetail must produce a ?action=edit href");
+    }
+
+    @Test
     @DisplayName("emitted source imports HtmlEscapeUtils from util package")
     void testImportsHtmlEscapeUtils() {
         String source = emitter.emitPageRenderer(BASE_PACKAGE, usersCtx);

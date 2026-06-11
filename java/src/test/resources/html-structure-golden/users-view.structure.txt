@@ -38,6 +38,8 @@ html [lang]
       dt
         #TEXT
       dd
+    a [href=/users/{id}?action=edit]
+      #TEXT
     p
       #TEXT
       code

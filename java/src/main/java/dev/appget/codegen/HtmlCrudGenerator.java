@@ -448,6 +448,7 @@ public class HtmlCrudGenerator {
             html.append("  <dd><!-- value --></dd>\n");
         }
         html.append("</dl>\n");
+        html.append("<a href=\"/").append(model.resource()).append("/{id}?action=edit\">Edit</a>\n");
 
         html.append("<p>API: GET <code>/").append(model.resource()).append("/{id}</code></p>\n");
         html.append("</body>\n");
@@ -531,6 +532,7 @@ public class HtmlCrudGenerator {
         html.append("<dl>\n");
         html.append("{{CONTENT}}");
         html.append("</dl>\n");
+        html.append("{{EDIT_LINK}}\n");
 
         html.append("<p>API: GET <code>/").append(model.resource()).append("/{id}</code></p>\n");
         html.append("</body>\n");
@@ -567,8 +569,28 @@ public class HtmlCrudGenerator {
     }
 
     private String generateCreateTemplate(ModelInfo model) {
-        // Create template is fully static — no {{CONTENT}} — mirrors generateCreateHtml exactly.
-        return generateCreateHtml(model);
+        List<RuleInfo> targetRules = rulesForTarget(model.name());
+
+        StringBuilder html = new StringBuilder();
+        appendDoctype(html, "Create " + model.name());
+
+        html.append("<body>\n");
+        html.append("<h1>Create ").append(model.name()).append("</h1>\n");
+        html.append("<nav><a href=\"/\">Home</a> | ");
+        html.append("<a href=\"/").append(model.resource()).append("\">Back to List</a></nav>\n");
+
+        html.append("<form method=\"POST\" action=\"/").append(model.resource()).append("\">\n");
+        // {{CONTENT}} replaces the field <div>/input loop — PageRenderer emits prefilled inputs + errors
+        html.append("{{CONTENT}}");
+        html.append("  <button type=\"submit\">Create</button>\n");
+        html.append("  <a href=\"/").append(model.resource()).append("\">Cancel</a>\n");
+        html.append("</form>\n");
+
+        html.append(renderRulesBlock(targetRules));
+
+        html.append("</body>\n");
+        html.append("</html>\n");
+        return html.toString();
     }
 
     private String generateViewListTemplate(ModelInfo view) {
